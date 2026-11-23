@@ -73,4 +73,7 @@
     <string name="geni_open_failed">The tree could not be opened. Open it from the trees list.</string>
     <string name="geni_about_disclaimer">Treekin is an independent app. It is not made, endorsed or sponsored by Geni.com or MyHeritage. Geni is a trademark of its owner.</string>
     <string name="geni_privacy_policy">Privacy policy</string>
+    <string name="geni_privacy_policy_no_browser">No app found to open the privacy policy</string>
+    <string name="geni_terms">Terms of use</string>
+    <string name="geni_terms_no_browser">No app found to open the terms of use</string>
 </resources>

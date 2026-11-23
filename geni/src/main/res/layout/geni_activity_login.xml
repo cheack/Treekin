@@ -67,6 +67,24 @@
             android:visibility="gone" />
 
         <Button
+            android:id="@+id/geni_privacy_policy_link"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:focusable="true"
+            android:text="@string/geni_privacy_policy" />
+
+        <Button
+            android:id="@+id/geni_terms_link"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:focusable="true"
+            android:text="@string/geni_terms" />
+
+        <Button
             android:id="@+id/geni_create_tree_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
