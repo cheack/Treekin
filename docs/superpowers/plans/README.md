@@ -243,6 +243,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-23: Rotating the device during the Geni login return, tree creation or opening no longer loses the automatic open or makes a second tree or diagram; login state is kept in `GeniLoginViewModel` (PR [#19](https://github.com/cheack/Treekin/pull/19)).
 - 2026-11-20: About screen shows a "not affiliated with Geni/MyHeritage" disclaimer and a privacy policy link; new tree launcher icon; `docs/PRIVACY.md` added (PR [#18](https://github.com/cheack/Treekin/pull/18)).
 - 2026-11-20: Geni-first onboarding (PR [#17](https://github.com/cheack/Treekin/pull/17)): an empty trees list opens the Geni login; a fresh login creates and opens the account's tree; unsaved edits and the edit lock survive opening a tree after login; the import tool can upload photos and refuses Geni trees.
 - 2026-11-20: Horizontal person cards (PR [#16](https://github.com/cheack/Treekin/pull/16)): diagram cards are all the same size, photo on the left, a coloured sex stripe and tint, straight elbow connection lines instead of curves; the login button reads "Log in with Geni"; a branding audit is in the roadmap.
