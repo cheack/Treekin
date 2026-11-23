@@ -30,8 +30,6 @@ import org.folg.gedcom.model.Person
 /** Entry points called by one-line GENI-HOOK calls in upstream code; connects :geni with the app. */
 object GeniGlue {
 
-    private const val PRIVACY_POLICY_URL = "https://github.com/cheack/Treekin/blob/geni/docs/PRIVACY.md"
-
     private var resumed = false
 
     private var treesLoaded = false
@@ -107,9 +105,7 @@ object GeniGlue {
         }
         val policy = android.widget.TextView(activity, null, 0, app.familygem.R.style.AppTheme_Link).apply {
             setText(R.string.geni_privacy_policy)
-            setOnClickListener {
-                activity.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(PRIVACY_POLICY_URL)))
-            }
+            setOnClickListener { app.familygem.geni.ui.GeniPrivacyPolicy.open(activity) }
         }
         parent.addView(disclaimer)
         parent.addView(policy, android.widget.LinearLayout.LayoutParams(

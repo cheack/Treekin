@@ -82,6 +82,7 @@ class GeniLoginActivity : AppCompatActivity() {
                 if (on) Geni.resumeUploads?.invoke()
             }
         }
+        findViewById<android.view.View>(R.id.geni_privacy_policy_link).setOnClickListener { GeniPrivacyPolicy.open(this) }
         if (!Geni.isConfigured) {
             status.setText(R.string.geni_not_configured)
             return

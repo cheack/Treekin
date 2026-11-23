@@ -230,7 +230,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 - [x] Login button reads "Log in with Geni" (ru "Войти через Geni")
 - [ ] Disclaimer on the About screen: "not endorsed, operated, or sponsored by Geni.com" (after PR 15 lands: put a text view where the Premium advertisement was removed)
 - [ ] Geni logo next to the login form, linked to geni.com, at least 100x40 px, unaltered, less prominent than the app's own logo (decide first: the logo files are Geni's trademarked assets, licensed only for branding compliance; check that shipping them in a GPL-3.0 repo is acceptable)
-- [ ] Own privacy policy and user agreement, linked where users open the app (Terms XI.B) and before obtaining user data; link from login and About (policy `docs/PRIVACY.md` + About link done; user agreement and login link still open)
+- [ ] Own privacy policy and user agreement, linked where users open the app (Terms XI.B) and before obtaining user data; link from login and About (policy `docs/PRIVACY.md` linked from About and the Geni account screen; user agreement still open)
 - [x] Check that the launcher icon is "sufficiently different" from Geni's logo (new own tree icon)
 
 ### Deferred from the review of the cards branch
