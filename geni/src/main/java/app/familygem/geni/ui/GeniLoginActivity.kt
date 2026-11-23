@@ -209,23 +209,23 @@ class GeniLoginActivity : AppCompatActivity() {
      * so the replacement screen cannot open a second diagram. It then leaves, so Back goes to the trees list.
      */
     private suspend fun openAndClose(tree: LoginState.ReadyToOpen) {
-        try {
-            val opened = withContext(NonCancellable) {
-                try {
-                    Geni.host?.openTree(this@GeniLoginActivity, tree.treeId) == true
-                } catch (e: Exception) {
-                    false
-                }
+        // All of it is not cancellable: a result lost to a rotation or pause would let the next screen open a second diagram
+        val opened = withContext(NonCancellable) {
+            val ok = try {
+                Geni.host?.openTree(this@GeniLoginActivity, tree.treeId) == true
+            } catch (e: Exception) {
+                false
             }
-            if (opened) {
-                if (tree.created) Toast.makeText(applicationContext, R.string.geni_tree_created, Toast.LENGTH_LONG).show()
-                model.opened(tree.treeId)
-                finish()
-            } else model.openFailed(tree.treeId)
-        } catch (e: CancellationException) {
-            model.release(tree.treeId)
-            throw e
+            if (ok) {
+                val settled = model.opened(tree.treeId) // False after a logout or a newer login: this screen stays
+                if (settled && tree.created) Toast.makeText(applicationContext, R.string.geni_tree_created, Toast.LENGTH_LONG).show()
+                settled
+            } else {
+                model.openFailed(tree.treeId)
+                false
+            }
         }
+        if (opened) finish()
     }
 
     /** Uploads go on in background: while the screen is visible the counts are read again every few seconds. */

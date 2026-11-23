@@ -106,6 +106,18 @@ class GeniLoginViewModelTest {
     }
 
     @Test
+    fun openedAfterResetIsRejected() = runTest {
+        val vm = model(FakeFlow().apply { existing = { 7 } })
+        vm.completeLogin()
+        advanceUntilIdle()
+        assertTrue(vm.claim(7))
+        vm.reset() // Logout while the tree is being opened
+        assertFalse(vm.opened(7))
+        assertFalse(vm.openFailed(7))
+        assertEquals(LoginState.Idle, vm.state.value)
+    }
+
+    @Test
     fun openFailedDoesNotReadyAgain() = runTest {
         val vm = model(FakeFlow().apply { existing = { 7 } })
         vm.completeLogin()

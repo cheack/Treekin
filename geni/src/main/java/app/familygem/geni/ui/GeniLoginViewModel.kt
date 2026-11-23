@@ -112,10 +112,11 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
     }
 
     /** The tree is on screen: the claim is used up. */
-    fun opened(treeId: Int) = settle(treeId) { LoginState.Opened }
+    /** @return false if the claim no longer holds (logout or a newer login came meanwhile). */
+    fun opened(treeId: Int): Boolean = settle(treeId) { LoginState.Opened }
 
     /** The tree could not be read: no automatic retry. */
-    fun openFailed(treeId: Int) = settle(treeId) { LoginState.Failed(Kind.OPEN_FAILED, null, it, canCreate = false) }
+    fun openFailed(treeId: Int): Boolean = settle(treeId) { LoginState.Failed(Kind.OPEN_FAILED, null, it, canCreate = false) }
 
     /** Logout: whatever is running or waiting is dropped. */
     fun reset() {
@@ -126,9 +127,9 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
         _state.value = LoginState.Idle
     }
 
-    private fun settle(treeId: Int, next: (String) -> LoginState) {
+    private fun settle(treeId: Int, next: (String) -> LoginState): Boolean {
         val s = _state.value
-        if (s is LoginState.Opening && s.treeId == treeId) _state.compareAndSet(s, next(s.name))
+        return s is LoginState.Opening && s.treeId == treeId && _state.compareAndSet(s, next(s.name))
     }
 
     private fun canCreate(p: AccountProfile, existing: Int?) = flow.canCreateTrees && existing == null
