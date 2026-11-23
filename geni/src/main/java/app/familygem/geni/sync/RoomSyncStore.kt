@@ -49,7 +49,8 @@ data class UploadJobEntity(
     val localHash: Int,
     val state: String,
     val error: String?,
-    val version: Int
+    val version: Int,
+    val confirmedByProfileId: String?
 )
 
 @Entity(tableName = "photo_link", primaryKeys = ["treeId", "geniProfileId", "geniPhotoId"])
@@ -145,7 +146,7 @@ interface SyncDao {
     suspend fun deletePhotoLinks(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class], version = 4, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class], version = 5, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -182,8 +183,15 @@ abstract class SyncDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 5: the Geni account that confirmed a delete job; jobs from before stay null and need a new confirmation. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `job` ADD COLUMN `confirmedByProfileId` TEXT")
+            }
+        }
+
         /** Every migration, in order: the app and the tests open the database with this same list. */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }
 
@@ -270,13 +278,13 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     private fun UploadJob.toEntity() = UploadJobEntity(
         id, treeId, key, kind.name, geniId, personGedcomId, familyGedcomId,
         gson.toJson(anchors), gson.toJson(params.map { listOf(it.first, it.second) }),
-        label, localHash, state.name, error, version
+        label, localHash, state.name, error, version, confirmedByProfileId
     )
 
     private fun UploadJobEntity.toJob() = UploadJob(
         id, treeId, key, JobKind.valueOf(kind), geniId, personGedcomId, familyGedcomId,
         gson.fromJson<List<String>>(anchors, anchorsType),
         gson.fromJson<List<List<String>>>(params, paramsType).map { it[0] to it[1] },
-        label, localHash, JobState.valueOf(state), error, version
+        label, localHash, JobState.valueOf(state), error, version, confirmedByProfileId
     )
 }

@@ -553,8 +553,8 @@ class SyncQueueTest {
     @Test
     fun enqueueDeleteStoresOneJobPerProfileAndRunsIt() = runTest {
         linkBoth()
-        queue.enqueueDelete(1, "profile-2", "Anna User")
-        queue.enqueueDelete(1, "profile-2", "Anna User")
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
         val job = store.jobs(1).single()
         assertEquals("delete:profile-2", job.key)
         assertEquals(JobKind.DELETE_PROFILE, job.kind)
@@ -565,20 +565,75 @@ class SyncQueueTest {
     }
 
     @Test
+    fun enqueueDeleteStoresTheConfirmingAccountAndKeepsItOnRetry() = runTest {
+        linkBoth()
+        assertEquals(DeleteQueued.QUEUED, queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1"))
+        assertEquals("profile-1", store.jobs(1).single().confirmedByProfileId)
+        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "wrong account"))
+        queue.retryFailed(store.jobs(1).map { it.id }.toSet())
+        val retried = store.jobs(1).single()
+        assertEquals(JobState.PENDING, retried.state)
+        assertEquals("profile-1", retried.confirmedByProfileId)
+    }
+
+    @Test
+    fun anotherAccountDoesNotReplaceAnOutstandingConfirmation() = runTest {
+        linkBoth()
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
+        val failed = store.jobs(1).single().copy(state = JobState.FAILED, error = "wrong account")
+        store.saveJob(failed)
+        assertEquals(DeleteQueued.OTHER_ACCOUNT, queue.enqueueDelete(1, "profile-2", "Anna User", "profile-9"))
+        assertEquals(failed, store.jobs(1).single())
+        // Dismissing it is the user's choice to drop the old confirmation
+        store.saveJob(failed.copy(state = JobState.DISMISSED))
+        assertEquals(DeleteQueued.QUEUED, queue.enqueueDelete(1, "profile-2", "Anna User", "profile-9"))
+        assertEquals("profile-9", store.jobs(1).single().confirmedByProfileId)
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+    }
+
+    @Test
+    fun legacyDeleteGetsAnAccountOnlyFromAFreshConfirmation() = runTest {
+        linkBoth()
+        store.saveJob(UploadJob(treeId = 1, key = "delete:profile-2", kind = JobKind.DELETE_PROFILE, geniId = "profile-2",
+            params = emptyList(), label = "Anna User", localHash = 0, state = JobState.FAILED, error = "not confirmed"))
+        queue.retryFailed(store.jobs(1).map { it.id }.toSet())
+        assertNull(store.jobs(1).single().confirmedByProfileId) // A plain retry confirms nothing
+        assertEquals(DeleteQueued.QUEUED, queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1"))
+        val job = store.jobs(1).single()
+        assertEquals("profile-1", job.confirmedByProfileId)
+        assertEquals(JobState.PENDING, job.state)
+    }
+
+    @Test
+    fun accountMismatchFailsTheDeleteAndLaterJobsProceed() = runTest {
+        linkBoth()
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
+        store.saveJob(UploadJob(treeId = 1, key = "profile:profile-1", kind = JobKind.UPDATE_PROFILE, geniId = "profile-1",
+            params = listOf("occupation" to "Pilot"), label = "Ivan User", localHash = 1))
+        uploader.answer = { job -> if (job.kind == JobKind.DELETE_PROFILE) Outcome.Failed("not deleted: another Geni account") else Outcome.Done }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        val failed = store.jobs(1).single()
+        assertEquals("delete:profile-2", failed.key)
+        assertEquals(JobState.FAILED, failed.state)
+        assertEquals("profile-1", failed.confirmedByProfileId)
+        assertEquals(listOf("delete:profile-2", "profile:profile-1"), uploader.ran.map { it.key })
+    }
+
+    @Test
     fun enqueueDeleteDropsAWaitingUpdateOfTheSameProfile() = runTest {
         linkBoth()
         store.saveJob(UploadJob(treeId = 1, key = "profile:profile-2", kind = JobKind.UPDATE_PROFILE, geniId = "profile-2",
             params = listOf("occupation" to "Pilot"), label = "Anna User", localHash = 1))
-        queue.enqueueDelete(1, "profile-2", "Anna User")
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
         assertEquals(listOf("delete:profile-2"), store.jobs(1).map { it.key })
     }
 
     @Test
     fun enqueueDeleteAgainPutsAFailedDeleteBackInTheQueue() = runTest {
         linkBoth()
-        queue.enqueueDelete(1, "profile-2", "Anna User")
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
         store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "Access denied"))
-        queue.enqueueDelete(1, "profile-2", "Anna User")
+        queue.enqueueDelete(1, "profile-2", "Anna User", "profile-1")
         val job = store.jobs(1).single()
         assertEquals(JobState.PENDING, job.state)
         assertNull(job.error)

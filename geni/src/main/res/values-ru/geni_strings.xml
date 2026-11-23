@@ -51,6 +51,8 @@
     <string name="geni_delete_geni">Удалить на Geni</string>
     <string name="geni_delete_confirm">Профиль будет удалён на Geni для всех, кто делит это дерево: родственники и другие члены семьи его больше не увидят. Отменить это отсюда нельзя. С этого устройства он исчезнет, когда Geni его удалит.</string>
     <string name="geni_delete_queued">Удаление на Geni поставлено в очередь</string>
+    <string name="geni_delete_login_changed">Вход в Geni изменился. Откройте удаление снова, чтобы проверить аккаунт.</string>
+    <string name="geni_delete_other_account">Удаление этого человека, подтверждённое под другим аккаунтом Geni, ещё ожидает. Войдите в тот аккаунт или сначала отклоните неудавшееся изменение.</string>
     <string name="geni_photo_delete_local">Фото останется на Geni, его можно снова скачать из альбома.</string>
     <string name="geni_photo_delete_confirm">Это фото будет удалено на Geni для всех. Отменить это нельзя.</string>
     <string name="geni_photo_main">Это главное фото с Geni. Чтобы убрать его, удалите его на Geni.</string>

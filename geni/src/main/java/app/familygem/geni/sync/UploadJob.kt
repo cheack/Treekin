@@ -16,6 +16,7 @@ enum class JobState {
  * @param params Form parameters for Geni
  * @param label What the user sees in the list of failed changes
  * @param localHash Hash of the local projection the job was planned from
+ * @param confirmedByProfileId For deletes: the Geni account (its profile ID) that confirmed it; null for jobs from before this was recorded
  * @param version Increased on every change of the job, so a finished upload does not delete a newer version
  */
 data class UploadJob(
@@ -32,5 +33,6 @@ data class UploadJob(
     val localHash: Int,
     val state: JobState = JobState.PENDING,
     val error: String? = null,
-    val version: Int = 0
+    val version: Int = 0,
+    val confirmedByProfileId: String? = null
 )

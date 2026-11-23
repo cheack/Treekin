@@ -508,13 +508,17 @@ class UploaderTest {
             addPerson(Person().also { it.id = "I7"; GeniMapper.setGeniId(it, "profile-7") })
             addPerson(Person().also { it.id = "I8"; GeniMapper.setGeniId(it, "profile-8") })
         }
+        server.enqueue(ok("""{"id":"profile-1"}"""))
         server.enqueue(ok("""{"result":"Deleted"}"""))
-        val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
-            params = emptyList(), label = "Ivan", localHash = 0)
-        assertEquals(Outcome.Done, uploader().run(job))
+        assertEquals(Outcome.Done, uploader().run(deleteJob()))
+        val identity = server.takeRequest()
         val request = server.takeRequest()
+        assertEquals("/api/profile", identity.url.encodedPath)
         assertEquals("POST", request.method)
         assertEquals("/api/profile-7/delete", request.url.encodedPath)
+        // The account was read and the delete sent with the same bearer
+        assertEquals("Bearer abc", identity.headers["Authorization"])
+        assertEquals("Bearer abc", request.headers["Authorization"])
         assertNull(store.link(1, "profile-7"))
         assertEquals(listOf("I8"), host.trees.getValue(1).people.map { it.id }) // The person leaves the tree only now
     }
@@ -523,10 +527,9 @@ class UploaderTest {
     fun deleteJobRefusedByGeniFailsAndKeepsTheLink() = runTest {
         store.saveLinks(listOf(link("profile-7", "I7")))
         host.trees[1] = Gedcom().apply { addPerson(Person().also { it.id = "I7"; GeniMapper.setGeniId(it, "profile-7") }) }
+        server.enqueue(ok("""{"id":"profile-1"}"""))
         server.enqueue(error(403, """{"error":{"message":"Access denied"}}"""))
-        val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
-            params = emptyList(), label = "Ivan", localHash = 0)
-        assertTrue(uploader().run(job) is Outcome.Failed)
+        assertTrue(uploader().run(deleteJob()) is Outcome.Failed)
         assertTrue(store.link(1, "profile-7") != null)
         assertEquals(1, host.trees.getValue(1).people.size)
     }
@@ -534,9 +537,96 @@ class UploaderTest {
     @Test
     fun deleteJobIsRetriedWhenOffline() = runTest {
         server.close()
-        val job = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE, geniId = "profile-7",
-            params = emptyList(), label = "Ivan", localHash = 0)
-        assertTrue(uploader().run(job) is Outcome.Retry)
+        assertTrue(uploader().run(deleteJob()) is Outcome.Retry)
+    }
+
+    private fun deleteJob(confirmedBy: String? = "profile-1") = UploadJob(treeId = 1, key = "delete:profile-7", kind = JobKind.DELETE_PROFILE,
+        geniId = "profile-7", params = emptyList(), label = "Ivan", localHash = 0, confirmedByProfileId = confirmedBy)
+
+    private suspend fun linkedPerson() {
+        store.saveLinks(listOf(link("profile-7", "I7")))
+        host.trees[1] = Gedcom().apply { addPerson(Person().also { it.id = "I7"; GeniMapper.setGeniId(it, "profile-7") }) }
+    }
+
+    private fun assertUntouched() {
+        assertEquals(1, host.trees.getValue(1).people.size)
+        assertTrue(runBlockingLink("profile-7") != null)
+    }
+
+    private fun runBlockingLink(geniId: String) = kotlinx.coroutines.runBlocking { store.link(1, geniId) }
+
+    private fun deleteRequests() = generateSequence { server.takeRequest(0, java.util.concurrent.TimeUnit.MILLISECONDS) }
+        .count { it.url.encodedPath == "/api/profile-7/delete" }
+
+    @Test
+    fun deleteUnderAnotherAccountFailsWithoutAPost() = runTest {
+        linkedPerson()
+        server.enqueue(ok("""{"id":"profile-9"}"""))
+        val outcome = uploader().run(deleteJob())
+        assertTrue(outcome is Outcome.Failed)
+        assertTrue((outcome as Outcome.Failed).message.contains("sign in"))
+        assertEquals(1, server.requestCount) // Only the identity lookup
+        assertEquals(0, deleteRequests())
+        assertUntouched()
+    }
+
+    @Test
+    fun deleteWithoutAConfirmingAccountSendsNothing() = runTest {
+        linkedPerson()
+        val outcome = uploader().run(deleteJob(confirmedBy = null))
+        assertTrue(outcome is Outcome.Failed)
+        assertEquals(0, server.requestCount)
+        assertUntouched()
+    }
+
+    @Test
+    fun loginSwitchBeforeTheDeletePostSendsNothing() = runTest {
+        linkedPerson()
+        server.dispatcher = object : mockwebserver3.Dispatcher() {
+            override fun dispatch(request: mockwebserver3.RecordedRequest): MockResponse {
+                // Account A answers the identity request, then the user signs in as B before the POST is dispatched
+                if (request.url.encodedPath == "/api/profile") tokens.save(AuthResult.Success("other", Long.MAX_VALUE))
+                return ok("""{"id":"profile-1"}""")
+            }
+        }
+        assertTrue(uploader().run(deleteJob()) is Outcome.Retry)
+        assertEquals(1, server.requestCount)
+        assertEquals("other", tokens.get()?.token)
+        assertUntouched()
+    }
+
+    @Test
+    fun renewedTokenOfTheSameAccountPassesTheCheck() = runTest {
+        linkedPerson()
+        tokens.save(AuthResult.Success("renewed", Long.MAX_VALUE))
+        server.enqueue(ok("""{"id":"profile-1"}"""))
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        assertEquals(Outcome.Done, uploader().run(deleteJob()))
+        server.takeRequest()
+        assertEquals("Bearer renewed", server.takeRequest().headers["Authorization"])
+    }
+
+    @Test
+    fun lateUnauthorizedOfAnOldLoginDoesNotClearANewerLogin() = runTest {
+        linkedPerson()
+        server.dispatcher = object : mockwebserver3.Dispatcher() {
+            override fun dispatch(request: mockwebserver3.RecordedRequest): MockResponse {
+                tokens.save(AuthResult.Success("newer", Long.MAX_VALUE)) // A new login lands while this request is in flight
+                return error(401)
+            }
+        }
+        assertEquals(Outcome.NeedsLogin, uploader().run(deleteJob()))
+        assertEquals("newer", tokens.get()?.token)
+        assertUntouched()
+    }
+
+    @Test
+    fun deleteWithoutLoginWaitsForLogin() = runTest {
+        linkedPerson()
+        tokens.clear()
+        assertEquals(Outcome.NeedsLogin, uploader().run(deleteJob()))
+        assertEquals(0, server.requestCount)
+        assertUntouched()
     }
 
     private fun deletePhotoJob() = UploadJob(treeId = 1, key = "delphoto:photo-5", kind = JobKind.DELETE_PHOTO, geniId = "photo-5",

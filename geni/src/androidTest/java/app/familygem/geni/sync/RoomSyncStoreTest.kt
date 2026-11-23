@@ -106,6 +106,46 @@ class RoomSyncStoreTest {
     }
 
     @Test
+    fun confirmingAccountOfADeleteRoundTrips() = runTest {
+        val delete = job("delete:profile-2").copy(kind = JobKind.DELETE_PROFILE, geniId = "profile-2", confirmedByProfileId = "profile-1")
+        val id = store.saveJob(delete)
+        assertEquals(delete.copy(id = id), store.jobs(1).single())
+        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "wrong account", version = 1))
+        assertEquals("profile-1", store.jobs(1).single().confirmedByProfileId)
+    }
+
+    @Test
+    fun migratesFromVersion4KeepingJobsWithoutAnAccount() = runTest {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val name = "geni_sync_migration_4_test.db"
+        context.deleteDatabase(name)
+        SQLiteDatabase.openOrCreateDatabase(context.getDatabasePath(name), null).use { v4 ->
+            v4.execSQL("CREATE TABLE IF NOT EXISTS `job` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `treeId` INTEGER NOT NULL, " +
+                    "`key` TEXT NOT NULL, `kind` TEXT NOT NULL, `geniId` TEXT, `personGedcomId` TEXT, `familyGedcomId` TEXT, " +
+                    "`anchors` TEXT NOT NULL, `params` TEXT NOT NULL, `label` TEXT NOT NULL, `localHash` INTEGER NOT NULL, " +
+                    "`state` TEXT NOT NULL, `error` TEXT, `version` INTEGER NOT NULL)")
+            v4.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_job_treeId_key` ON `job` (`treeId`, `key`)")
+            v4.execSQL("CREATE TABLE IF NOT EXISTS `tree` (`treeId` INTEGER NOT NULL, `rootGeniId` TEXT NOT NULL, `prefetchDepth` INTEGER NOT NULL, PRIMARY KEY(`treeId`))")
+            v4.execSQL("CREATE TABLE IF NOT EXISTS `link` (`treeId` INTEGER NOT NULL, `geniId` TEXT NOT NULL, `gedcomId` TEXT NOT NULL, `fullyLoaded` INTEGER NOT NULL, `geniUpdatedAt` TEXT, `snapshot` TEXT, `loadedAtMillis` INTEGER NOT NULL, `verifiedHash` INTEGER, `orphaned` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`treeId`, `geniId`))")
+            v4.execSQL("CREATE TABLE IF NOT EXISTS `photo_link` (`treeId` INTEGER NOT NULL, `geniProfileId` TEXT NOT NULL, `geniPhotoId` TEXT NOT NULL, `gedcomMediaId` TEXT, `isMain` INTEGER NOT NULL, `marker` TEXT, `fileName` TEXT, `state` TEXT NOT NULL, PRIMARY KEY(`treeId`, `geniProfileId`, `geniPhotoId`))")
+            v4.execSQL("INSERT INTO job VALUES (1, 1, 'delete:profile-2', 'DELETE_PROFILE', 'profile-2', NULL, NULL, '[]', '[]', 'Anna', 0, 'PENDING', NULL, 0)")
+            v4.execSQL("INSERT INTO job VALUES (2, 1, 'profile:profile-1', 'UPDATE_PROFILE', 'profile-1', NULL, NULL, '[]', '[[\"occupation\",\"Pilot\"]]', 'Ivan', 5, 'PENDING', NULL, 0)")
+            v4.version = 4
+        }
+        val migrated = Room.databaseBuilder(context, SyncDatabase::class.java, name).addMigrations(*SyncDatabase.MIGRATIONS).build()
+        try {
+            val jobs = RoomSyncStore(migrated.dao()).jobs(1)
+            assertEquals(listOf("delete:profile-2", "profile:profile-1"), jobs.map { it.key })
+            assertEquals(listOf(null, null), jobs.map { it.confirmedByProfileId }) // Older deletes need a fresh confirmation
+            assertEquals(listOf("occupation" to "Pilot"), jobs[1].params)
+            assertEquals(JobState.PENDING, jobs[0].state)
+        } finally {
+            migrated.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
     fun conflictJobRoundTrips() = runTest {
         val id = store.saveJob(job("profile:profile-1", JobState.CONFLICT).copy(error = "changed on Geni meanwhile: occupation"))
         val saved = store.jobs(1).single()

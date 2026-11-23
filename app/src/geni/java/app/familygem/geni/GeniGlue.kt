@@ -12,6 +12,8 @@ import app.familygem.Global
 import android.content.Context
 import app.familygem.U
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.api.DeleteAuthorization
+import app.familygem.geni.sync.DeleteQueued
 import app.familygem.geni.sync.DeleteDecision
 import app.familygem.geni.sync.DeleteRules
 import app.familygem.geni.sync.PersonRemoval
@@ -173,14 +175,16 @@ object GeniGlue {
                     .setPositiveButton(android.R.string.ok, null).show()
                 DeleteDecision.Dialog -> {
                     // Managed profiles are listed by guid; offline or on an error the Geni choice is simply not offered
-                    val managed = try {
-                        DeleteRules.isManaged(store.link(treeId, geniId)?.snapshot, Geni.client(context).managedGuids())
+                    // The account and its managed profiles come from one login; the confirmation is bound to that account
+                    val authorization = try {
+                        Geni.client(context).deleteAuthorization()
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         Log.w("GeniSync", "Managed profiles not read", e)
                         null
                     }
+                    val managed = authorization?.let { DeleteRules.isManaged(store.link(treeId, geniId)?.snapshot, it.managedGuids) }
                     val dialog = AlertDialog.Builder(context).setTitle(name)
                         .setMessage(context.getString(R.string.geni_delete_message) + when (managed) {
                             true -> ""
@@ -201,7 +205,8 @@ object GeniGlue {
                             }
                         }
                         .setNegativeButton(android.R.string.cancel, null)
-                    if (managed == true) dialog.setNeutralButton(R.string.geni_delete_geni) { _, _ -> confirmDeleteOnGeni(context, treeId, geniId, name) }
+                    if (managed == true && authorization != null)
+                        dialog.setNeutralButton(R.string.geni_delete_geni) { _, _ -> confirmDeleteOnGeni(context, treeId, geniId, name, authorization) }
                     dialog.show()
                 }
             }
@@ -294,23 +299,24 @@ object GeniGlue {
             .setNegativeButton(android.R.string.cancel, null).show()
     }
 
-    private fun confirmDeleteOnGeni(context: Context, treeId: Int, geniId: String, name: String) {
+    private fun confirmDeleteOnGeni(context: Context, treeId: Int, geniId: String, name: String, authorization: DeleteAuthorization) {
         AlertDialog.Builder(context).setTitle(name).setMessage(R.string.geni_delete_confirm)
             .setPositiveButton(R.string.geni_delete_geni) { _, _ ->
                 scope.launch {
-                    val queued = try {
-                        Geni.queue(context).enqueueDelete(treeId, geniId, name)
-                        true
+                    // Another login while the dialog was open: ownership must be checked again for that account
+                    val result = if (!Geni.client(context).isCurrent(authorization)) R.string.geni_delete_login_changed else try {
+                        when (Geni.queue(context).enqueueDelete(treeId, geniId, name, authorization.accountId)) {
+                            DeleteQueued.QUEUED -> R.string.geni_delete_queued
+                            DeleteQueued.OTHER_ACCOUNT -> R.string.geni_delete_other_account
+                        }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
                         Log.e("GeniSync", "Queueing the delete of $geniId failed", e)
-                        false
+                        R.string.geni_delete_failed
                     }
-                    if (queued) GeniSync.kick(context, treeId)
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, if (queued) R.string.geni_delete_queued else R.string.geni_delete_failed, Toast.LENGTH_LONG).show()
-                    }
+                    if (result == R.string.geni_delete_queued) GeniSync.kick(context, treeId)
+                    withContext(Dispatchers.Main) { Toast.makeText(context, result, Toast.LENGTH_LONG).show() }
                 }
             }
             .setNegativeButton(android.R.string.cancel, null).show()

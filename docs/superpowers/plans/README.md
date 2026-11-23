@@ -138,7 +138,7 @@ Plan: [2026-11-18-geni-5-upstream-ui.md](2026-11-18-geni-5-upstream-ui.md)
 - [ ] "Remove from this device" and the not-managed / offline dialogs are covered by unit tests only, not checked on the phone
 - [ ] An edit of a profile made after "Delete on Geni" was queued is not dropped from the queue (only an update already waiting is)
 - [ ] `GeniGlue` reads the Geni tree IDs with a blocking Room read on the first hook (main thread), and a failed read leaves hooks treating Geni trees as local until the next hook; use an explicit unknown state
-- [ ] A delete queued under one Geni account can be sent under another after a login change: record the confirming account on the job
+- [x] A delete queued under one Geni account can be sent under another after a login change: record the confirming account on the job
 - [ ] A family refresh started before a delete can restore the profile after the local cleanup: keep a record of confirmed deletions for the loader
 - [ ] Local removal after Geni confirmed a delete is best effort: a failure leaves the person on the device with the link dropped; persist a cleanup-only phase
 - [ ] With Auto Save off, "Remove from this device" drops links and jobs before the tree is saved; revert brings the person back unlinked
@@ -243,6 +243,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-23: The Geni account screen has a Privacy policy link under Log in with Geni, also shown signed in and in unconfigured builds; a toast appears when no browser can open it; the policy opens through one shared `GeniPrivacyPolicy` (PR [#20](https://github.com/cheack/Treekin/pull/20)).
 - 2026-11-23: Rotating the device during the Geni login return, tree creation or opening no longer loses the automatic open or makes a second tree or diagram; login state is kept in `GeniLoginViewModel` (PR [#19](https://github.com/cheack/Treekin/pull/19)).
 - 2026-11-20: About screen shows a "not affiliated with Geni/MyHeritage" disclaimer and a privacy policy link; new tree launcher icon; `docs/PRIVACY.md` added (PR [#18](https://github.com/cheack/Treekin/pull/18)).
 - 2026-11-20: Geni-first onboarding (PR [#17](https://github.com/cheack/Treekin/pull/17)): an empty trees list opens the Geni login; a fresh login creates and opens the account's tree; unsaved edits and the edit lock survive opening a tree after login; the import tool can upload photos and refuses Geni trees.
