@@ -2,6 +2,7 @@ package app.familygem.geni.api
 
 import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.InMemoryTokenStore
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
@@ -265,5 +266,70 @@ class GeniClientTest {
         server.enqueue(ok(photoJson("7")))
         assertEquals("photo-7", client().photo("photo-7").id)
         assertEquals("/api/photo-7", server.takeRequest().url.encodedPath)
+    }
+
+    @Test
+    fun deleteAuthorizationReadsAccountAndManagedGuidsWithOneLogin() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(profileJson))
+        server.enqueue(ok("""{"results":[{"guid":"11"}]}"""))
+        server.enqueue(ok("""{"results":[]}"""))
+        val client = client()
+        val authorization = client.deleteAuthorization()
+        assertEquals("profile-1", authorization.accountId)
+        assertEquals(setOf("11"), authorization.managedGuids)
+        assertEquals(listOf("Bearer abc"), List(3) { server.takeRequest().headers["Authorization"] }.distinct())
+        assertTrue(client.isCurrent(authorization))
+        tokens.save(AuthResult.Success("other", 10_000L))
+        assertTrue(!client.isCurrent(authorization))
+    }
+
+    @Test
+    fun deleteProfileChecksTheAccountThenPostsWithTheSameBearer() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(profileJson))
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        client().deleteProfile("profile-7", "profile-1")
+        assertEquals("/api/profile", server.takeRequest().url.encodedPath)
+        val post = server.takeRequest()
+        assertEquals("/api/profile-7/delete", post.url.encodedPath)
+        assertEquals("Bearer abc", post.headers["Authorization"])
+    }
+
+    @Test
+    fun deleteProfileUnderAnotherAccountSendsNoPost() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(profileJson))
+        val error = runCatching { client().deleteProfile("profile-7", "profile-2") }.exceptionOrNull()
+        assertTrue(error is GeniAccountMismatchException)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun deleteProfileWithoutConfirmationSendsNothing() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        val error = runCatching { client().deleteProfile("profile-7", null) }.exceptionOrNull()
+        assertTrue(error is GeniNotConfirmedException)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun deleteProfileStopsBeforeTheReplayWhenTheLoginChanged() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(profileJson))
+        server.enqueue(MockResponse.Builder().code(429).addHeader("X-API-Rate-Window", "10").build())
+        server.dispatcher.let { } // Default queue dispatcher
+        val client = client()
+        val error = runCatching {
+            // The login changes once the 429 has been answered, before the rate-limit replay
+            kotlinx.coroutines.coroutineScope {
+                val call = async { client.deleteProfile("profile-7", "profile-1") }
+                while (server.requestCount < 2) kotlinx.coroutines.yield()
+                tokens.save(AuthResult.Success("other", 10_000L))
+                call.await()
+            }
+        }.exceptionOrNull()
+        assertTrue(error is GeniSessionChangedException)
+        assertEquals(2, server.requestCount)
     }
 }

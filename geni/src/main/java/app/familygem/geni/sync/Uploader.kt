@@ -1,7 +1,10 @@
 package app.familygem.geni.sync
 
 import app.familygem.geni.TreeHost
+import app.familygem.geni.api.GeniAccountMismatchException
 import app.familygem.geni.api.GeniApiException
+import app.familygem.geni.api.GeniNotConfirmedException
+import app.familygem.geni.api.GeniSessionChangedException
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.GeniPhoto
@@ -42,6 +45,10 @@ private val gson = Gson()
 const val GONE = "GONE"
 
 private class SnapshotConflict : Exception("the snapshot kept changing during the refresh")
+
+private const val WRONG_ACCOUNT = "not deleted: it was confirmed under another Geni account; sign in to that account, then retry"
+
+private const val NOT_CONFIRMED = "not deleted: it was queued before the account was recorded; choose Delete on Geni for this person again"
 
 private const val CHECK_PHOTO = "check on Geni whether the photo was added, then retry or dismiss"
 
@@ -115,7 +122,16 @@ open class Uploader(
     /** Deletes the profile on Geni; only after Geni answered does the person leave the tree. */
     private suspend fun delete(job: UploadJob): Outcome {
         val geniId = job.geniId ?: return Outcome.Failed("no Geni ID")
-        client.post("$geniId/delete", emptyList())
+        // Only under the account that confirmed it; a mismatch or an unconfirmed job leaves the person and the link alone
+        try {
+            client.deleteProfile(geniId, job.confirmedByProfileId)
+        } catch (e: GeniAccountMismatchException) {
+            return Outcome.Failed(WRONG_ACCOUNT)
+        } catch (e: GeniNotConfirmedException) {
+            return Outcome.Failed(NOT_CONFIRMED)
+        } catch (e: GeniSessionChangedException) {
+            return Outcome.Retry("the Geni login changed; the account is checked again")
+        }
         // Geni has deleted it: a failure here must not make the job post the delete again
         bestEffort { PersonRemoval(store, host).removeFromTree(job.treeId, geniId) }
         bestEffort { store.deleteLink(job.treeId, geniId) }

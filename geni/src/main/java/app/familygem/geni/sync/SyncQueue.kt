@@ -13,6 +13,13 @@ enum class RunResult {
     NEEDS_LOGIN
 }
 
+/** Result of asking to delete a profile on Geni. */
+enum class DeleteQueued {
+    QUEUED,
+    /** A delete of this profile confirmed by another Geni account is still queued or failed: it is not replaced. */
+    OTHER_ACCOUNT
+}
+
 /** Message of an add that was being sent when the app stopped: Geni may or may not have created the profile (or photo). */
 private const val INTERRUPTED_ADD = "the app stopped while adding; check on Geni whether it was created, then retry or dismiss"
 
@@ -74,16 +81,24 @@ class SyncQueue(
         synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
     }
 
-    /** Queues the deletion of a profile on Geni (once per profile); [label] is what the user sees if it fails. */
-    suspend fun enqueueDelete(treeId: Int, geniId: String, label: String) = lock(treeId).withLock {
+    /**
+     * Queues the deletion of a profile on Geni (once per profile), bound to [confirmedBy], the Geni account (profile ID)
+     * that confirmed it; [label] is what the user sees if it fails. The same account asking again is idempotent and puts a
+     * failed or dismissed delete back. A job without an account (older) takes this confirmation. A job confirmed by
+     * another account is kept as it is, unless the user dismissed it: [DeleteQueued.OTHER_ACCOUNT] then.
+     */
+    suspend fun enqueueDelete(treeId: Int, geniId: String, label: String, confirmedBy: String): DeleteQueued = lock(treeId).withLock {
         val key = "delete:$geniId"
         val existing = store.jobs(treeId).firstOrNull { it.key == key }
-        // A failed or dismissed delete is asked for again: the user chose it once more
         if (existing != null) {
-            if (existing.state != JobState.PENDING && existing.state != JobState.SENDING)
-                store.saveJob(existing.copy(state = JobState.PENDING, error = null, version = existing.version + 1))
+            val bound = existing.confirmedByProfileId
+            if (bound != null && bound != confirmedBy && existing.state != JobState.DISMISSED) return@withLock DeleteQueued.OTHER_ACCOUNT
+            val rebind = bound != confirmedBy
+            // A failed or dismissed delete is asked for again: the user chose it once more
+            if (rebind || (existing.state != JobState.PENDING && existing.state != JobState.SENDING))
+                store.saveJob(existing.copy(state = JobState.PENDING, error = null, version = existing.version + 1, confirmedByProfileId = confirmedBy))
         } else store.saveJob(UploadJob(treeId = treeId, key = key, kind = JobKind.DELETE_PROFILE,
-            geniId = geniId, params = emptyList(), label = label, localHash = 0))
+            geniId = geniId, params = emptyList(), label = label, localHash = 0, confirmedByProfileId = confirmedBy))
         // Stored first, so a failure leaves the edit queued. An edit still waiting would fail once Geni has deleted the profile
         // The delete is stored: a failure here must not report the request as failed
         try {
@@ -93,6 +108,7 @@ class SyncQueue(
         } catch (e: Exception) {
             // The update would fail on Geni after the delete and show in the failed list
         }
+        DeleteQueued.QUEUED
     }
 
     /** Queues the deletion of a photo on Geni (once per photo); a failed or dismissed one is asked for again. */

@@ -1,5 +1,6 @@
 package app.familygem.geni.api
 
+import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.TokenStore
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -18,6 +19,21 @@ private const val PHOTO_READ_TIMEOUT_SECONDS = 60L
 
 /** The user must log in to Geni (again). */
 class GeniAuthRequiredException : Exception("Geni login required")
+
+/** The signed-in Geni account is not the one that confirmed the request: nothing was sent. */
+class GeniAccountMismatchException : Exception("signed in to another Geni account")
+
+/** The request has no recorded confirming account (an older job): it needs a fresh confirmation, nothing was sent. */
+class GeniNotConfirmedException : Exception("the request was not confirmed by a Geni account")
+
+/** The login changed while a request was prepared: nothing was sent, the next attempt verifies the account again. */
+class GeniSessionChangedException : Exception("the Geni login changed")
+
+/**
+ * What the user may do with Geni profiles, read under one login: the signed-in profile and the guids it manages.
+ * [accountId] is the signed-in user's own profile ID, the same after every login of that account.
+ */
+class DeleteAuthorization internal constructor(val accountId: String, val managedGuids: Set<String>, internal val session: AuthResult.Success)
 
 /** Geni answered with an error. */
 class GeniApiException(val code: Int, message: String) : Exception(message)
@@ -47,17 +63,39 @@ class GeniClient(
     private val gson = Gson()
 
     /** Profile of the logged-in user. */
-    suspend fun currentProfile(): GeniProfile = gson.fromJson(getJson("profile"), GeniProfile::class.java)
+    suspend fun currentProfile(): GeniProfile = profileOf(null)
+
+    private suspend fun profileOf(session: AuthResult.Success?): GeniProfile =
+        gson.fromJson(execute(Request.Builder().url(apiUrl("profile")), session = session), GeniProfile::class.java)
+
+    /** The valid login now; the requests of one decision use it alone, so they cannot slip to another account. */
+    private fun session(): AuthResult.Success = tokens.get()?.takeIf { it.expiresAtMillis > now() } ?: throw GeniAuthRequiredException()
+
+    /**
+     * The signed-in account and its managed guids, both read with the same login, for the "Delete on Geni" confirmation.
+     * Pass it to [isCurrent] when the user confirms, and queue the delete with its [DeleteAuthorization.accountId].
+     */
+    suspend fun deleteAuthorization(): DeleteAuthorization {
+        val session = session()
+        return DeleteAuthorization(profileOf(session).id, managedGuids(session), session)
+    }
+
+    /** True while the login that produced [authorization] is still the stored one. */
+    fun isCurrent(authorization: DeleteAuthorization): Boolean = isCurrent(authorization.session)
+
+    private fun isCurrent(session: AuthResult.Success): Boolean = tokens.get() == session && session.expiresAtMillis > now()
 
     /**
      * Guids of the profiles the user manages (and so may delete). Geni lists them by numeric guid, the same as
      * the `guid` field of a profile, not by `profile-N` ID. Pages are read until one is empty.
      */
-    suspend fun managedGuids(): Set<String> {
+    suspend fun managedGuids(): Set<String> = managedGuids(null)
+
+    private suspend fun managedGuids(session: AuthResult.Success?): Set<String> {
         val guids = mutableSetOf<String>()
         var page = 1
         while (true) {
-            val results = JsonParser.parseString(getJson("user/managed-profiles?fields=guid&page=$page")).asJsonObject
+            val results = JsonParser.parseString(execute(Request.Builder().url(apiUrl("user/managed-profiles?fields=guid&page=$page")), session = session)).asJsonObject
                 .getAsJsonArray("results")
             if (results == null || results.size() == 0) return guids
             // A page that adds nothing new means the server ignores `page`: stop instead of looping
@@ -123,6 +161,20 @@ class GeniClient(
         post("$photoId/delete", emptyList())
     }
 
+    /**
+     * Deletes a profile on Geni, only under the account that confirmed it ([confirmedBy], a profile ID; null for none).
+     * The account is read and the POST sent with one captured login, rechecked right before every dispatch:
+     * another login in between sends nothing. Throws [GeniNotConfirmedException], [GeniAccountMismatchException]
+     * or [GeniSessionChangedException] before anything is sent.
+     */
+    suspend fun deleteProfile(profileId: String, confirmedBy: String?): String {
+        if (confirmedBy == null) throw GeniNotConfirmedException()
+        val session = session()
+        if (profileOf(session).id != confirmedBy) throw GeniAccountMismatchException()
+        val form = FormBody.Builder().build()
+        return execute(Request.Builder().url(apiUrl("$profileId/delete")).post(form), session = session)
+    }
+
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
     suspend fun getJson(path: String): String = execute(Request.Builder().url(apiUrl(path)))
 
@@ -147,13 +199,15 @@ class GeniClient(
         return execute(Request.Builder().url(apiUrl(path)).post(form), readTimeoutSeconds)
     }
 
-    /** Sends the request with the token; 401 clears the token, 429 is retried once after the rate window. */
-    private suspend fun execute(builder: Request.Builder, readTimeoutSeconds: Long? = null): String {
-        val token = tokens.get()?.takeIf { it.expiresAtMillis > now() } ?: throw GeniAuthRequiredException()
+    /** Sends the request with the token (a pinned [session] only while it is current); 401 clears that token, 429 is retried once after the rate window. */
+    private suspend fun execute(builder: Request.Builder, readTimeoutSeconds: Long? = null, session: AuthResult.Success? = null): String {
+        val token = session ?: session()
         val request = builder.header("Authorization", "Bearer ${token.token}").build()
         var retried = false
         while (true) {
             limiter.acquire()
+            // The limiter may have waited: a pinned request goes out only while its login is still the stored one
+            if (session != null && !isCurrent(session)) throw GeniSessionChangedException()
             val (code, body) = withContext(Dispatchers.IO) {
                 (if (readTimeoutSeconds == null) http else http.newBuilder().readTimeout(readTimeoutSeconds, TimeUnit.SECONDS).build())
                     .newCall(request).execute().use { response ->
@@ -164,7 +218,8 @@ class GeniClient(
             when {
                 code in 200..299 -> return body
                 code == 401 -> {
-                    tokens.clear()
+                    // A late 401 for an old login must not log out a newer one
+                    if (tokens.get() == token) tokens.clear()
                     throw GeniAuthRequiredException()
                 }
                 code == 429 && !retried -> {
