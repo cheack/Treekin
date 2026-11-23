@@ -78,7 +78,7 @@ object GeniSync {
                     running -= treeId
                     again.remove(treeId)
                 }
-                if (rerun && result == RunResult.EMPTY) kick(app, treeId)
+                if (rerun && result != RunResult.RETRY_LATER) kick(app, treeId)
             }
             when (result) {
                 RunResult.EMPTY -> synchronized(delays) { delays.remove(treeId) }
