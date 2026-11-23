@@ -163,6 +163,23 @@ class GeniLoginViewModelTest {
     }
 
     @Test
+    fun loginCancelledWhileWaitingForCreationDoesNotCreate() = runTest {
+        val flow = FakeFlow()
+        val gate = CompletableDeferred<Int>()
+        flow.create = { gate.await() }
+        val vm = model(flow)
+        vm.completeLogin()
+        runCurrent()
+        vm.completeLogin() // Waits for the first creation
+        runCurrent()
+        vm.reset() // Logout: the waiting one is cancelled and must not create a tree afterwards
+        gate.complete(7)
+        advanceUntilIdle()
+        assertEquals(1, flow.createCalls)
+        assertEquals(LoginState.Idle, vm.state.value)
+    }
+
+    @Test
     fun createFailureThenRetryReusesRegisteredTree() = runTest {
         val flow = FakeFlow()
         flow.create = { throw IOException("offline") }

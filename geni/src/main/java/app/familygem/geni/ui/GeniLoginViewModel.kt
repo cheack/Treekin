@@ -153,11 +153,11 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
 
     private suspend fun create(mine: Int, p: AccountProfile) {
         publish(mine, LoginState.Creating(p.name))
-        // Not cancelled by leaving the screen: a half-made tree would be left behind.
-        // One creation at a time, and the tree is looked up again inside the lock: a newer login
-        // must reuse the tree an older, still writing creation is about to register.
-        val (treeId, created) = withContext(NonCancellable) {
-            createLock.withLock { flow.existingTree(p.id)?.let { it to false } ?: (flow.createTree() to true) }
+        // One creation at a time. Waiting for the lock can be cancelled (logout, newer login), so a dropped login never creates.
+        // Once the lock is held the work is not cancellable: leaving the screen must not leave a half-made tree.
+        // The tree is looked up again inside the lock: a newer login must reuse the tree an older, still writing creation registers.
+        val (treeId, created) = createLock.withLock {
+            withContext(NonCancellable) { flow.existingTree(p.id)?.let { it to false } ?: (flow.createTree() to true) }
         }
         publish(mine, LoginState.ReadyToOpen(p.name, treeId, created))
     }
