@@ -17,11 +17,13 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.appcompat.widget.Toolbar
 import androidx.core.net.toUri
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import app.familygem.geni.Geni
 import app.familygem.geni.GeniSettings
 import app.familygem.geni.R
-import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.EncryptedTokenStore
 import app.familygem.geni.auth.OAuth
@@ -35,6 +37,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
@@ -51,6 +54,7 @@ class GeniLoginActivity : AppCompatActivity() {
     private lateinit var failedButton: Button
     private lateinit var conflictsButton: Button
     private lateinit var tokens: TokenStore
+    private lateinit var model: GeniLoginViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,17 +87,26 @@ class GeniLoginActivity : AppCompatActivity() {
             return
         }
         tokens = EncryptedTokenStore(applicationContext)
+        model = ViewModelProvider(this, GeniLoginViewModelFactory(applicationContext))[GeniLoginViewModel::class.java]
+        // The operation lives in the ViewModel: a recreated screen shows its state and opens the tree it made
+        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { model.state.collect(::render) } }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                model.state.filterIsInstance<LoginState.ReadyToOpen>().collect { if (model.claim(it.treeId)) openAndClose(it) }
+            }
+        }
         loginButton.setOnClickListener {
             val state = OAuth.newState()
             tokens.pendingState = state
             startActivity(Intent(Intent.ACTION_VIEW, OAuth.authorizeUrl(Geni.config, state).toUri()))
         }
-        createTreeButton.setOnClickListener { createTree() }
+        createTreeButton.setOnClickListener { model.createTree() }
         logoutButton.setOnClickListener {
             AlertDialog.Builder(this)
                 .setMessage(R.string.geni_logout_confirm)
                 .setPositiveButton(R.string.geni_logout) { _, _ ->
                     tokens.clear()
+                    model.reset()
                     showLoggedOut(null)
                 }
                 .setNegativeButton(android.R.string.cancel, null)
@@ -109,7 +122,10 @@ class GeniLoginActivity : AppCompatActivity() {
     }
 
     private fun showSavedState() {
-        if (tokens.get() != null) loadProfile() else showLoggedOut(null)
+        if (tokens.get() == null) {
+            model.reset()
+            showLoggedOut(null)
+        } else if (model.state.value == LoginState.Idle) model.openAccount() // Not after rotation: the retained state is shown instead
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -131,75 +147,86 @@ class GeniLoginActivity : AppCompatActivity() {
             is AuthResult.Success -> {
                 tokens.save(result)
                 Geni.resumeUploads?.invoke() // Uploads stopped for the missing login
-                loadProfile(afterLogin = true)
+                model.completeLogin()
             }
-            is AuthResult.Denied -> showLoggedOut(result.message)
-            AuthResult.Invalid -> showLoggedOut(getString(R.string.geni_login_failed))
+            is AuthResult.Denied -> {
+                model.reset()
+                showLoggedOut(result.message)
+            }
+            AuthResult.Invalid -> {
+                model.reset()
+                showLoggedOut(getString(R.string.geni_login_failed))
+            }
         }
     }
 
-    /** @param afterLogin A fresh login: opens the tree of this account, creating it first if there is none. */
-    private fun loadProfile(afterLogin: Boolean = false) {
-        progress.visibility = View.VISIBLE
+    /** Draws the state kept by the ViewModel. */
+    private fun render(state: LoginState) {
+        when (state) {
+            LoginState.Idle -> Unit
+            LoginState.LoadingProfile -> {
+                progress.visibility = View.VISIBLE
+                loginButton.visibility = View.GONE
+                logoutButton.visibility = View.GONE
+                createTreeButton.visibility = View.GONE
+                status.text = null
+            }
+            is LoginState.Account -> showAccount(state.name, busy = false, canCreate = state.canCreate)
+            is LoginState.Creating -> showAccount(state.name, busy = true, canCreate = true)
+            is LoginState.ReadyToOpen -> showAccount(state.name, busy = true, canCreate = false)
+            is LoginState.Opening -> showAccount(state.name, busy = true, canCreate = false)
+            LoginState.Opened -> finish()
+            is LoginState.Failed -> when (state.kind) {
+                LoginState.Kind.AUTH_REQUIRED -> showLoggedOut(null)
+                LoginState.Kind.OFFLINE -> showFailure(state, getString(R.string.geni_offline))
+                LoginState.Kind.OPEN_FAILED -> showFailure(state, getString(R.string.geni_open_failed))
+                LoginState.Kind.OTHER -> showFailure(state, state.message ?: getString(R.string.geni_login_failed))
+            }
+        }
+    }
+
+    private fun showAccount(name: String, busy: Boolean, canCreate: Boolean) {
+        progress.visibility = if (busy) View.VISIBLE else View.GONE
         loginButton.visibility = View.GONE
-        logoutButton.visibility = View.GONE
-        status.text = null
-        lifecycleScope.launch {
-            try {
-                val profile = Geni.client(applicationContext).currentProfile()
-                val name = profile.name ?: listOfNotNull(profile.firstName, profile.lastName).joinToString(" ")
-                progress.visibility = View.GONE
-                status.text = getString(R.string.geni_logged_in_as, name)
-                logoutButton.visibility = View.VISIBLE
-                val existing = if (Geni.host != null) Geni.loader(applicationContext).existingTree(profile.id) else null
-                val canCreate = Geni.host != null && existing == null
-                createTreeButton.visibility = if (canCreate) View.VISIBLE else View.GONE
-                if (afterLogin && existing != null) openAndClose(existing)
-                else if (afterLogin && canCreate) createTree()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: GeniAuthRequiredException) {
-                showLoggedOut(null)
-            } catch (e: IOException) {
-                // No connection: the login is kept, only the profile could not be shown
-                progress.visibility = View.GONE
-                status.setText(R.string.geni_offline)
-                logoutButton.visibility = View.VISIBLE
-            } catch (e: Exception) {
-                showLoggedOut(e.localizedMessage ?: getString(R.string.geni_login_failed))
-            }
-        }
+        status.text = getString(R.string.geni_logged_in_as, name)
+        logoutButton.visibility = View.VISIBLE
+        createTreeButton.visibility = if (canCreate) View.VISIBLE else View.GONE
+        createTreeButton.isEnabled = !busy
     }
 
-    private fun createTree() {
-        createTreeButton.isEnabled = false
-        progress.visibility = View.VISIBLE
-        lifecycleScope.launch {
-            try {
-                // Not cancelled by a rotation or by leaving the screen: a half-made tree would be left behind
-                val treeId = withContext(NonCancellable) { Geni.loader(applicationContext).createTree() }
-                Toast.makeText(this@GeniLoginActivity, R.string.geni_tree_created, Toast.LENGTH_LONG).show()
-                openAndClose(treeId)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: GeniAuthRequiredException) {
-                showLoggedOut(null)
-            } catch (e: Exception) {
-                progress.visibility = View.GONE
-                createTreeButton.isEnabled = true
-                status.text = if (e is IOException) getString(R.string.geni_offline) else e.localizedMessage ?: getString(R.string.geni_login_failed)
-            }
-        }
+    /** A recoverable failure: the login is kept and, if the account has no tree yet, the button tries again. */
+    private fun showFailure(state: LoginState.Failed, text: String) {
+        progress.visibility = View.GONE
+        loginButton.visibility = View.GONE
+        logoutButton.visibility = View.VISIBLE
+        createTreeButton.visibility = if (state.canCreate) View.VISIBLE else View.GONE
+        createTreeButton.isEnabled = true
+        status.text = text
     }
 
-    /** Shows the diagram of the tree and leaves this screen, so Back goes to the trees list. */
-    private suspend fun openAndClose(treeId: Int) {
-        if (Geni.host?.openTree(this, treeId) == true) {
-            finish()
-        } else {
-            progress.visibility = View.GONE
-            status.setText(R.string.geni_open_failed)
+    /**
+     * Shows the diagram of the tree. Once started it is finished even if this screen is recreated meanwhile,
+     * so the replacement screen cannot open a second diagram. It then leaves, so Back goes to the trees list.
+     */
+    private suspend fun openAndClose(tree: LoginState.ReadyToOpen) {
+        // All of it is not cancellable: a result lost to a rotation or pause would let the next screen open a second diagram
+        val opened = withContext(NonCancellable) {
+            val ok = try {
+                Geni.host?.openTree(this@GeniLoginActivity, tree.treeId) == true
+            } catch (e: Exception) {
+                android.util.Log.w("GeniSync", "Opening tree ${tree.treeId} failed", e)
+                false
+            }
+            if (ok) {
+                val settled = model.opened(tree.treeId) // False after a logout or a newer login: this screen stays
+                if (settled && tree.created) Toast.makeText(applicationContext, R.string.geni_tree_created, Toast.LENGTH_LONG).show()
+                settled
+            } else {
+                model.openFailed(tree.treeId)
+                false
+            }
         }
+        if (opened) finish()
     }
 
     /** Uploads go on in background: while the screen is visible the counts are read again every few seconds. */

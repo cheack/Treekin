@@ -204,7 +204,9 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 - [x] Empty trees list opens "Log in with Geni" instead of the "add a tree" prompt (one hook in `TreesActivity`, once per process; Back shows the normal list)
 - [x] A fresh login opens the account's tree, creating it first if there is none (no button press); on failure the account screen keeps the "Create tree" button and the message
 - [x] `GeniLoader.createTree(rootGeniId)` and the developer tool `GeniImportTool` (androidTest) that copies a local tree into the sandbox account for checks
-- [ ] Not checked: a second login with the tree already there (should open it, not create another); rotation during creation; no `geni.properties` build
+- [x] Second login with the tree already there opens it, no second tree (checked 2026-11-20 and again 2026-11-23)
+- [x] Rotation during the browser return, profile lookup and creation keeps one tree and one diagram: login state retained in `GeniLoginViewModel` (checked 2026-11-23 on the sandbox emulator)
+- [x] Build without `geni.properties` assembles and keeps the empty-tree prompt (checked 2026-11-23)
 
 ### Deferred from Geni-first onboarding
 
@@ -241,7 +243,8 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
-- 2026-11-20: About screen shows a "not affiliated with Geni/MyHeritage" disclaimer and a privacy policy link; new tree launcher icon; `docs/PRIVACY.md` added (branch geni-polish-1).
+- 2026-11-23: Rotating the device during the Geni login return, tree creation or opening no longer loses the automatic open or makes a second tree or diagram; login state is kept in `GeniLoginViewModel` (PR [#19](https://github.com/cheack/Treekin/pull/19)).
+- 2026-11-20: About screen shows a "not affiliated with Geni/MyHeritage" disclaimer and a privacy policy link; new tree launcher icon; `docs/PRIVACY.md` added (PR [#18](https://github.com/cheack/Treekin/pull/18)).
 - 2026-11-20: Geni-first onboarding (PR [#17](https://github.com/cheack/Treekin/pull/17)): an empty trees list opens the Geni login; a fresh login creates and opens the account's tree; unsaved edits and the edit lock survive opening a tree after login; the import tool can upload photos and refuses Geni trees.
 - 2026-11-20: Horizontal person cards (PR [#16](https://github.com/cheack/Treekin/pull/16)): diagram cards are all the same size, photo on the left, a coloured sex stripe and tint, straight elbow connection lines instead of curves; the login button reads "Log in with Geni"; a branding audit is in the roadmap.
 - 2026-11-20: Premium advertisement hidden (PR [#15](https://github.com/cheack/Treekin/pull/15)): the About screen no longer offers FamilyGem Premium.
