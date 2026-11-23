@@ -93,7 +93,7 @@ object GeniGlue {
         addAboutNotes(activity)
     }
 
-    /** Adds the "not affiliated with Geni" disclaimer and the privacy policy link to the About screen. */
+    /** Adds the "not affiliated with Geni" disclaimer and the privacy policy and terms of use links to the About screen. */
     private fun addAboutNotes(activity: AppCompatActivity) {
         val premium = activity.findViewById<android.view.View>(app.familygem.R.id.about_premium) ?: return
         val parent = premium.parent as? android.widget.LinearLayout ?: return
@@ -107,8 +107,14 @@ object GeniGlue {
             setText(R.string.geni_privacy_policy)
             setOnClickListener { app.familygem.geni.ui.GeniPrivacyPolicy.open(activity) }
         }
+        val terms = android.widget.TextView(activity, null, 0, app.familygem.R.style.AppTheme_Link).apply {
+            setText(R.string.geni_terms)
+            setOnClickListener { app.familygem.geni.ui.GeniTerms.open(activity) }
+        }
         parent.addView(disclaimer)
         parent.addView(policy, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
+        parent.addView(terms, android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
     }
 

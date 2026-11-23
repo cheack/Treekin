@@ -83,6 +83,7 @@ class GeniLoginActivity : AppCompatActivity() {
             }
         }
         findViewById<android.view.View>(R.id.geni_privacy_policy_link).setOnClickListener { GeniPrivacyPolicy.open(this) }
+        findViewById<android.view.View>(R.id.geni_terms_link).setOnClickListener { GeniTerms.open(this) }
         if (!Geni.isConfigured) {
             status.setText(R.string.geni_not_configured)
             return
