@@ -101,7 +101,7 @@ class GeniLoginViewModelTest {
         assertEquals(LoginState.ReadyToOpen("V P", 7, created = false), vm.state.value)
         assertTrue(vm.claim(7))
         vm.opened(7)
-        assertEquals(LoginState.Account("V P", canCreate = false), vm.state.value)
+        assertEquals(LoginState.Opened, vm.state.value) // A replacement screen sees it and leaves too
         assertFalse(vm.claim(7))
     }
 

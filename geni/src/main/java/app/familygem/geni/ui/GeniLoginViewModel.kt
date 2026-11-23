@@ -44,6 +44,9 @@ sealed interface LoginState {
     /** Claimed by a screen that is opening it now. */
     data class Opening(val name: String, val treeId: Int, val created: Boolean) : LoginState
 
+    /** The tree is on screen. Every login screen of this operation, also a replacement made by rotation, should close. */
+    object Opened : LoginState
+
     /** [name] and [canCreate] are known when the profile was loaded. */
     data class Failed(val kind: Kind, val message: String?, val name: String?, val canCreate: Boolean) : LoginState
 
@@ -109,7 +112,7 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
     }
 
     /** The tree is on screen: the claim is used up. */
-    fun opened(treeId: Int) = settle(treeId) { LoginState.Account(it, canCreate = false) }
+    fun opened(treeId: Int) = settle(treeId) { LoginState.Opened }
 
     /** The tree could not be read: no automatic retry. */
     fun openFailed(treeId: Int) = settle(treeId) { LoginState.Failed(Kind.OPEN_FAILED, null, it, canCreate = false) }
