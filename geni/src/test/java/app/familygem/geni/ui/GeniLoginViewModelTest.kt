@@ -145,6 +145,24 @@ class GeniLoginViewModelTest {
     }
 
     @Test
+    fun secondLoginDuringCreationDoesNotCreateAgain() = runTest {
+        val flow = FakeFlow()
+        val gate = CompletableDeferred<Int>()
+        var tree: Int? = null
+        flow.existing = { tree }
+        flow.create = { gate.await().also { tree = it } }
+        val vm = model(flow)
+        vm.completeLogin()
+        runCurrent()
+        vm.completeLogin() // Newer login while the first creation is still writing the tree
+        runCurrent()
+        gate.complete(7)
+        advanceUntilIdle()
+        assertEquals(1, flow.createCalls)
+        assertEquals(LoginState.ReadyToOpen("V P", 7, created = false), vm.state.value)
+    }
+
+    @Test
     fun createFailureThenRetryReusesRegisteredTree() = runTest {
         val flow = FakeFlow()
         flow.create = { throw IOException("offline") }

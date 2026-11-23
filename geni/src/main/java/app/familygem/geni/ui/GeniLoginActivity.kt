@@ -214,6 +214,7 @@ class GeniLoginActivity : AppCompatActivity() {
             val ok = try {
                 Geni.host?.openTree(this@GeniLoginActivity, tree.treeId) == true
             } catch (e: Exception) {
+                android.util.Log.w("GeniSync", "Opening tree ${tree.treeId} failed", e)
                 false
             }
             if (ok) {

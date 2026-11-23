@@ -14,6 +14,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
@@ -66,6 +68,7 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
     private var generation = 0
     private var job: Job? = null
     private var profile: AccountProfile? = null
+    private val createLock = Mutex()
 
     /** Saved login: shows the account, never opens a tree. */
     fun openAccount() = start { mine, p -> publish(mine, LoginState.Account(p.name, canCreate(p, existing = flow.existingTree(p.id)))) }
@@ -150,9 +153,13 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
 
     private suspend fun create(mine: Int, p: AccountProfile) {
         publish(mine, LoginState.Creating(p.name))
-        // Not cancelled by leaving the screen: a half-made tree would be left behind
-        val treeId = withContext(NonCancellable) { flow.createTree() }
-        publish(mine, LoginState.ReadyToOpen(p.name, treeId, created = true))
+        // Not cancelled by leaving the screen: a half-made tree would be left behind.
+        // One creation at a time, and the tree is looked up again inside the lock: a newer login
+        // must reuse the tree an older, still writing creation is about to register.
+        val (treeId, created) = withContext(NonCancellable) {
+            createLock.withLock { flow.existingTree(p.id)?.let { it to false } ?: (flow.createTree() to true) }
+        }
+        publish(mine, LoginState.ReadyToOpen(p.name, treeId, created))
     }
 
     private suspend fun guarded(mine: Int, block: suspend () -> Unit) {
