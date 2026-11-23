@@ -204,7 +204,9 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 - [x] Empty trees list opens "Log in with Geni" instead of the "add a tree" prompt (one hook in `TreesActivity`, once per process; Back shows the normal list)
 - [x] A fresh login opens the account's tree, creating it first if there is none (no button press); on failure the account screen keeps the "Create tree" button and the message
 - [x] `GeniLoader.createTree(rootGeniId)` and the developer tool `GeniImportTool` (androidTest) that copies a local tree into the sandbox account for checks
-- [ ] Not checked: a second login with the tree already there (should open it, not create another); rotation during creation; no `geni.properties` build
+- [x] Second login with the tree already there opens it, no second tree (checked 2026-11-20 and again 2026-11-23)
+- [x] Rotation during the browser return, profile lookup and creation keeps one tree and one diagram: login state retained in `GeniLoginViewModel` (checked 2026-11-23 on the sandbox emulator)
+- [x] Build without `geni.properties` assembles and keeps the empty-tree prompt (checked 2026-11-23)
 
 ### Deferred from Geni-first onboarding
 
