@@ -6,3 +6,6 @@ app/libs-source-data/
 credential.properties
 local.properties
 geni.properties
+
+# Kotlin compiler session data
+.kotlin/

@@ -97,4 +97,54 @@ class AlbumLoaderTest {
         assertTrue(store.photoLinks(treeId).none { it.isMain })
         assertFalse(gedcom.people.single().media.any { it.primary == "Y" })
     }
+
+    private fun deleteJob(photoId: String, state: JobState = JobState.PENDING, tree: Int = treeId) =
+        UploadJob(treeId = tree, key = "delphoto:$photoId", kind = JobKind.DELETE_PHOTO, geniId = photoId, personGedcomId = "I1",
+            params = emptyList(), label = "x", localHash = 0, state = state)
+
+    @Test
+    fun downloadSkipsAPhotoWhoseDeleteIsPendingOrSending() = runTest {
+        store.saveJob(deleteJob("photo-1", JobState.PENDING))
+        store.saveJob(deleteJob("photo-2", JobState.SENDING))
+        var calls = 0
+        val guarded = AlbumLoader(
+            GeniClient(server.url("/api/"), tokens, RateLimiter { 0L }, now = { 1_000L }),
+            store, PhotoSync(store, host) { _, _ -> calls++; "image/jpeg" }, host::mediaDir
+        )
+        assertFalse(guarded.download(treeId, "profile-1", "I1", loaderPhoto(1)))
+        assertFalse(guarded.download(treeId, "profile-1", "I1", loaderPhoto(2)))
+        assertEquals(0, calls)
+        assertTrue(gedcom.people.single().media.isEmpty())
+        assertTrue(store.photoLinks(treeId).isEmpty())
+    }
+
+    @Test
+    fun downloadStillWorksWhenTheDeleteFailedWasDismissedOrIsInAnotherTree() = runTest {
+        store.saveJob(deleteJob("photo-1", JobState.FAILED))
+        store.saveJob(deleteJob("photo-2", JobState.DISMISSED))
+        store.saveJob(deleteJob("photo-3", tree = treeId + 1))
+        val l = loader()
+        assertTrue(l.download(treeId, "profile-1", "I1", loaderPhoto(1)))
+        assertTrue(l.download(treeId, "profile-1", "I1", loaderPhoto(2)))
+        assertTrue(l.download(treeId, "profile-1", "I1", loaderPhoto(3)))
+    }
+
+    @Test
+    fun downloadAllSkipsOnlyThePhotoQueuedForDeletion() = runTest {
+        store.saveJob(deleteJob("photo-2"))
+        enqueueAlbum(1, 2, 3)
+        assertEquals(2, loader().downloadAll(treeId, "profile-1", "I1"))
+        assertEquals(listOf("geni-photo-1.jpg", "geni-photo-3.jpg"), gedcom.people.single().media.map { it.file })
+    }
+
+    @Test
+    fun listKeepsReconcilingAgainstTheFullAlbumDespiteAQueuedDelete() = runTest {
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(1))
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(2))
+        store.saveJob(deleteJob("photo-2"))
+        enqueueAlbum(1, 2)
+        val album = loader().list(treeId, "profile-1", "I1")
+        assertEquals(0, album.removed)
+        assertEquals(listOf("photo-1", "photo-2"), album.entries.map { it.photo.id })
+    }
 }
