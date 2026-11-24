@@ -15,6 +15,7 @@ import app.familygem.geni.sync.RoomSyncStore
 import app.familygem.geni.sync.SyncQueue
 import app.familygem.geni.sync.SyncStore
 import app.familygem.geni.sync.Uploader
+import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /** Entry point of the Geni.com integration, called from upstream code through GENI-HOOK lines. */
@@ -48,6 +49,18 @@ object Geni {
         tokens = EncryptedTokenStore(context.applicationContext),
         limiter = limiter
     ).also { client = it }
+
+    /** IDs of deleted trees whose Geni rows are still being removed: a new tree must not take one, or the cleanup would wipe it. */
+    private val cleaning = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
+    fun isCleaning(treeId: Int) = treeId in cleaning
+
+    /** Forgets the Geni data of a deleted tree in [scope]. The ID stays taken until the rows are gone. */
+    fun forgetTree(context: Context, treeId: Int, scope: kotlinx.coroutines.CoroutineScope) {
+        GeniTrees.remove(treeId)
+        cleaning.add(treeId)
+        scope.launch { try { store(context).deleteTree(treeId) } finally { cleaning.remove(treeId) } }
+    }
 
     @Synchronized
     fun store(context: Context): SyncStore = store ?: RoomSyncStore(context.applicationContext).also { store = it }

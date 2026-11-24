@@ -1,6 +1,8 @@
 package app.familygem.geni.ui
 
 import app.familygem.geni.api.GeniAuthRequiredException
+import app.familygem.geni.auth.AuthResult
+import app.familygem.geni.sync.TreeOwnership
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,17 +23,33 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class GeniLoginViewModelTest {
 
+    private val login = AuthResult.Success("candidate", Long.MAX_VALUE)
+
     private class FakeFlow : LoginFlow {
         var profile: suspend () -> AccountProfile = { AccountProfile("p1", "V P") }
+        /** Complete tree of the account, null for none. */
         var existing: suspend (String) -> Int? = { null }
+        /** A tree of another account is on the device. */
+        var other = false
+        /** Replaces the answer built from [existing] and [other]. */
+        var ownershipOverride: TreeOwnership? = null
         var create: suspend () -> Int = { 7 }
         override var canCreateTrees = true
         var createCalls = 0
-        override suspend fun profile() = profile.invoke()
-        override suspend fun existingTree(profileId: String) = existing(profileId)
+        val accepted = mutableListOf<AuthResult.Success>()
+        val profileCandidates = mutableListOf<AuthResult.Success?>()
+        override suspend fun profile(candidate: AuthResult.Success?): AccountProfile {
+            profileCandidates += candidate
+            return profile.invoke()
+        }
+        override suspend fun ownership(profileId: String): TreeOwnership =
+            ownershipOverride ?: if (other) TreeOwnership.Other else existing(profileId)?.let { TreeOwnership.Own(it, complete = true) } ?: TreeOwnership.None
         override suspend fun createTree(): Int {
             createCalls++
             return create()
+        }
+        override fun accept(candidate: AuthResult.Success) {
+            accepted += candidate
         }
     }
 
@@ -44,7 +62,7 @@ class GeniLoginViewModelTest {
         val gate = CompletableDeferred<Int>()
         flow.create = { gate.await() }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         val observerA = launch { vm.state.collect { } }
         runCurrent()
         assertEquals(LoginState.Creating("V P"), vm.state.value)
@@ -63,7 +81,7 @@ class GeniLoginViewModelTest {
         val gate = CompletableDeferred<Int?>()
         flow.existing = { gate.await() }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         runCurrent()
         assertEquals(LoginState.LoadingProfile, vm.state.value)
         gate.complete(5)
@@ -93,7 +111,7 @@ class GeniLoginViewModelTest {
     @Test
     fun claimIsOnceAndReleaseKeepsId() = runTest {
         val vm = model(FakeFlow().apply { existing = { 7 } })
-        vm.completeLogin()
+        vm.completeLogin(login)
         advanceUntilIdle()
         assertTrue(vm.claim(7))
         assertFalse(vm.claim(7))
@@ -108,7 +126,7 @@ class GeniLoginViewModelTest {
     @Test
     fun openedAfterResetIsRejected() = runTest {
         val vm = model(FakeFlow().apply { existing = { 7 } })
-        vm.completeLogin()
+        vm.completeLogin(login)
         advanceUntilIdle()
         assertTrue(vm.claim(7))
         vm.reset() // Logout while the tree is being opened
@@ -120,7 +138,7 @@ class GeniLoginViewModelTest {
     @Test
     fun openFailedDoesNotReadyAgain() = runTest {
         val vm = model(FakeFlow().apply { existing = { 7 } })
-        vm.completeLogin()
+        vm.completeLogin(login)
         advanceUntilIdle()
         assertTrue(vm.claim(7))
         vm.openFailed(7)
@@ -134,7 +152,7 @@ class GeniLoginViewModelTest {
         val gate = CompletableDeferred<Int>()
         flow.create = { gate.await() }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         runCurrent()
         vm.createTree()
         runCurrent()
@@ -152,9 +170,9 @@ class GeniLoginViewModelTest {
         flow.existing = { tree }
         flow.create = { gate.await().also { tree = it } }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         runCurrent()
-        vm.completeLogin() // Newer login while the first creation is still writing the tree
+        vm.completeLogin(login) // Newer login while the first creation is still writing the tree
         runCurrent()
         gate.complete(7)
         advanceUntilIdle()
@@ -168,9 +186,9 @@ class GeniLoginViewModelTest {
         val gate = CompletableDeferred<Int>()
         flow.create = { gate.await() }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         runCurrent()
-        vm.completeLogin() // Waits for the first creation
+        vm.completeLogin(login) // Waits for the first creation
         runCurrent()
         vm.reset() // Logout: the waiting one is cancelled and must not create a tree afterwards
         gate.complete(7)
@@ -184,7 +202,7 @@ class GeniLoginViewModelTest {
         val flow = FakeFlow()
         flow.create = { throw IOException("offline") }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         advanceUntilIdle()
         assertEquals(LoginState.Failed(LoginState.Kind.OFFLINE, null, "V P", canCreate = true), vm.state.value)
         flow.existing = { 9 } // The failed attempt had registered the tree before it broke
@@ -200,7 +218,7 @@ class GeniLoginViewModelTest {
         val gate = CompletableDeferred<AccountProfile>()
         flow.profile = { gate.await() }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         runCurrent()
         vm.reset()
         gate.complete(AccountProfile("p1", "Old"))
@@ -217,9 +235,9 @@ class GeniLoginViewModelTest {
         flow.profile = { if (calls++ == 0) old.await() else AccountProfile("p2", "New") }
         flow.existing = { if (it == "p2") 2 else 1 }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         runCurrent()
-        vm.completeLogin()
+        vm.completeLogin(login)
         advanceUntilIdle()
         old.complete(AccountProfile("p1", "Old"))
         advanceUntilIdle()
@@ -250,9 +268,101 @@ class GeniLoginViewModelTest {
     fun noHostMeansNoCreate() = runTest {
         val flow = FakeFlow().apply { canCreateTrees = false }
         val vm = model(flow)
-        vm.completeLogin()
+        vm.completeLogin(login)
         advanceUntilIdle()
         assertEquals(LoginState.Account("V P", canCreate = false), vm.state.value)
         assertEquals(0, flow.createCalls)
+    }
+
+    @Test
+    fun otherAccountIsRefusedBeforeItsLoginIsStored() = runTest {
+        val flow = FakeFlow().apply { other = true }
+        val vm = model(flow)
+        vm.completeLogin(login)
+        advanceUntilIdle()
+        assertEquals(LoginState.Failed(LoginState.Kind.ACCOUNT_MISMATCH, null, "V P", canCreate = false), vm.state.value)
+        assertEquals(listOf<AuthResult.Success?>(login), flow.profileCandidates) // Asked with the candidate token
+        assertTrue(flow.accepted.isEmpty()) // Not stored, so no queued upload can run under it
+        assertEquals(0, flow.createCalls)
+        vm.createTree() // The button is not there; a call changes nothing
+        advanceUntilIdle()
+        assertEquals(0, flow.createCalls)
+        assertTrue(flow.accepted.isEmpty())
+    }
+
+    @Test
+    fun ownerLoginIsStoredBeforeTheTreeOpens() = runTest {
+        val flow = FakeFlow().apply { existing = { 5 } }
+        val vm = model(flow)
+        vm.completeLogin(login)
+        advanceUntilIdle()
+        assertEquals(listOf(login), flow.accepted)
+        assertEquals(LoginState.ReadyToOpen("V P", 5, created = false), vm.state.value)
+    }
+
+    @Test
+    fun firstLoginStoresTheLoginAndCreates() = runTest {
+        val flow = FakeFlow()
+        val vm = model(flow)
+        vm.completeLogin(login)
+        advanceUntilIdle()
+        assertEquals(listOf(login), flow.accepted)
+        assertEquals(1, flow.createCalls)
+    }
+
+    @Test
+    fun loginDroppedWhileTheAccountIsLookedUpIsNotStored() = runTest {
+        val flow = FakeFlow()
+        val gate = CompletableDeferred<AccountProfile>()
+        flow.profile = { gate.await() }
+        val vm = model(flow)
+        vm.completeLogin(login)
+        runCurrent()
+        vm.reset()
+        gate.complete(AccountProfile("p1", "V P"))
+        advanceUntilIdle()
+        assertTrue(flow.accepted.isEmpty())
+        assertEquals(0, flow.createCalls)
+    }
+
+    @Test
+    fun interruptedSetupIsFinishedNotReopenedEmpty() = runTest {
+        val flow = FakeFlow().apply {
+            ownershipOverride = TreeOwnership.Own(5, complete = false)
+            create = { 5 }
+        }
+        val vm = model(flow)
+        vm.completeLogin(login)
+        advanceUntilIdle()
+        assertEquals(1, flow.createCalls) // createTree() finishes the setup of tree 5
+        assertEquals(LoginState.ReadyToOpen("V P", 5, created = true), vm.state.value)
+    }
+
+    @Test
+    fun interruptedSetupOffersTheButtonOnSavedLogin() = runTest {
+        val flow = FakeFlow().apply { ownershipOverride = TreeOwnership.Own(5, complete = false) }
+        val vm = model(flow)
+        vm.openAccount()
+        advanceUntilIdle()
+        assertEquals(LoginState.Account("V P", canCreate = true), vm.state.value)
+    }
+
+    @Test
+    fun lookupOfTheCandidateFailingOfflineStoresNothing() = runTest {
+        val flow = FakeFlow().apply { profile = { throw IOException("no network") } }
+        val vm = model(flow)
+        vm.completeLogin(login)
+        advanceUntilIdle()
+        assertEquals(LoginState.Failed(LoginState.Kind.OFFLINE, null, null, canCreate = false), vm.state.value)
+        assertTrue(flow.accepted.isEmpty())
+        assertTrue(vm.holdsState()) // A rotation must not replace this by the logged-out view
+    }
+
+    @Test
+    fun savedLoginOfAnotherAccountIsShownAsMismatch() = runTest {
+        val vm = model(FakeFlow().apply { other = true })
+        vm.openAccount()
+        advanceUntilIdle()
+        assertEquals(LoginState.Failed(LoginState.Kind.ACCOUNT_MISMATCH, null, "V P", canCreate = false), vm.state.value)
     }
 }

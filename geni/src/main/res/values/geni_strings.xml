@@ -8,6 +8,8 @@
     <string name="geni_not_configured">Geni app ID is not set in geni.properties</string>
     <string name="geni_login_failed">Login failed</string>
     <string name="geni_offline">No connection to Geni. You are still logged in; changes will be uploaded when the network is back.</string>
+    <string name="geni_offline_login">No connection to Geni. Sign in again when the network is back.</string>
+    <string name="geni_tap_account">Tap to sign in to Geni.</string>
     <string name="geni_create_tree">Create Geni tree</string>
     <string name="geni_tree_created">Geni tree created</string>
     <string name="geni_login_again">Log in to Geni again to load relatives</string>
@@ -72,6 +74,7 @@
     <string name="geni_keep_offline_no_photos">No, main photos only</string>
     <string name="geni_upload_photos">Send new photos to Geni</string>
     <string name="geni_upload_photos_note">The first photo of a person becomes their main photo on Geni.</string>
+    <string name="geni_account_mismatch">The tree on this device belongs to another Geni account. Sign in with that account, or delete the tree in the trees list to start over with this one.</string>
     <string name="geni_open_failed">The tree could not be opened. Open it from the trees list.</string>
     <string name="geni_about_disclaimer">Treekin is an independent app. It is not made, endorsed or sponsored by Geni.com or MyHeritage. Geni is a trademark of its owner.</string>
     <string name="geni_privacy_policy">Privacy policy</string>

@@ -8,6 +8,8 @@
     <string name="geni_not_configured">В geni.properties не задан ID приложения Geni</string>
     <string name="geni_login_failed">Не удалось войти</string>
     <string name="geni_offline">Нет связи с Geni. Вход сохранён; изменения отправятся, когда появится сеть.</string>
+    <string name="geni_offline_login">Нет связи с Geni. Войдите снова, когда появится сеть.</string>
+    <string name="geni_tap_account">Нажмите, чтобы войти в Geni.</string>
     <string name="geni_create_tree">Создать дерево Geni</string>
     <string name="geni_tree_created">Дерево Geni создано</string>
     <string name="geni_login_again">Войдите в Geni снова, чтобы загрузить родственников</string>
@@ -72,6 +74,7 @@
     <string name="geni_keep_offline_no_photos">Нет, только главные</string>
     <string name="geni_upload_photos">Отправлять новые фото на Geni</string>
     <string name="geni_upload_photos_note">Первое фото человека становится его главным фото на Geni.</string>
+    <string name="geni_account_mismatch">Дерево на этом устройстве принадлежит другому аккаунту Geni. Войдите в тот аккаунт или удалите дерево в списке деревьев, чтобы начать заново с этим.</string>
     <string name="geni_open_failed">Не удалось открыть дерево. Откройте его из списка деревьев.</string>
     <string name="geni_about_disclaimer">Treekin — независимое приложение. Оно не создано, не одобрено и не поддерживается Geni.com или MyHeritage. Geni — товарный знак его владельца.</string>
     <string name="geni_privacy_policy">Политика конфиденциальности</string>

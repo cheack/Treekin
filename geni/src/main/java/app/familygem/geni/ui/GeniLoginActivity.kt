@@ -125,8 +125,11 @@ class GeniLoginActivity : AppCompatActivity() {
 
     private fun showSavedState() {
         if (tokens.get() == null) {
-            model.reset()
-            showLoggedOut(null)
+            // A login being checked, or refused, is not stored: the retained state is shown instead of the logged-out view
+            if (!model.holdsState()) {
+                model.reset()
+                showLoggedOut(null)
+            }
         } else if (model.state.value == LoginState.Idle) model.openAccount() // Not after rotation: the retained state is shown instead
     }
 
@@ -146,11 +149,8 @@ class GeniLoginActivity : AppCompatActivity() {
         val expectedState = tokens.pendingState
         tokens.pendingState = null
         when (val result = OAuth.parseRedirect(redirect, System.currentTimeMillis(), expectedState)) {
-            is AuthResult.Success -> {
-                tokens.save(result)
-                Geni.resumeUploads?.invoke() // Uploads stopped for the missing login
-                model.completeLogin()
-            }
+            // The model finds the account with this login first and stores it only if the account may use the tree
+            is AuthResult.Success -> model.completeLogin(result)
             is AuthResult.Denied -> {
                 model.reset()
                 showLoggedOut(result.message)
@@ -180,8 +180,9 @@ class GeniLoginActivity : AppCompatActivity() {
             LoginState.Opened -> finish()
             is LoginState.Failed -> when (state.kind) {
                 LoginState.Kind.AUTH_REQUIRED -> showLoggedOut(null)
-                LoginState.Kind.OFFLINE -> showFailure(state, getString(R.string.geni_offline))
+                LoginState.Kind.OFFLINE -> showFailure(state, getString(if (tokens.get() != null) R.string.geni_offline else R.string.geni_offline_login))
                 LoginState.Kind.OPEN_FAILED -> showFailure(state, getString(R.string.geni_open_failed))
+                LoginState.Kind.ACCOUNT_MISMATCH -> showFailure(state, getString(R.string.geni_account_mismatch))
                 LoginState.Kind.OTHER -> showFailure(state, state.message ?: getString(R.string.geni_login_failed))
             }
         }
@@ -196,11 +197,13 @@ class GeniLoginActivity : AppCompatActivity() {
         createTreeButton.isEnabled = !busy
     }
 
-    /** A recoverable failure: the login is kept and, if the account has no tree yet, the button tries again. */
+    /** A recoverable failure: a stored login is kept and, if the account has no tree yet, the button tries again. */
     private fun showFailure(state: LoginState.Failed, text: String) {
         progress.visibility = View.GONE
-        loginButton.visibility = View.GONE
-        logoutButton.visibility = View.VISIBLE
+        // A login that was not stored (offline check, other account) leaves the way to sign in again
+        val loggedIn = tokens.get() != null
+        loginButton.visibility = if (loggedIn) View.GONE else View.VISIBLE
+        logoutButton.visibility = if (loggedIn) View.VISIBLE else View.GONE
         createTreeButton.visibility = if (state.canCreate) View.VISIBLE else View.GONE
         createTreeButton.isEnabled = true
         status.text = text

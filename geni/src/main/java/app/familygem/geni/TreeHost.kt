@@ -7,8 +7,13 @@ import java.io.File
 /** What :geni needs from the app to read and write FamilyGem trees (implemented in the app module). */
 interface TreeHost {
 
-    /** Creates a FamilyGem tree with the given content (the host adds the header) and returns its ID. */
-    suspend fun createTree(title: String, gedcom: Gedcom): Int
+    /**
+     * Creates a FamilyGem tree with the given content (the host adds the header) and returns its ID.
+     * The host allows one tree: with a tree already there it throws [TreeLimitException] before it allocates an ID.
+     * [onReserved] runs with the new ID once the tree is registered and before its content is written;
+     * if it or the write fails, the host removes the tree again, so no half-made tree stays behind.
+     */
+    suspend fun createTree(title: String, gedcom: Gedcom, onReserved: suspend (treeId: Int) -> Unit = {}): Int
 
     /**
      * Runs [block] on a tree and saves it once.
@@ -44,3 +49,6 @@ interface TreeHost {
     /** Tells the open screens that the tree changed. */
     fun refreshScreens()
 }
+
+/** The app keeps one tree and it already has it. */
+class TreeLimitException : IllegalStateException("Treekin keeps one tree: delete it before making another")

@@ -29,9 +29,11 @@ object GeniHooks {
         return true
     }
 
-    /** Removes the items that would send a Geni tree to a third party or merge it: share (5), merge (6), compare (7). */
+    /**
+     * Removes the items that would send the tree to a third party, merge it or make another tree from a shared one: share (5), merge (6), compare (7).
+     * For every tree, Geni or not: Treekin has no other way to make a tree than the Geni login.
+     */
     fun trimTreeMenu(treeId: Int, menu: Menu) {
-        if (!GeniTrees.isGeni(treeId)) return
         for (id in intArrayOf(5, 6, 7)) menu.removeItem(id)
     }
 }
