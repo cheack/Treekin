@@ -190,7 +190,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 ### Deferred from photos PR 5
 
 - [ ] An empty (successful) album read removes every unedited downloaded non-main photo of the profile; consider a guard if Geni can return an empty list for hidden photos
-- [ ] `AlbumLoader` can download again a photo whose `delphoto:` job is still pending (short window, heals on the next album read); skip photo IDs with a pending delete job
+- [x] `AlbumLoader` can download again a photo whose `delphoto:` job is still pending (short window, heals on the next album read); skip photo IDs with a pending delete job (PR #25)
 - [ ] `reconcileAlbum` racing a just finished upload could drop the new photo's local media (re-downloadable from the album)
 - [ ] The main photo "Delete on Geni" only queues the job; the photo leaves the device at the next refresh, so it stays visible after the confirmation; refresh the profile when the job is done
 - [ ] Photo media with local data (title or note) that was deleted on Geni stays with a stale link and is not reported to the user
