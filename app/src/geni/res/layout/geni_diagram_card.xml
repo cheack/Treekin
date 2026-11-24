@@ -89,11 +89,14 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Corner of the picture: 4dp card padding + 2dp frame -->
     <ImageView
         android:id="@+id/card_mourn"
-        android:layout_width="18dp"
-        android:layout_height="18dp"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginTop="6dp"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:srcCompat="@drawable/defunto" />
+        app:srcCompat="@drawable/geni_mourn" />
 </androidx.constraintlayout.widget.ConstraintLayout>
