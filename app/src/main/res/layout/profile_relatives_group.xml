@@ -10,7 +10,7 @@
         android:id="@+id/group_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@color/primary_light"
+        android:background="?attr/geni_primaryLight"
         android:paddingStart="8dp"
         android:paddingTop="2dp"
         android:paddingEnd="8dp"
@@ -35,7 +35,7 @@
         android:id="@+id/group_column"
         android:layout_width="3dp"
         android:layout_height="0dp"
-        android:background="@color/primary_light"
+        android:background="?attr/geni_primaryLight"
         app:layout_constraintBottom_toTopOf="@id/group_cap"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/group_title" />

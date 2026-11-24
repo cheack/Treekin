@@ -55,7 +55,7 @@ class NewTreeActivity : BaseActivity(R.string.new_tree) {
         // Creates an empty tree
         val emptyTree = findViewById<Button>(R.id.new_empty_tree)
         if (dateIdExists) {
-            emptyTree.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.primary_light))
+            emptyTree.backgroundTintList = ColorStateList.valueOf(app.familygem.geni.GeniAppearance.color(this, app.familygem.geni.GeniAppearance.primaryLight)) // GENI-HOOK
         }
         emptyTree.setOnClickListener {
             val dialogView = LayoutInflater.from(this).inflate(R.layout.tree_title_dialog, null)

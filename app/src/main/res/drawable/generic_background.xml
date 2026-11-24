@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="@color/back_element" />
+    <solid android:color="?attr/geni_surface" />
     <stroke
         android:width="1px"
-        android:color="@color/gray_text" />
+        android:color="?attr/geni_textGray" />
 </shape>

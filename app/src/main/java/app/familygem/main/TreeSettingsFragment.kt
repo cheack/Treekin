@@ -52,13 +52,13 @@ class TreeSettingsFragment : BaseFragment(R.layout.tree_settings_fragment) {
         dateGroup.check(if (treeSettings.customDate) R.id.treeSettings_fixedDate else R.id.treeSettings_deviceDate)
         dateGroup.setOnCheckedChangeListener { _, selected ->
             val fixed = selected == R.id.treeSettings_fixedDate
-            dateView.setTextColor(if (fixed) color(R.color.text) else color(R.color.gray_text))
+            dateView.setTextColor(if (fixed) app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.text) else app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
             if (fixed && date == null) date = LocalDate.now()
             edited = true
         }
         if (treeSettings.fixedDate != null) date = LocalDate(treeSettings.fixedDate)
         writeDate()
-        dateView.setTextColor(if (treeSettings.customDate) color(R.color.text) else color(R.color.gray_text))
+        dateView.setTextColor(if (treeSettings.customDate) app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.text) else app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
         dateView.setOnClickListener {
             dateGroup.check(R.id.treeSettings_fixedDate)
             DatePickerFragment(this).show(requireActivity().supportFragmentManager, "datePicker")

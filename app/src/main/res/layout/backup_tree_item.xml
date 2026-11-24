@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="@color/back_element"
+    android:background="?attr/geni_surface"
     android:orientation="vertical">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -24,7 +24,7 @@
             android:layout_marginStart="-15dp"
             android:gravity="end"
             android:paddingEnd="6dp"
-            android:textColor="@color/gray_text"
+            android:textColor="?attr/geni_textGray"
             android:textSize="13sp"
             app:layout_constraintBaseline_toBaselineOf="@+id/backupTree_title"
             app:layout_constraintStart_toStartOf="parent"
@@ -44,7 +44,7 @@
             android:id="@+id/backupTree_detail"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textColor="@color/gray_text"
+            android:textColor="?attr/geni_textGray"
             android:textSize="14sp"
             app:layout_constraintEnd_toStartOf="@id/backupTree_checkbox"
             app:layout_constraintStart_toStartOf="@+id/backupTree_title"

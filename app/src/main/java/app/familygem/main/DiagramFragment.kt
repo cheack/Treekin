@@ -114,6 +114,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
         glowSpace = toPx(35f)
 
         binding = DiagramFragmentBinding.inflate(inflater, container, false)
+        app.familygem.geni.GeniDiagram.styleButtons(binding.diagramHamburger, binding.diagramOptions) // GENI-HOOK
         binding.diagramHamburger.setOnClickListener {
             val drawer = requireActivity().findViewById<DrawerLayout>(R.id.main_layout)
             drawer.openDrawer(GravityCompat.START)
@@ -407,7 +408,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
         }
 
         override fun onDraw(canvas: Canvas) {
-            paint.color = ResourcesCompat.getColor(resources, R.color.accent, null)
+            paint.color = app.familygem.geni.GeniAppearance.color(context, app.familygem.geni.GeniAppearance.accent) // GENI-HOOK
             paint.maskFilter = bmf
             setLayerType(LAYER_TYPE_SOFTWARE, paint)
             canvas.drawRect(
@@ -438,14 +439,13 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
         init {
             val person = personNode.person
             id = U.extractNum(person.id)
-            LayoutInflater.from(context).inflate(R.layout.diagram_card, this, true)
+            LayoutInflater.from(context).inflate(app.familygem.geni.GeniDiagram.cardLayout(), this, true) // GENI-HOOK
             val border = findViewById<View>(R.id.card_border)
             val sex = person.sex
-            if (sex.isMale()) border.setBackgroundResource(R.drawable.person_border_male)
-            else if (sex.isFemale()) border.setBackgroundResource(R.drawable.person_border_female)
+            border.setBackgroundResource(app.familygem.geni.GeniDiagram.border(sex)) // GENI-HOOK
             background = findViewById(R.id.card_background)
             if (person.id == Global.indi) {
-                background.setBackgroundResource(R.drawable.person_background_selected)
+                background.setBackgroundResource(app.familygem.geni.GeniDiagram.selectedBackground()) // GENI-HOOK
             } else if (personNode.acquired) {
                 background.setBackgroundResource(R.drawable.person_background_partner)
             }
@@ -536,10 +536,9 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
             val miniCardText = findViewById<TextView>(R.id.minicard_text)
             miniCardText.text = if (personNode.amount > 100) "100+" else personNode.amount.toString()
             val sex = personNode.person.sex
-            if (sex.isMale()) miniCardText.setBackgroundResource(R.drawable.person_border_male)
-            else if (sex.isFemale()) miniCardText.setBackgroundResource(R.drawable.person_border_female)
+            miniCardText.setBackgroundResource(app.familygem.geni.GeniDiagram.border(sex)) // GENI-HOOK
             if (personNode.person.id == Global.indi) {
-                layout.setBackgroundResource(R.drawable.person_background_selected)
+                layout.setBackgroundResource(app.familygem.geni.GeniDiagram.selectedBackground()) // GENI-HOOK
             } else if (personNode.acquired) {
                 layout.setBackgroundResource(R.drawable.person_background_partner)
             }
@@ -570,7 +569,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
         }
 
         override fun invalidate() {
-            paint.color = ResourcesCompat.getColor(resources, if (printing) R.color.diagram_lines_print else R.color.diagram_lines_screen, null)
+            paint.color = app.familygem.geni.GeniDiagram.lineColor(context, printing) // GENI-HOOK
             paths.clear() // In case of PNG or PDF print
             // Put the lines in one or more paths
             for ((pathNum, lineGroup) in lineGroups.withIndex()) {
@@ -583,7 +582,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
                     val y2 = toPxFloat(line.y2)
                     path.moveTo(x1, y1)
                     if (line is CurveLine) {
-                        app.familygem.geni.GeniGlue.connect(path, x1, y1, x2, y2, toPxFloat(20F)) // GENI-HOOK straight elbow instead of cubicTo(x1, y2, x2, y1, x2, y2)
+                        app.familygem.geni.GeniDiagram.connect(path, x1, y1, x2, y2, toPxFloat(20F)) // GENI-HOOK straight elbow in the Geni themes instead of cubicTo(x1, y2, x2, y1, x2, y2)
                     } else { // Horizontal or vertical line
                         path.lineTo(x2, y2)
                     }
@@ -916,6 +915,7 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
         withContext(Dispatchers.Main) {
             message?.let { Toast.makeText(context(), it, Toast.LENGTH_LONG).show() }
             binding.diagramWheel.root.visibility = View.GONE
+            if (isAdded) refreshAll() // GENI-HOOK see finalizeExport
         }
     }
 
@@ -945,5 +945,6 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
             } else Toast.makeText(context, R.string.cant_understand_uri, Toast.LENGTH_LONG).show()
         } // No need to handle RESULT_CANCELED
         binding.diagramWheel.root.visibility = View.GONE
+        if (isAdded) refreshAll() // GENI-HOOK cards keep their print colors after an export: draws the diagram again
     }
 }

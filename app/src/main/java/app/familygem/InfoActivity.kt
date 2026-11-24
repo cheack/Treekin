@@ -238,7 +238,7 @@ class InfoActivity : BaseActivity(R.string.info) {
         if (rowPlaced) {
             lastLine = TableRow(this)
             val cell = View(this)
-            cell.setBackgroundResource(R.color.primary)
+            cell.setBackgroundColor(app.familygem.geni.GeniAppearance.color(this, app.familygem.geni.GeniAppearance.primary)) // GENI-HOOK
             lastLine!!.addView(cell)
             val param = cell.layoutParams as TableRow.LayoutParams
             param.weight = 1F

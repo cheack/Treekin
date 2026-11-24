@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Selected person on a Geni card: light fill and a clear 3dp accent outline (the card border drawn above it is translucent) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="?attr/geni_cardSelected" />
+    <stroke
+        android:width="3dp"
+        android:color="?attr/geni_accent" />
+    <corners android:radius="4dp" />
+</shape>

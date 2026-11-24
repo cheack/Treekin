@@ -5,9 +5,9 @@
     android:viewportWidth="25"
     android:viewportHeight="24">
     <path
-        android:fillColor="@color/accent"
+        android:fillColor="?attr/geni_accent"
         android:pathData="M11,0 h3 l11,22 l-1,2 h-23 l-1,-2 Z" />
     <path
-        android:fillColor="@color/primary"
+        android:fillColor="?attr/geni_primary"
         android:pathData="M11,5 h3 l-0.5,11 h-2 Z M11,18 h3 v3 h-3 Z" />
 </vector>

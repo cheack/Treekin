@@ -19,7 +19,7 @@
             android:id="@+id/backup_fileName"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/gray_text"
+            android:textColor="?attr/geni_textGray"
             android:textSize="18sp"
             tools:text="Backup filename.zip" />
 
@@ -35,7 +35,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/backup_label"
-            android:textColor="@color/gray_text"
+            android:textColor="?attr/geni_textGray"
             tools:text="1 hour ago" />
 
         <TextView
@@ -44,7 +44,7 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/backup_label"
             android:layout_alignParentEnd="true"
-            android:textColor="@color/gray_text"
+            android:textColor="?attr/geni_textGray"
             tools:text="123 KB" />
     </RelativeLayout>
 

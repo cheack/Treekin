@@ -115,16 +115,16 @@ class TreesActivity : AppCompatActivity() {
                 val treeView = super.getView(position, convertView, parent)
                 val treeLayout = treeView.findViewById<RelativeLayout>(R.id.tree_layout)
                 val titleView = treeLayout.findViewById<TextView>(R.id.tree_title)
-                titleView.setTextColor(ResourcesCompat.getColor(resources, R.color.text, null))
+                titleView.setTextColor(app.familygem.geni.GeniAppearance.color(treeView.context, app.familygem.geni.GeniAppearance.text)) // GENI-HOOK
                 val detailView = treeLayout.findViewById<TextView>(R.id.tree_data)
-                detailView.setTextColor(ResourcesCompat.getColor(resources, R.color.gray_text, null))
+                detailView.setTextColor(app.familygem.geni.GeniAppearance.color(treeView.context, app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
                 val treeId = treeList[position]["id"]!!.toInt()
                 val tree = Global.settings.getTree(treeId)
                 val derived = tree.grade == 20
                 val exhausted = tree.grade == 30
                 if (derived) {
                     treeLayout.setBackgroundColor(ResourcesCompat.getColor(resources, R.color.accent_medium, null))
-                    detailView.setTextColor(ResourcesCompat.getColor(resources, R.color.text, null))
+                    detailView.setTextColor(app.familygem.geni.GeniAppearance.color(treeView.context, app.familygem.geni.GeniAppearance.text)) // GENI-HOOK
                     treeView.setOnClickListener {
                         if (!TreeUtil.compareTrees(this@TreesActivity, tree, true)) {
                             tree.grade = 10 // It is downgraded
@@ -135,7 +135,7 @@ class TreesActivity : AppCompatActivity() {
                     }
                 } else if (exhausted) {
                     treeLayout.setBackgroundColor(ResourcesCompat.getColor(resources, R.color.consumed, null))
-                    titleView.setTextColor(ResourcesCompat.getColor(resources, R.color.gray_text, null))
+                    titleView.setTextColor(app.familygem.geni.GeniAppearance.color(treeView.context, app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
                     treeView.setOnClickListener {
                         if (!TreeUtil.compareTrees(this@TreesActivity, tree, true)) {
                             tree.grade = 10 // It is downgraded
@@ -145,7 +145,7 @@ class TreesActivity : AppCompatActivity() {
                         }
                     }
                 } else {
-                    treeLayout.setBackgroundColor(ResourcesCompat.getColor(resources, R.color.back_element, null))
+                    treeLayout.setBackgroundColor(app.familygem.geni.GeniAppearance.color(treeView.context, app.familygem.geni.GeniAppearance.surface)) // GENI-HOOK
                     treeView.setOnClickListener {
                         progress.visibility = View.VISIBLE
                         if (Global.gc != null && treeId == Global.settings.openTree) { // Tree already opened

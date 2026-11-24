@@ -13,7 +13,7 @@
             android:id="@+id/profile_toolbar_layout"
             android:layout_width="match_parent"
             android:layout_height="250dp"
-            app:contentScrim="?attr/colorPrimary"
+            app:contentScrim="?attr/geni_primary"
             app:expandedTitleGravity="center_horizontal|bottom"
             app:expandedTitleMarginBottom="55dp"
             app:layout_scrollFlags="scroll|exitUntilCollapsed">

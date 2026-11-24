@@ -24,7 +24,7 @@
         android:layout_toStartOf="@id/mediaFolder_delete"
         android:ellipsize="middle"
         android:singleLine="true"
-        android:textColor="@color/gray_text"
+        android:textColor="?attr/geni_textGray"
         android:textSize="14sp"
         tools:text="/very/long/path/of/media/folder/that/could/wrap/on/multiple/lines" />
 

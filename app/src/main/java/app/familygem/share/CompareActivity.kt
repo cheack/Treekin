@@ -238,8 +238,8 @@ class CompareActivity : BaseActivity(R.string.tree_with_news) {
         if (cardId == R.id.compare_new) {
             if (tree.grade == 30) {
                 card.setCardBackgroundColor(ResourcesCompat.getColor(resources, R.color.consumed, null))
-                title.setTextColor(ResourcesCompat.getColor(resources, R.color.gray_text, null))
-                data.setTextColor(ResourcesCompat.getColor(resources, R.color.gray_text, null))
+                title.setTextColor(app.familygem.geni.GeniAppearance.color(this, app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
+                data.setTextColor(app.familygem.geni.GeniAppearance.color(this, app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
             } else card.setCardBackgroundColor(ResourcesCompat.getColor(resources, R.color.accent_medium, null))
             val submitter = gedcom.getSubmitter(tree.shares[tree.shares.size - 1].submitter)
             var txt = StringBuilder()

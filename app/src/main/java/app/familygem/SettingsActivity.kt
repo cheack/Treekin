@@ -87,6 +87,8 @@ class SettingsActivity : BaseActivity(R.string.settings) {
             startActivity(Intent(this, BackupActivity::class.java))
         }
 
+        app.familygem.geni.GeniAppearance.bindPicker(this, binding.settingsAppearance) // GENI-HOOK
+
         // Language picker
         languages = ArrayList()
         languages.add(Language(null, 0)) // System language

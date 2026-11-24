@@ -21,7 +21,7 @@
         android:id="@+id/card_border"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@drawable/person_border_undefined"
+        android:background="@drawable/geni_person_border_undefined"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

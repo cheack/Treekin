@@ -116,7 +116,7 @@
             android:id="@+id/diagramSettings_indicatorText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@color/accent"
+            android:background="?attr/geni_accent"
             android:paddingStart="5dp"
             android:paddingTop="2dp"
             android:paddingEnd="5dp"

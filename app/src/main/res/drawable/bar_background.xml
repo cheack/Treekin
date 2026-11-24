@@ -2,8 +2,8 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
-        android:centerColor="@color/primary"
-        android:endColor="@color/primary_light"
-        android:startColor="@color/primary_dark"
+        android:centerColor="?attr/geni_primary"
+        android:endColor="?attr/geni_primaryLight"
+        android:startColor="?attr/geni_primaryDark"
         android:type="linear" />
 </shape>

@@ -3,13 +3,13 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape>
-            <solid android:color="#26FF66DD" />
+            <solid android:color="?attr/geni_cardMale" />
             <corners android:radius="4dp" />
         </shape>
     </item>
     <item android:width="4dp" android:gravity="start">
         <shape>
-            <solid android:color="@color/female" />
+            <solid android:color="@color/male" />
             <corners
                 android:bottomLeftRadius="4dp"
                 android:topLeftRadius="4dp" />

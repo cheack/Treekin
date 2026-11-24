@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Palette attributes. Upstream layouts and drawables use them instead of @color/...;
+     AppTheme (app styles.xml) gives the Family Gem defaults, the Geni theme overlays override them. -->
+<resources>
+    <attr name="geni_primary" format="color" />
+    <attr name="geni_primaryDark" format="color" />
+    <attr name="geni_primaryLight" format="color" />
+    <attr name="geni_accent" format="color" />
+    <attr name="geni_accentLight" format="color" />
+    <attr name="geni_background" format="color" />
+    <attr name="geni_surface" format="color" />
+    <attr name="geni_text" format="color" />
+    <attr name="geni_textGray" format="color" />
+    <attr name="geni_diagramLines" format="color" />
+    <attr name="geni_diagramIcon" format="color" />
+    <attr name="geni_cardMale" format="color" />
+    <attr name="geni_cardFemale" format="color" />
+    <attr name="geni_cardUndefined" format="color" />
+    <attr name="geni_cardSelected" format="color" />
+    <attr name="geni_diagramBackground" format="reference" />
+</resources>
