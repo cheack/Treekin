@@ -103,16 +103,16 @@ class AlbumLoaderTest {
             params = emptyList(), label = "x", localHash = 0, state = state)
 
     @Test
-    fun downloadSkipsAPhotoQueuedForDeletion() = runTest {
-        for (state in listOf(JobState.PENDING, JobState.SENDING)) {
-            store.saveJob(deleteJob("photo-1", state).copy(key = "delphoto:photo-1:$state"))
-        }
+    fun downloadSkipsAPhotoWhoseDeleteIsPendingOrSending() = runTest {
+        store.saveJob(deleteJob("photo-1", JobState.PENDING))
+        store.saveJob(deleteJob("photo-2", JobState.SENDING))
         var calls = 0
         val guarded = AlbumLoader(
             GeniClient(server.url("/api/"), tokens, RateLimiter { 0L }, now = { 1_000L }),
             store, PhotoSync(store, host) { _, _ -> calls++; "image/jpeg" }, host::mediaDir
         )
         assertFalse(guarded.download(treeId, "profile-1", "I1", loaderPhoto(1)))
+        assertFalse(guarded.download(treeId, "profile-1", "I1", loaderPhoto(2)))
         assertEquals(0, calls)
         assertTrue(gedcom.people.single().media.isEmpty())
         assertTrue(store.photoLinks(treeId).isEmpty())
