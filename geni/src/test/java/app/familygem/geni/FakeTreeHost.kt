@@ -14,10 +14,21 @@ open class FakeTreeHost : TreeHost {
     val opened = mutableListOf<Int>()
     val prefetches = mutableListOf<Triple<Int, String, Int>>()
 
-    override suspend fun createTree(title: String, gedcom: Gedcom): Int {
+    /** Like the app: one tree at most. Off by default, because most tests build several trees by hand. */
+    var oneTree = false
+
+    override suspend fun createTree(title: String, gedcom: Gedcom, onReserved: suspend (Int) -> Unit): Int {
+        if (oneTree && trees.isNotEmpty()) throw TreeLimitException()
         val id = (trees.keys.maxOrNull() ?: 0) + 1
         trees[id] = gedcom
         titles[id] = title
+        try {
+            onReserved(id)
+        } catch (e: Throwable) {
+            trees.remove(id) // Released, as the app does
+            titles.remove(id)
+            throw e
+        }
         return id
     }
 
@@ -43,6 +54,8 @@ open class FakeTreeHost : TreeHost {
     }
 
     override fun treeExists(treeId: Int) = treeId in trees
+
+    override fun rootOf(treeId: Int) = roots[treeId]
 
     override suspend fun setRoot(treeId: Int, personId: String) {
         roots[treeId] = personId

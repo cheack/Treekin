@@ -19,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import app.familygem.geni.TreeLimitException
 
 class GeniLoaderTest {
 
@@ -48,6 +49,16 @@ class GeniLoaderTest {
 
     @After
     fun tearDown() = server.close()
+
+    private suspend inline fun <reified T : Throwable> failsWith(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Throwable) {
+            if (e is T) return
+            throw e
+        }
+        throw AssertionError("Expected ${T::class.java.simpleName}")
+    }
 
     private fun json(body: String, code: Int) = MockResponse.Builder().code(code).body(body).build()
 
@@ -144,21 +155,119 @@ class GeniLoaderTest {
     }
 
     @Test
-    fun createTreeFromGivenRootDoesNotAskForCurrentProfile() = runTest {
+    fun createTreeFromGivenRootIsStillOwnedByTheAccount() = runTest {
         val treeId = loader().createTree(rootGeniId = "profile-36430")
         assertEquals("profile-36430", store.tree(treeId)?.rootGeniId)
         assertEquals("Test User", host.titles[treeId])
         val requests = generateSequence { server.takeRequest(0, java.util.concurrent.TimeUnit.MILLISECONDS) }.map { it.url }.toList()
-        // "profile" without ids is the logged-in user's profile
-        assertTrue(requests.none { it.encodedPath == "/api/profile" && it.queryParameter("ids") == null })
+        assertEquals("profile-36430", store.tree(treeId)?.ownerGeniId)
+        // "profile" without ids is the logged-in user's profile: asked once, for the owner
+        assertEquals(1, requests.count { it.encodedPath == "/api/profile" && it.queryParameter("ids") == null })
     }
 
     @Test
-    fun existingTreeOfAccountIsFound() = runTest {
+    fun ownershipOfTheAccountIsFound() = runTest {
+        assertEquals(TreeOwnership.None, loader().ownership("profile-36430"))
         val treeId = loader().createTree()
-        assertEquals(treeId, loader().existingTree("profile-36430"))
+        assertEquals(TreeOwnership.Own(treeId, complete = true), loader().ownership("profile-36430"))
+        assertEquals(TreeOwnership.Other, loader().ownership("profile-other"))
         host.trees.remove(treeId) // Deleted in FamilyGem
-        assertEquals(null, loader().existingTree("profile-36430"))
+        assertEquals(TreeOwnership.None, loader().ownership("profile-36430"))
+        assertEquals(TreeOwnership.None, loader().ownership("profile-other")) // A deleted tree blocks nobody
+    }
+
+    @Test
+    fun firstLoginCreatesOneTreeOwnedByTheAccount() = runTest {
+        host.oneTree = true
+        val treeId = loader().ensureTree()
+        assertEquals("profile-36430", store.tree(treeId)?.ownerGeniId)
+        assertEquals(1, host.trees.size)
+        assertEquals(8, host.trees.getValue(treeId).people.size)
+        assertEquals(store.link(treeId, "profile-36430")?.gedcomId, host.roots[treeId])
+    }
+
+    @Test
+    fun sameAccountReopensTheTreeWithoutAnotherOne() = runTest {
+        host.oneTree = true
+        val first = loader().ensureTree()
+        val prefetches = host.prefetches.size
+        assertEquals(first, loader().ensureTree())
+        assertEquals(1, host.trees.size)
+        assertEquals(prefetches, host.prefetches.size) // A complete tree is not set up again
+    }
+
+    @Test
+    fun otherAccountCannotTakeTheTree() = runTest {
+        host.oneTree = true
+        val treeId = host.createTree("Theirs", Gedcom())
+        store.saveTree(GeniTreeInfo(treeId, "profile-1", ownerGeniId = "profile-1"))
+        failsWith<AccountMismatchException> { loader().ensureTree() } // The signed-in profile is profile-36430
+        assertEquals(setOf(treeId), host.trees.keys)
+        assertEquals(1, store.trees.size)
+    }
+
+    @Test
+    fun hostRefusesASecondTree() = runTest {
+        host.oneTree = true
+        loader().createTree()
+        failsWith<TreeLimitException> { loader().createTree() }
+        assertEquals(1, host.trees.size)
+        assertEquals(1, store.trees.size)
+    }
+
+    @Test
+    fun ownerSurvivesARootRemap() = runTest {
+        val treeId = loader().createTree()
+        // Geni merged the root profile into another one: the root moves, the owner does not
+        store.saveLinks(listOf(GeniLink(treeId, "profile-99", "I99", true, null, null, 1L)))
+        assertTrue(store.updateRoot(treeId, "profile-36430", "profile-99"))
+        assertEquals("profile-36430", store.tree(treeId)?.ownerGeniId)
+        assertEquals(TreeOwnership.Own(treeId, complete = true), loader().ownership("profile-36430"))
+        assertEquals(TreeOwnership.Other, loader().ownership("profile-99"))
+    }
+
+    @Test
+    fun retryFinishesASetupThatFailedLoading() = runTest {
+        host.oneTree = true
+        batchCode = 500 // Geni fails while the root's family is loaded
+        failsWith<Exception> { loader().ensureTree() }
+        val treeId = host.trees.keys.single() // The tree stays, owned, but without its root person
+        assertEquals(TreeOwnership.Own(treeId, complete = false), loader().ownership("profile-36430"))
+        batchCode = 200
+        assertEquals(treeId, loader().ensureTree()) // Finished, not duplicated
+        assertEquals(1, host.trees.size)
+        assertEquals(8, host.trees.getValue(treeId).people.size)
+        assertEquals(store.link(treeId, "profile-36430")?.gedcomId, host.roots[treeId])
+        assertEquals(1, host.prefetches.size)
+    }
+
+    @Test
+    fun retryFinishesASetupInterruptedAfterTheRootLinkWasSaved() = runTest {
+        host.oneTree = true
+        val treeId = loader().ensureTree()
+        host.roots.remove(treeId) // The process ended after the link was saved, before the root was set
+        assertEquals(TreeOwnership.Own(treeId, complete = false), loader().ownership("profile-36430"))
+        assertEquals(treeId, loader().ensureTree())
+        assertEquals(store.link(treeId, "profile-36430")?.gedcomId, host.roots[treeId])
+        assertEquals(2, host.prefetches.size) // The prefetch is planned again, it does not survive the process
+        assertEquals(TreeOwnership.Own(treeId, complete = true), loader().ownership("profile-36430"))
+    }
+
+    @Test
+    fun failureWhileRegisteringReleasesTheReservation() = runTest {
+        host.oneTree = true
+        var failures = 1
+        val flaky = object : InMemorySyncStore() {
+            override suspend fun saveTree(info: GeniTreeInfo) {
+                if (failures-- > 0) throw java.io.IOException("disk full")
+                super.saveTree(info)
+            }
+        }
+        val loader = GeniLoader(GeniClient(server.url("/api/"), tokens, RateLimiter { 0L }), flaky, host, now = { 5_000L })
+        failsWith<java.io.IOException> { loader.ensureTree() }
+        assertTrue(host.trees.isEmpty()) // Nothing left that would block the retry
+        val treeId = loader.ensureTree()
+        assertEquals(setOf(treeId), host.trees.keys)
     }
 
     @Test
@@ -243,7 +352,7 @@ class GeniLoaderTest {
         val treeId = goneTree(ninth.replace("}", ""","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""), "profile-7")
         store.saveTree(GeniTreeInfo(treeId, "profile-9", prefetchDepth = 2))
         assertEquals(LoadResult.Loaded(newPeople = 0, profileId = "profile-7"), loader().load(treeId, "profile-9"))
-        assertEquals(GeniTreeInfo(treeId, "profile-7", prefetchDepth = 2), store.tree(treeId))
+        assertEquals(GeniTreeInfo(treeId, "profile-7", prefetchDepth = 2, ownerGeniId = "profile-9"), store.tree(treeId)) // The owner stays
     }
 
     @Test

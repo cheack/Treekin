@@ -212,8 +212,8 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 ### Deferred from Geni-first onboarding
 
-- [ ] Several Geni trees or managed profiles: only the tree of the user's own profile is created
-- [ ] Hide the upstream new-tree entries (share, GEDCOM import, example download) for a Geni-only app, or keep them as an advanced menu
+- [x] Several Geni trees: no, by design. One tree per installation, owned by the account that made it (`ownerGeniId`, separate from the root that can move on a merge); another account is refused until **Delete tree**. Managed profiles stay out of scope
+- [x] Hide the upstream new-tree entries: Add tree screen, GEDCOM and share-link intents, shared-tree banner and install referrer, backup Recover tab are gone; the empty trees list offers the Geni account button
 - [ ] The "Tap to add a family tree" bubble does not show after Back from the login on a fresh install (the first-start branch waits for the Play install referrer, which Treekin does not use)
 
 ## Other tasks

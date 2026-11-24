@@ -1,7 +1,11 @@
 package app.familygem.geni.sync
 
-/** A FamilyGem tree that mirrors part of Geni. */
-data class GeniTreeInfo(val treeId: Int, val rootGeniId: String, val prefetchDepth: Int = 3)
+/**
+ * A FamilyGem tree that mirrors part of Geni.
+ * @param rootGeniId The profile the tree starts from; it moves when Geni merges that profile into another
+ * @param ownerGeniId The profile of the Geni account that made the tree; never moves, and only this account may sign in while the tree exists
+ */
+data class GeniTreeInfo(val treeId: Int, val rootGeniId: String, val prefetchDepth: Int = 3, val ownerGeniId: String = rootGeniId)
 
 /**
  * Link between a Geni profile or union and a GEDCOM record of a tree.

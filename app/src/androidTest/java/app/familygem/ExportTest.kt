@@ -4,12 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import androidx.test.espresso.Espresso
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
-import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.rules.activityScenarioRule
 import androidx.test.internal.runner.junit4.AndroidJUnit4ClassRunner
 import androidx.test.platform.app.InstrumentationRegistry
@@ -55,10 +49,7 @@ class ExportTest {
         Global.settings.trees.clear()
         assertEquals(Global.settings.trees.size, 0)
 
-        onView(withId(R.id.fab)).perform(click())
-        onView(withId(R.id.new_import_gedcom)).check(matches(isDisplayed()))
-
-        // Imports /assets/media.ged as a new tree
+        // Imports /assets/media.ged as a new tree (test setup: the app itself has no GEDCOM import any more)
         val inputStream = testContext.assets.open("media.ged")
         assertNotNull(inputStream)
         val gedcomFile = File(appContext.cacheDir, "media.ged")
@@ -67,7 +58,6 @@ class ExportTest {
         assertTrue(gedcomFile.isFile)
         // This import fails on Android 5 and 6 throwing a strange OutOfMemory error
         TreeUtil.importGedcom(appContext, Uri.fromFile(gedcomFile), {}, {})
-        Espresso.pressBack()
         assertEquals(Global.settings.trees.size, 1)
         val mediaTree = Global.settings.trees[Global.settings.trees.size - 1]
         assertEquals(mediaTree.title, "media")

@@ -6,45 +6,29 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.DocumentsContract
-import android.text.format.DateUtils
-import android.text.format.Formatter
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.CheckBox
-import android.widget.LinearLayout
-import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat.getColor
-import androidx.core.content.ContextCompat.getDrawable
 import androidx.core.graphics.Insets
 import androidx.core.net.toUri
-import androidx.core.view.children
-import androidx.core.view.isVisible
 import androidx.core.view.setPadding
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.familygem.BackupViewModel.Companion.NO_URI
 import app.familygem.databinding.BackupActivityBinding
-import app.familygem.databinding.BackupRecoverFragmentBinding
 import app.familygem.databinding.BackupSaveFragmentBinding
 import app.familygem.util.InsetsUtil
-import app.familygem.util.TreeUtil
-import app.familygem.util.Util
-import com.google.android.material.tabs.TabLayoutMediator
 import kotlinx.coroutines.launch
-import java.util.Date
 
 /** Local backup manager for all trees. */
 class BackupActivity : AppCompatActivity() {
@@ -131,19 +115,17 @@ class BackupActivity : AppCompatActivity() {
                 backupProgress.visibility = if (it) View.VISIBLE else View.GONE
             }
             backupPager.adapter = PagesAdapter(this@BackupActivity)
-            TabLayoutMediator(backupTabs, backupPager) { tab, position ->
-                tab.text = getString(if (position == 0) R.string.save else R.string.recover)
-            }.attach()
+            backupTabs.visibility = View.GONE // GENI-HOOK only the save page: an archive is no longer restored as a separate tree
             viewModel.getBackupFolder() // To update backup button state
         }
     }
 
     class PagesAdapter(activity: FragmentActivity) : FragmentStateAdapter(activity) {
         override fun createFragment(position: Int): Fragment {
-            return if (position == 0) SaveFragment() else RecoverFragment()
+            return SaveFragment() // GENI-HOOK no Recover page
         }
 
-        override fun getItemCount() = 2
+        override fun getItemCount() = 1
     }
 
     /** List of trees that can be selected for backup. */
@@ -205,120 +187,6 @@ class BackupActivity : AppCompatActivity() {
                 }
                 backupSaveLayout.updatePadding(bottom = (activity as BackupActivity).insets.bottom + U.dpToPx(30F))
                 return root
-            }
-        }
-    }
-
-    /** List of recoverable backup files. */
-    class RecoverFragment : Fragment() {
-        private val viewModel = Global.backupViewModel
-        private lateinit var binding: BackupRecoverFragmentBinding
-        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-            binding = BackupRecoverFragmentBinding.inflate(layoutInflater)
-            val boxView = binding.backupRecoverBox
-            viewLifecycleOwner.lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.STARTED) {
-                    viewModel.recoverState.collect { state ->
-                        when (state) {
-                            RecoverState.Loading -> {
-                                viewModel.working(true)
-                                viewModel.loadBackupFiles()
-                            }
-                            is RecoverState.Success -> {
-                                displayBackupItems(state.items)
-                            }
-                            is RecoverState.Error -> {
-                                displayMessage(boxView, state.message ?: getString(R.string.something_wrong))
-                            }
-                            is RecoverState.Notice -> {
-                                displayMessage(boxView, state.message)
-                            }
-                        }
-                        viewModel.updateState()
-                    }
-                }
-            }
-            binding.backupRecoverSwipe.setOnRefreshListener {
-                viewModel.recoverState.value = RecoverState.Loading
-                binding.backupRecoverSwipe.isRefreshing = false
-            }
-            viewModel.recoverState.value = RecoverState.Loading
-            binding.backupRecoverBox.updatePadding(bottom = (activity as BackupActivity).insets.bottom)
-            return binding.root
-        }
-
-        /** Makes a message appear in the layout. */
-        private fun displayMessage(layout: LinearLayout, message: String) {
-            layout.removeAllViews()
-            val textView = TextView(requireContext())
-            textView.text = message
-            textView.setPadding(U.dpToPx(16F))
-            textView.gravity = Gravity.CENTER
-            layout.addView(textView)
-            viewModel.working(false)
-        }
-
-        private fun displayBackupItems(items: List<BackupItem>) {
-            val boxView = binding.backupRecoverBox
-            boxView.removeAllViews()
-            items.forEach { item ->
-                val file = item.documentFile
-                val backupView = layoutInflater.inflate(R.layout.backup_file_item, boxView, false)
-                boxView.addView(backupView)
-                val nameView = backupView.findViewById<TextView>(R.id.backup_fileName)
-                nameView.text = file.name
-                val labelView = backupView.findViewById<TextView>(R.id.backup_label)
-                labelView.text = item.label
-                backupView.findViewById<TextView>(R.id.backup_date).text = DateUtils.getRelativeTimeSpanString(
-                    file.lastModified(), Date().time, DateUtils.SECOND_IN_MILLIS
-                ).toString()
-                backupView.findViewById<TextView>(R.id.backup_size).text = Formatter.formatFileSize(context, file.length())
-                // Detail view
-                val detailView = backupView.findViewById<LinearLayout>(R.id.backup_detail)
-                val deleteButton = detailView.findViewById<Button>(R.id.backup_delete)
-                deleteButton.setOnClickListener {
-                    Util.confirmDelete(requireContext()) {
-                        viewModel.deleteBackupFile(item)
-                    }
-                }
-                val recoverButton = detailView.findViewById<Button>(R.id.backup_recover)
-                when (item.valid) {
-                    null -> { // Initial state
-                        labelView.setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.accent)) // GENI-HOOK
-                        recoverButton.visibility = View.GONE
-                    }
-                    true -> { // Valid backup
-                        recoverButton.setOnClickListener { button ->
-                            button.isEnabled = false
-                            viewModel.working(true)
-                            val progressView = activity?.findViewById<ProgressView>(R.id.backup_progress)
-                            TreeUtil.launchUnzipTree(lifecycleScope, requireContext(), null, file.uri, progressView!!, {
-                                button.isEnabled = true
-                                viewModel.listActualTrees()
-                            }, { viewModel.working(false) })
-                        }
-                    }
-                    else -> { // Invalid backup
-                        labelView.setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
-                        recoverButton.visibility = View.GONE
-                        backupView.findViewById<RelativeLayout>(R.id.backup_text).alpha = 0.7F
-                    }
-                }
-                detailView.visibility = View.GONE
-                // Shows or hides detail
-                backupView.setOnClickListener {
-                    boxView.children.filterNot { it == backupView }.forEach {
-                        it.findViewById<LinearLayout>(R.id.backup_detail).visibility = View.GONE
-                        it.background = null
-                    }
-                    detailView.visibility = if (detailView.isVisible) {
-                        backupView.background = null
-                        View.GONE
-                    } else {
-                        backupView.background = getDrawable(requireContext(), R.drawable.generic_background)
-                        View.VISIBLE
-                    }
-                }
             }
         }
     }

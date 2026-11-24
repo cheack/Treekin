@@ -365,8 +365,7 @@ object GeniGlue {
     /** Forgets the Geni data of a deleted tree, so a new tree with the same ID does not inherit it. */
     fun onTreeDeleted(treeId: Int) {
         install()
-        GeniTrees.remove(treeId)
-        scope.launch { Geni.store(Global.context).deleteTree(treeId) }
+        Geni.forgetTree(Global.context, treeId, scope)
     }
 
     /** Loads the person's relatives from Geni when the person card opens, if needed; then refreshes the card. */

@@ -41,8 +41,6 @@ import app.familygem.util.Util
 import app.familygem.util.getBasicData
 import app.familygem.util.sex
 import app.familygem.visitor.MediaList
-import com.android.installreferrer.api.InstallReferrerClient
-import com.android.installreferrer.api.InstallReferrerStateListener
 import kotlinx.coroutines.Dispatchers.Default
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
@@ -81,18 +79,11 @@ class TreesActivity : AppCompatActivity() {
         val listView = findViewById<ListView>(R.id.trees_list)
         listView.setHeaderDividersEnabled(false)
         progress = findViewById(R.id.trees_progress)
-        welcome = FabPopup(this, findViewById(R.id.fab_box), R.string.tap_add_tree)
+        welcome = FabPopup(this, findViewById(R.id.fab_box), app.familygem.geni.R.string.geni_tap_account) // GENI-HOOK
         exporter = Exporter(this, progress)
 
-        // At very first startup
-        val referrer = Global.settings.referrer
-        if (Global.settings.trees.isEmpty() && app.familygem.geni.GeniGlue.startOnboarding(this)) Unit // GENI-HOOK Geni login instead of the add-tree prompt
-        else if (referrer != null && referrer == "start") retrieveReferrer()
-        // If in the referrer has been stored a dateID (which will be annulled as soon as used)
-        else if (referrer != null && referrer.matches("\\d{14}".toRegex())) {
-            showSharedTreeBanner(referrer) {}
-        } // If there are no trees
-        else if (Global.settings.trees.isEmpty()) welcome.show()
+        // At very first startup: the Geni login, and if the user backs out, the hint to the Geni account button
+        if (Global.settings.trees.isEmpty() && !app.familygem.geni.GeniGlue.startOnboarding(this)) welcome.show() // GENI-HOOK
 
         if (savedInstanceState != null) {
             autoOpenedTree = savedInstanceState.getBoolean("autoOpenedTree")
@@ -299,9 +290,10 @@ class TreesActivity : AppCompatActivity() {
         listView.addHeaderView(bar)
 
         // FAB
+        // GENI-HOOK no new standalone trees: with no tree the button opens the Geni account screen
         findViewById<View>(R.id.fab).setOnClickListener {
             welcome.hide()
-            startActivity(Intent(this, NewTreeActivity::class.java))
+            startActivity(Intent(this, app.familygem.geni.ui.GeniLoginActivity::class.java))
         }
 
         // Automatic load of last opened tree of previous session
@@ -323,38 +315,6 @@ class TreesActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
             draggedTreeId = 0
             adapter.notifyDataSetChanged()
-        }
-    }
-
-    /** Displays a banner that asks to download the shared tree. */
-    private fun showSharedTreeBanner(dateId: String, onCancel: () -> Unit) {
-        if (!Global.settings.hideBanner.contains(0)) {
-            val listView = findViewById<ListView>(R.id.trees_list)
-            val bannerView = layoutInflater.inflate(R.layout.banner_layout, listView, false)
-            bannerView.findViewById<TextView>(R.id.banner_title).setText(R.string.a_new_tree)
-            bannerView.findViewById<TextView>(R.id.banner_text).setText(R.string.you_can_download)
-            val downloadButton = bannerView.findViewById<Button>(R.id.banner_choose)
-            downloadButton.setText(R.string.download)
-            downloadButton.setOnClickListener { button ->
-                button.isEnabled = false
-                progress.visibility = View.VISIBLE
-                TreeUtil.launchDownloadSharedTree(lifecycleScope, this, dateId, progress, {
-                    progress.visibility = View.GONE
-                    listView.removeHeaderView(bannerView)
-                    updateList()
-                }, {
-                    button.isEnabled = true
-                    progress.visibility = View.GONE
-                })
-            }
-            bannerView.findViewById<Button>(R.id.banner_disable).visibility = View.GONE
-            bannerView.findViewById<ImageView>(R.id.banner_close).setOnClickListener {
-                Global.settings.hideBanner.add(0)
-                Global.settings.save()
-                onCancel()
-                listView.removeHeaderView(bannerView)
-            }
-            listView.addHeaderView(bannerView)
         }
     }
 
@@ -518,48 +478,6 @@ class TreesActivity : AppCompatActivity() {
         return false
     }
 
-    /**
-     * Tries to retrieve the dateID from the Play Store in case the app was installed after a sharing.
-     * If finds the dateID proposes to download the shared tree.
-     */
-    private fun retrieveReferrer() {
-        val client = InstallReferrerClient.newBuilder(this).build()
-        client.startConnection(object : InstallReferrerStateListener {
-            override fun onInstallReferrerSetupFinished(answer: Int) {
-                when (answer) {
-                    InstallReferrerClient.InstallReferrerResponse.OK -> try {
-                        val details = client.installReferrer
-                        // Normally 'referrer' is a string like "utm_source=google-play&utm_medium=organic"
-                        // But if the app was installed from the link in the share page it will be a dateID like "20191003215337"
-                        val referrer = details.installReferrer
-                        if (referrer != null && referrer.matches("\\d{14}".toRegex())) { // It's a dateID
-                            Global.settings.referrer = referrer
-                            showSharedTreeBanner(referrer, welcome::show)
-                        } else { // It's anything else
-                            Global.settings.referrer = null // We null it so we won't look for it again
-                            welcome.show()
-                        }
-                        Global.settings.save()
-                        client.endConnection()
-                    } catch (e: Exception) {
-                        U.toast(e.localizedMessage)
-                    }
-                    InstallReferrerClient.InstallReferrerResponse.FEATURE_NOT_SUPPORTED, // Play Store app does not exist on the device or other incorrect answer
-                    InstallReferrerClient.InstallReferrerResponse.SERVICE_UNAVAILABLE -> { // I've never seen this appear
-                        Global.settings.referrer = null // So we never come back here
-                        Global.settings.save()
-                        welcome.show()
-                    }
-                }
-            }
-
-            override fun onInstallReferrerServiceDisconnected() {
-                // Never seen it appear
-                U.toast("Install Referrer Service Disconnected")
-            }
-        })
-    }
-
     fun updateList() {
         treeList.clear()
         for (tree in Global.settings.trees) {
@@ -573,6 +491,8 @@ class TreesActivity : AppCompatActivity() {
             treeList.add(item)
         }
         adapter.notifyDataSetChanged()
+        // GENI-HOOK the button is the way to the Geni account, so only while there is no tree
+        findViewById<View>(R.id.fab_box).visibility = if (Global.settings.trees.isEmpty()) View.VISIBLE else View.GONE
     }
 
     /** List of error messages with occurrence count. */

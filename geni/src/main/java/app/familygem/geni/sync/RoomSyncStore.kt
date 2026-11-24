@@ -18,7 +18,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 @Entity(tableName = "tree", primaryKeys = ["treeId"])
-data class GeniTreeEntity(val treeId: Int, val rootGeniId: String, val prefetchDepth: Int)
+data class GeniTreeEntity(val treeId: Int, val rootGeniId: String, val prefetchDepth: Int, @ColumnInfo(defaultValue = "''") val ownerGeniId: String)
 
 @Entity(tableName = "link", primaryKeys = ["treeId", "geniId"])
 data class GeniLinkEntity(
@@ -146,7 +146,7 @@ interface SyncDao {
     suspend fun deletePhotoLinks(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class], version = 5, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class], version = 6, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -190,8 +190,16 @@ abstract class SyncDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 6: the Geni account that owns a tree; trees from before are owned by their root's account. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `tree` ADD COLUMN `ownerGeniId` TEXT NOT NULL DEFAULT ''")
+                connection.execSQL("UPDATE `tree` SET `ownerGeniId` = `rootGeniId`")
+            }
+        }
+
         /** Every migration, in order: the app and the tests open the database with this same list. */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }
 
@@ -203,12 +211,12 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
             .addMigrations(*SyncDatabase.MIGRATIONS).build().dao()
     )
 
-    override suspend fun tree(treeId: Int) = dao.tree(treeId)?.let { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth) }
+    override suspend fun tree(treeId: Int) = dao.tree(treeId)?.let { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth, it.ownerGeniId) }
 
-    override suspend fun saveTree(info: GeniTreeInfo) = dao.saveTree(GeniTreeEntity(info.treeId, info.rootGeniId, info.prefetchDepth))
+    override suspend fun saveTree(info: GeniTreeInfo) = dao.saveTree(GeniTreeEntity(info.treeId, info.rootGeniId, info.prefetchDepth, info.ownerGeniId))
     override suspend fun updateRoot(treeId: Int, oldRoot: String, newRoot: String) = dao.updateRoot(treeId, oldRoot, newRoot) > 0
 
-    override suspend fun trees() = dao.trees().map { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth) }
+    override suspend fun trees() = dao.trees().map { GeniTreeInfo(it.treeId, it.rootGeniId, it.prefetchDepth, it.ownerGeniId) }
 
     override suspend fun link(treeId: Int, geniId: String) = dao.link(treeId, geniId)?.toLink()
 

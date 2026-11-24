@@ -128,12 +128,14 @@ class RoomSyncStoreTest {
             v4.execSQL("CREATE TABLE IF NOT EXISTS `tree` (`treeId` INTEGER NOT NULL, `rootGeniId` TEXT NOT NULL, `prefetchDepth` INTEGER NOT NULL, PRIMARY KEY(`treeId`))")
             v4.execSQL("CREATE TABLE IF NOT EXISTS `link` (`treeId` INTEGER NOT NULL, `geniId` TEXT NOT NULL, `gedcomId` TEXT NOT NULL, `fullyLoaded` INTEGER NOT NULL, `geniUpdatedAt` TEXT, `snapshot` TEXT, `loadedAtMillis` INTEGER NOT NULL, `verifiedHash` INTEGER, `orphaned` INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(`treeId`, `geniId`))")
             v4.execSQL("CREATE TABLE IF NOT EXISTS `photo_link` (`treeId` INTEGER NOT NULL, `geniProfileId` TEXT NOT NULL, `geniPhotoId` TEXT NOT NULL, `gedcomMediaId` TEXT, `isMain` INTEGER NOT NULL, `marker` TEXT, `fileName` TEXT, `state` TEXT NOT NULL, PRIMARY KEY(`treeId`, `geniProfileId`, `geniPhotoId`))")
+            v4.execSQL("INSERT INTO tree VALUES (1, 'profile-7', 3)")
             v4.execSQL("INSERT INTO job VALUES (1, 1, 'delete:profile-2', 'DELETE_PROFILE', 'profile-2', NULL, NULL, '[]', '[]', 'Anna', 0, 'PENDING', NULL, 0)")
             v4.execSQL("INSERT INTO job VALUES (2, 1, 'profile:profile-1', 'UPDATE_PROFILE', 'profile-1', NULL, NULL, '[]', '[[\"occupation\",\"Pilot\"]]', 'Ivan', 5, 'PENDING', NULL, 0)")
             v4.version = 4
         }
         val migrated = Room.databaseBuilder(context, SyncDatabase::class.java, name).addMigrations(*SyncDatabase.MIGRATIONS).build()
         try {
+            assertEquals("profile-7", RoomSyncStore(migrated.dao()).tree(1)?.ownerGeniId) // A tree from before is owned by its root's account
             val jobs = RoomSyncStore(migrated.dao()).jobs(1)
             assertEquals(listOf("delete:profile-2", "profile:profile-1"), jobs.map { it.key })
             assertEquals(listOf(null, null), jobs.map { it.confirmedByProfileId }) // Older deletes need a fresh confirmation

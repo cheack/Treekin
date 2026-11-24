@@ -71,6 +71,15 @@ class GeniClient(
     private suspend fun profileOf(session: AuthResult.Success?): GeniProfile =
         gson.fromJson(execute(Request.Builder().url(apiUrl("profile")), session = session), GeniProfile::class.java)
 
+    /**
+     * Profile of the account that owns a login that is not stored yet, read with that login alone.
+     * Nothing is stored, and a 401 does not clear the stored login.
+     */
+    suspend fun profileForLogin(candidate: AuthResult.Success): GeniProfile {
+        if (candidate.expiresAtMillis <= now()) throw GeniAuthRequiredException()
+        return gson.fromJson(execute(Request.Builder().url(apiUrl("profile")), candidate = candidate), GeniProfile::class.java)
+    }
+
     /** The valid login now; the requests of one decision use it alone, so they cannot slip to another account. */
     private fun session(): AuthResult.Success = tokens.get()?.takeIf { it.expiresAtMillis > now() } ?: throw GeniAuthRequiredException()
 
@@ -206,8 +215,8 @@ class GeniClient(
 
     /** Sends the request with the token (a pinned [session] only while it is current); 401 clears that token, 429 is retried once after the rate window. */
     private suspend fun execute(builder: Request.Builder, readTimeoutSeconds: Long? = null, session: AuthResult.Success? = null,
-        beforeSend: (suspend () -> Boolean)? = null): String {
-        val token = session ?: session()
+        beforeSend: (suspend () -> Boolean)? = null, candidate: AuthResult.Success? = null): String {
+        val token = candidate ?: session ?: session()
         val request = builder.header("Authorization", "Bearer ${token.token}").build()
         var retried = false
         while (true) {

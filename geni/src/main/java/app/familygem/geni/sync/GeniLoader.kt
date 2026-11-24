@@ -1,12 +1,15 @@
 package app.familygem.geni.sync
 
 import app.familygem.geni.TreeHost
+import app.familygem.geni.TreeLimitException
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.geniId
 import app.familygem.geni.map.GeniMapper
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.folg.gedcom.model.Gedcom
 
 sealed interface LoadResult {
@@ -14,7 +17,11 @@ sealed interface LoadResult {
     data class Loaded(val newPeople: Int, val profileId: String? = null) : LoadResult
     data object NotAGeniTree : LoadResult
     data object NeedsLogin : LoadResult
-    data class Failed(val message: String) : LoadResult
+    data class Failed(val message: String) : LoadResult {
+        /** The error behind the message, to tell a missing network from the rest; not part of equality. */
+        var cause: Exception? = null
+            internal set
+    }
     /** The profile was deleted on Geni (or merged into one already cached); [removed] if the person left the tree. */
     data class Gone(val removed: Boolean) : LoadResult
 }
@@ -59,7 +66,7 @@ class GeniLoader(
         } catch (e: GeniAuthRequiredException) {
             LoadResult.NeedsLogin
         } catch (e: Exception) {
-            LoadResult.Failed(e.message ?: e.javaClass.simpleName)
+            LoadResult.Failed(e.message ?: e.javaClass.simpleName).also { it.cause = e }
         }
     }
 
@@ -114,26 +121,84 @@ class GeniLoader(
     }
 
     /**
+     * Creates the tree of the signed-in account, rooted at the profile of the account, or finishes the setup of an interrupted one.
+     * Never makes a second tree. The calls are serialized, so a retry cannot overlap the attempt that failed.
+     * @return ID of the tree
+     * @throws AccountMismatchException if the tree on this device belongs to another account
+     */
+    suspend fun ensureTree(): Int = setupLock.withLock {
+        val me = client.currentProfile()
+        when (val own = ownership(me.id)) {
+            is TreeOwnership.Own -> own.treeId.also { if (!own.complete) finishSetup(it, store.tree(it)?.rootGeniId ?: me.id) }
+            TreeOwnership.Other -> throw AccountMismatchException()
+            TreeOwnership.None -> create(me, me, null)
+        }
+    }
+
+    /**
      * Creates a Geni tree rooted at the logged-in user's profile and loads the root's immediate family.
      * @param title Tree title, by default the name of the root profile
      * @param rootGeniId Another root than the user's own profile (developer tools; sandbox checks)
      * @return ID of the new tree
+     * @throws TreeLimitException if a tree exists already
      */
-    suspend fun createTree(title: String? = null, rootGeniId: String? = null): Int {
-        val root = if (rootGeniId == null) client.currentProfile()
+    suspend fun createTree(title: String? = null, rootGeniId: String? = null): Int = setupLock.withLock {
+        val me = client.currentProfile()
+        val root = if (rootGeniId == null) me
         else client.profiles(listOf(rootGeniId))[rootGeniId]?.first ?: error("$rootGeniId not found")
-        val treeId = host.createTree(title ?: root.name ?: root.id, Gedcom())
-        val info = GeniTreeInfo(treeId, root.id)
-        store.deleteTree(treeId) // Rows left by a deleted tree that had the same ID
-        store.saveTree(info)
-        app.familygem.geni.GeniTrees.add(treeId)
-        load(treeId, root.id)
-        store.link(treeId, root.id)?.let { host.setRoot(treeId, it.gedcomId) }
-        host.schedulePrefetch(treeId, root.id, info.prefetchDepth)
+        create(me, root, title)
+    }
+
+    private suspend fun create(owner: GeniProfile, root: GeniProfile, title: String?): Int {
+        val treeId = host.createTree(title ?: root.name ?: root.id, Gedcom()) { id ->
+            // Registered before the content is written, so a tree is never there without its owner
+            store.deleteTree(id) // Rows left by a deleted tree that had the same ID
+            store.saveTree(GeniTreeInfo(id, root.id, ownerGeniId = owner.id))
+            app.familygem.geni.GeniTrees.add(id)
+        }
+        finishSetup(treeId, root.id)
         return treeId
     }
 
-    /** ID of a FamilyGem tree that still exists and is rooted at this Geni profile, if any. */
-    suspend fun existingTree(rootGeniId: String): Int? =
-        store.trees().firstOrNull { it.rootGeniId == rootGeniId && host.treeExists(it.treeId) }?.treeId
+    /** Loads the root's family, makes the root person the diagram's start and plans the prefetch. A failed load is thrown, so a retry runs this again. */
+    private suspend fun finishSetup(treeId: Int, rootGeniId: String) {
+        when (val result = load(treeId, rootGeniId)) {
+            is LoadResult.Loaded -> Unit
+            LoadResult.NeedsLogin -> throw GeniAuthRequiredException()
+            is LoadResult.Failed -> throw result.cause ?: IllegalStateException(result.message)
+            else -> throw IllegalStateException("The tree of $rootGeniId could not be loaded: $result")
+        }
+        // The root may have moved while loading (merged profile)
+        val info = store.tree(treeId) ?: return
+        // The root person is set last: it is the mark of a finished setup, so a process that ended before it is finished by a retry
+        host.schedulePrefetch(treeId, info.rootGeniId, info.prefetchDepth)
+        store.link(treeId, info.rootGeniId)?.let { host.setRoot(treeId, it.gedcomId) }
+    }
+
+    /** Who the tree on this device belongs to, seen from the signed-in account. */
+    suspend fun ownership(accountId: String): TreeOwnership {
+        val info = store.trees().firstOrNull { host.treeExists(it.treeId) } ?: return TreeOwnership.None
+        if (info.ownerGeniId != accountId) return TreeOwnership.Other
+        return TreeOwnership.Own(info.treeId, complete = store.link(info.treeId, info.rootGeniId) != null && host.rootOf(info.treeId) != null)
+    }
+
+    private companion object {
+        /** One setup at a time for the whole app: every screen builds its own loader. */
+        val setupLock = Mutex()
+    }
 }
+
+/** The tree on this device compared with the account that signs in. */
+sealed interface TreeOwnership {
+    /** No tree yet. */
+    data object None : TreeOwnership
+
+    /** The tree of this account; [complete] once its root person is loaded and set as the diagram's start (else the setup was interrupted and a retry finishes it). */
+    data class Own(val treeId: Int, val complete: Boolean) : TreeOwnership
+
+    /** A tree of another account: this one cannot sign in until the tree is deleted. */
+    data object Other : TreeOwnership
+}
+
+/** The signed-in account is not the owner of the tree on this device. */
+class AccountMismatchException : IllegalStateException("The tree belongs to another Geni account")

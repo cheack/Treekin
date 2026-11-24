@@ -1,5 +1,22 @@
+# Treekin
+### _Your Geni tree on Android, with offline access_
+
+Treekin is a fork of [Family Gem](https://github.com/michelesalvador/FamilyGem) that works with your family tree on [Geni.com](https://www.geni.com). It is not made, approved or supported by Geni.com.
+
+## How it works
+- **Geni first.** A fresh installation has no tree. You sign in with Geni and Treekin creates one tree rooted at your own profile. Other relatives load from Geni as you open them.
+- **One tree.** Treekin keeps a single tree, the one of the Geni account that created it. While it exists only that account can sign in; another account is refused and nothing is uploaded under it.
+  To start over with another account, delete the tree in the trees list (**Delete tree**, confirmed), then sign in.
+- **Offline.** The tree and its photos are stored on the device, so you can open and edit it without a connection. Logging out keeps the tree and the edits waiting to be uploaded; they go to Geni after you sign in again.
+- **No other way to make a tree.** There is no blank tree, example tree, GEDCOM import, shared-tree link or backup restore: opening a `.ged` file or a Family Gem share link does nothing.
+- **Export.** You can still export the tree as GEDCOM (also zipped with its media), save a ZIP backup of it, and export the diagram as PDF or PNG.
+
+---
+
 # Family Gem
 ### _Create your own family tree_
+
+The rest of this file is the Family Gem README. In Treekin the importing and sharing features below are switched off, as described above.
 
 Family Gem is an app for Android designed to manage family trees.\
 It's distributed as a freemium app: almost all features are free except one (merging two trees), available with a [Premium subscription](https://www.familygem.app/premium).
