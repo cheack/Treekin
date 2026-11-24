@@ -312,8 +312,13 @@ open class Uploader(
             null
         } ?: return false
         if (person.media.none { it.file == fileName && it.geniPhotoId == null }) return false
-        val tagged = person.geniId?.let { store.link(treeId, it) }
-        val untagged = if (person.geniId == null) store.linkByGedcomId(treeId, personId) else null
+        val (tagged, untagged) = try {
+            person.geniId?.let { store.link(treeId, it) } to (if (person.geniId == null) store.linkByGedcomId(treeId, personId) else null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return false // A database error is not a verified owner
+        }
         val match = matchLink(person.gedcomId, person.geniId, "profile-", { tagged }, { untagged }) { sameProfile(it, person) }
         return match is LinkMatch.Linked && match.link.geniId == profileId
     }

@@ -832,6 +832,17 @@ class UploaderTest {
     }
 
     @Test
+    fun photoIsDeferredWhenTheLinkLookupFails() = runTest {
+        treeWithMedia()
+        val broken = object : InMemorySyncStore() {
+            override suspend fun link(treeId: Int, geniId: String): GeniLink? = error("database closed")
+        }
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        assertEquals(Outcome.Deferred, Uploader(client, broken, host).run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun matchingOwnerSendsExactlyOnePhotoPost() = runTest {
         treeWithMedia()
         server.enqueue(ok(photoJson))
