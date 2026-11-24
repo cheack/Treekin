@@ -7,7 +7,9 @@ import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.InMemoryTokenStore
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.ProfileFields
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -19,6 +21,7 @@ import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Media
 import org.folg.gedcom.model.Person
 import org.folg.gedcom.model.SpouseRef
+import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -57,9 +60,19 @@ class UploaderTest {
     @After
     fun tearDown() = server.close()
 
+    private val downloads = mutableListOf<String>()
+    private var failDownload = false
+
+    private val photoSync = PhotoSync(store, host) { url, target ->
+        downloads += url
+        if (failDownload) throw java.io.IOException("network")
+        target.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2, 3))
+        "image/jpeg"
+    }
+
     private fun TestScope.uploader() = Uploader(
         GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }),
-        store, host, now = { 7_000L }
+        store, host, now = { 7_000L }, photos = photoSync
     )
 
     private fun ok(body: String) = MockResponse.Builder().code(200).body(body).build()
@@ -648,16 +661,201 @@ class UploaderTest {
         assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
     }
 
-    @Test
-    fun deletePhotoServerErrorRetries() = runTest {
-        server.enqueue(error(500, "{}"))
-        assertTrue(uploader().run(deletePhotoJob()) is Outcome.Retry)
+    private val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2, 3)
+
+    private fun mediaOf(photoId: String, main: Boolean) = Media().apply {
+        file = "geni-$photoId.jpg"
+        setFileTag("FILE")
+        GeniMapper.setTag(this, PhotoSync.PHOTO_TAG, photoId)
+        if (main) primary = "Y"
+    }
+
+    /** I1 (profile-36430) with the main photo photo-5, plus the listed album photos, all downloaded. */
+    private suspend fun personWithMainPhoto(vararg album: String): Gedcom {
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        val gedcom = tree()
+        val person = gedcom.people.single { it.id == "I1" }
+        for ((id, main) in listOf("photo-5" to true) + album.map { it to false }) {
+            person.addMedia(mediaOf(id, main))
+            File(host.mediaDir(1), "geni-$id.jpg").writeBytes(jpeg)
+            store.savePhotoLink(PhotoLink(1, "profile-36430", id, null, main, "https://x.test/$id/medium.jpg", "geni-$id.jpg", PhotoState.DOWNLOADED))
+        }
+        return gedcom
+    }
+
+    private fun profileWithPhoto(photoId: String?) = if (photoId == null) """{"id":"profile-36430"}"""
+    else """{"id":"profile-36430","mugshot_urls":{"url":"https://api.test/$photoId","medium":"https://x.test/$photoId/medium.jpg"}}"""
+
+    private fun Gedcom.files() = people.single { it.id == "I1" }.media.map { it.file }
+    private fun Gedcom.primaryFile() = people.single { it.id == "I1" }.media.singleOrNull { it.primary == "Y" }?.file
+    private suspend fun assertMainIntact(gedcom: Gedcom) {
+        assertEquals(listOf("geni-photo-5.jpg"), gedcom.files())
+        assertEquals("geni-photo-5.jpg", gedcom.primaryFile())
+        assertTrue(File(host.mediaDir(1), "geni-photo-5.jpg").isFile)
+        assertEquals(listOf("photo-5"), store.photoLinks(1, "profile-36430").map { it.geniPhotoId })
     }
 
     @Test
-    fun deletePhotoClientErrorFails() = runTest {
+    fun deletePhotoRemovesTheMainPhotoFromThePerson() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto(null)))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertEquals("/api/photo-5/delete", server.takeRequest().url.encodedPath)
+        assertEquals("profile-36430", server.takeRequest().url.queryParameter("ids"))
+        assertTrue(gedcom.files().isEmpty())
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+        assertFalse(File(host.mediaDir(1), "geni-photo-5.jpg").exists())
+        assertEquals(1, host.refreshes)
+    }
+
+    @Test
+    fun deletePhotoNotFoundAlsoRemovesTheMainPhoto() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(error(404, """{"error":{"message":"Not found"}}"""))
+        server.enqueue(ok(profileWithPhoto(null)))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertTrue(gedcom.files().isEmpty())
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+    }
+
+    @Test
+    fun deletePhotoDownloadsTheReplacementMainPhotoAndTellsTheOpenProfile() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto("photo-6")))
+        val seen = mutableListOf<Unit>()
+        val collector = launch(UnconfinedTestDispatcher(testScheduler)) { PersonPhotoChanges.of(1, "I1").collect { seen += it } }
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        collector.cancel()
+        assertEquals(listOf("geni-photo-6.jpg"), gedcom.files())
+        assertEquals("geni-photo-6.jpg", gedcom.primaryFile())
+        assertEquals(listOf("https://x.test/photo-6/medium.jpg"), downloads)
+        assertEquals(listOf("photo-6" to true), store.photoLinks(1, "profile-36430").map { it.geniPhotoId to it.isMain })
+        assertEquals(2, host.refreshes)
+        assertEquals(2, seen.size)
+    }
+
+    @Test
+    fun deletePhotoPromotesAReplacementAlreadyInTheAlbum() = runTest {
+        val gedcom = personWithMainPhoto("photo-6")
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto("photo-6")))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertEquals(listOf("geni-photo-6.jpg"), gedcom.files())
+        assertEquals("geni-photo-6.jpg", gedcom.primaryFile())
+        assertTrue(downloads.isEmpty())
+        assertEquals(listOf("photo-6" to true), store.photoLinks(1, "profile-36430").map { it.geniPhotoId to it.isMain })
+    }
+
+    @Test
+    fun deletePhotoNeverReattachesAPhotoGeniStillNames() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto("photo-5")))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertTrue(gedcom.files().isEmpty())
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+        assertTrue(downloads.isEmpty())
+        assertEquals(1, host.refreshes)
+    }
+
+    @Test
+    fun deletePhotoStaysDoneWhenTheProfileLookupFails() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(error(500, "{}"))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertTrue(gedcom.files().isEmpty())
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+    }
+
+    @Test
+    fun deletePhotoStaysDoneWhenTheReplacementDownloadFails() = runTest {
+        val gedcom = personWithMainPhoto()
+        failDownload = true
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto("photo-6")))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertTrue(gedcom.files().isEmpty())
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+        assertEquals(1, host.refreshes)
+    }
+
+    @Test
+    fun deletePhotoRemovesAPhotoThatWasDemotedMeanwhileWithoutALookup() = runTest {
+        val gedcom = personWithMainPhoto("photo-6")
+        // A load made photo-6 the main one while the delete was pending
+        val person = gedcom.people.single { it.id == "I1" }
+        person.media.forEach { it.primary = if (GeniMapper.getTag(it, PhotoSync.PHOTO_TAG) == "photo-6") "Y" else null }
+        store.savePhotoLink(store.photoLinks(1, "profile-36430").single { it.geniPhotoId == "photo-5" }.copy(isMain = false))
+        store.savePhotoLink(store.photoLinks(1, "profile-36430").single { it.geniPhotoId == "photo-6" }.copy(isMain = true))
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertEquals(1, server.requestCount)
+        assertEquals(listOf("geni-photo-6.jpg"), gedcom.files())
+        assertEquals("geni-photo-6.jpg", gedcom.primaryFile())
+        assertEquals(listOf("photo-6"), store.photoLinks(1, "profile-36430").map { it.geniPhotoId })
+    }
+
+    @Test
+    fun deletePhotoKeepsTheUsersNoteAsAPlainLocalPhoto() = runTest {
+        val gedcom = personWithMainPhoto()
+        gedcom.people.single { it.id == "I1" }.media.single().title = "Grandpa at the dacha"
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto(null)))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        val media = gedcom.people.single { it.id == "I1" }.media.single()
+        assertEquals("Grandpa at the dacha", media.title)
+        assertNull(GeniMapper.getTag(media, PhotoSync.PHOTO_TAG))
+        assertNull(media.primary)
+        assertTrue(File(host.mediaDir(1), "geni-photo-5.jpg").isFile)
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+    }
+
+    @Test
+    fun fileOfADetachedPhotoSurvivesTheCleanupOfAnotherProfile() = runTest {
+        val gedcom = personWithMainPhoto()
+        gedcom.people.single { it.id == "I1" }.media.single().title = "Mine"
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto(null)))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        // Another profile shared the file; its copy goes later through the album cleanup
+        store.savePhotoLink(PhotoLink(1, "profile-36433", "photo-5", null, false, null, "geni-photo-5.jpg", PhotoState.DOWNLOADED))
+        gedcom.people.single { it.id == "I2" }.addMedia(mediaOf("photo-5", false))
+        GeniMapper.setGeniId(gedcom.people.single { it.id == "I2" }, "profile-36433")
+        photoSync.reconcileAlbum(1, "profile-36433", "I2", emptyList())
+        assertTrue(File(host.mediaDir(1), "geni-photo-5.jpg").isFile)
+    }
+
+    @Test
+    fun deletePhotoOfAPersonWhoseProfileChangedLeavesThePhoto() = runTest {
+        val gedcom = personWithMainPhoto()
+        store.saveLinks(listOf(link("profile-99999", "I1"))) // I1 now resolves to another profile
+        gedcom.people.single { it.id == "I1" }.let { GeniMapper.setGeniId(it, "profile-99999") }
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertEquals(1, server.requestCount)
+        assertEquals(listOf("geni-photo-5.jpg"), gedcom.files())
+    }
+
+    @Test
+    fun deletePhotoServerErrorRetriesAndKeepsThePhoto() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(error(500, "{}"))
+        assertTrue(uploader().run(deletePhotoJob()) is Outcome.Retry)
+        assertEquals(1, server.requestCount)
+        assertMainIntact(gedcom)
+    }
+
+    @Test
+    fun deletePhotoClientErrorFailsAndKeepsThePhoto() = runTest {
+        val gedcom = personWithMainPhoto()
         server.enqueue(error(403, """{"error":{"message":"Access denied"}}"""))
         assertTrue(uploader().run(deletePhotoJob()) is Outcome.Failed)
+        assertEquals(1, server.requestCount)
+        assertMainIntact(gedcom)
+        assertEquals(0, host.refreshes)
     }
 
     private val photoJson = """{"id":"photo-5","title":"Me","content_type":"image/jpeg","album_id":"album-1","sizes":{"medium":"https://x.test/p/me.jpg?sig=1"}}"""

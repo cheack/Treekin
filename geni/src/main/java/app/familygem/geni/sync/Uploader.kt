@@ -64,7 +64,8 @@ open class Uploader(
     private val host: TreeHost,
     private val now: () -> Long = System::currentTimeMillis,
     /** The bytes to send for a photo file (a place to shrink big photos); the file as it is by default. */
-    private val prepare: suspend (File) -> ByteArray = { it.readBytes() }
+    private val prepare: suspend (File) -> ByteArray = { it.readBytes() },
+    private val photos: PhotoSync = PhotoSync(store, host)
 ) {
 
     /** Told about the tree after every edit the uploader makes, so plans never use a tree saved before it. */
@@ -149,7 +150,18 @@ open class Uploader(
         } catch (e: GeniApiException) {
             if (e.code != 404) throw e
         }
+        // Geni has deleted it: the local follow-up must never make the job post the delete again
+        bestEffort { afterPhotoDeleted(job, photoId) }
         return Outcome.Done
+    }
+
+    /** Takes a deleted main photo off the person and fetches the one Geni chose instead, then tells the open profile. */
+    private suspend fun afterPhotoDeleted(job: UploadJob, photoId: String) {
+        val treeId = job.treeId
+        val personId = job.personGedcomId ?: return
+        val profileId = store.linkByGedcomId(treeId, personId)?.geniId?.takeIf { it.startsWith("profile-") } ?: return
+        val changed = { host.refreshScreens(); PersonPhotoChanges.notify(treeId, personId) }
+        photos.mainDeleted(treeId, profileId, personId, photoId, { client.profiles(listOf(profileId))[profileId]?.first }, changed)
     }
 
     /** An update without parameters only fetches the snapshot (after an add whose snapshot could not be fetched). */
