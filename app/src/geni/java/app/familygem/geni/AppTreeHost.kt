@@ -21,18 +21,20 @@ object AppTreeHost : TreeHost {
     private val mutex = Mutex()
 
     override suspend fun createTree(title: String, gedcom: Gedcom, onReserved: suspend (Int) -> Unit): Int = mutex.withLock {
-        // The limit is checked here, under the lock, before an ID is taken or anything is written
-        val treeId = withContext(Dispatchers.Main) {
-            if (Global.settings.trees.isNotEmpty()) throw TreeLimitException()
-            // An ID whose Geni rows are still being deleted would see the new tree wiped by that cleanup
-            var id = Global.settings.max() + 1
-            while (Geni.isCleaning(id)) id++
-            // The tree must be in the settings before saveJson(), which updates its birthday notifications
-            Global.settings.addTree(Settings.Tree(id, title, 0, 0, null, null, null, 0))
-            Global.settings.save()
-            id
-        }
+        var reserved = 0 // Set on the main thread as soon as the tree is in the settings, so the release below always knows it
         try {
+            // The limit is checked here, under the lock, before an ID is taken or anything is written
+            val treeId = withContext(Dispatchers.Main) {
+                if (Global.settings.trees.isNotEmpty()) throw TreeLimitException()
+                // An ID whose Geni rows are still being deleted would see the new tree wiped by that cleanup
+                var id = Global.settings.max() + 1
+                while (Geni.isCleaning(id)) id++
+                // The tree must be in the settings before saveJson(), which updates its birthday notifications
+                Global.settings.addTree(Settings.Tree(id, title, 0, 0, null, null, null, 0))
+                Global.settings.save()
+                reserved = id
+                id
+            }
             onReserved(treeId)
             gedcom.header = TreeUtil.createHeader("$treeId.json")
             gedcom.createIndexes()
@@ -40,12 +42,13 @@ object AppTreeHost : TreeHost {
             // saveJson reports a failed write to the user and returns normally: without the file there is no tree, so release it
             val file = File(Global.context.filesDir, "$treeId.json")
             if (!file.isFile || file.length() == 0L) throw java.io.IOException("The tree file $treeId.json was not written")
+            treeId
         } catch (e: Throwable) {
-            // Released, whatever the reason (also a cancellation): a retry must find no tree that this attempt left behind
-            withContext(NonCancellable + Dispatchers.Main) { TreeUtil.deleteTree(treeId) }
+            // Released, whatever the reason (also a cancellation, even one that hit the return from the main thread):
+            // a retry must find no tree that this attempt left behind
+            if (reserved != 0) withContext(NonCancellable + Dispatchers.Main) { TreeUtil.deleteTree(reserved) }
             throw e
         }
-        treeId
     }
 
     override suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T = mutex.withLock {
