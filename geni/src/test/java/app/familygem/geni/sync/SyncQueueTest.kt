@@ -84,6 +84,57 @@ class SyncQueueTest {
     }
 
     @Test
+    fun heldPhotoIsNotSentAndDoesNotBlockOtherJobs() = runTest {
+        linkBoth()
+        val session = queue.holds.acquire(1, "me.jpg")
+        queue.onSaved(1, treeWithPhoto().let { it.copy(people = listOf(it.people[0].copy(fields = driver), it.people[1])) })
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(listOf(JobKind.UPDATE_PROFILE), uploader.ran.map { it.kind })
+        assertEquals(JobState.PENDING, store.jobs(1).single { it.kind == JobKind.ADD_PHOTO }.state)
+        assertEquals(1, queue.holds.release(session))
+        queue.runPending(1)
+        queue.runPending(1)
+        assertEquals(1, uploader.ran.count { it.kind == JobKind.ADD_PHOTO })
+        assertNull(queue.holds.release(session)) // Idempotent
+    }
+
+    @Test
+    fun holdOfOneTreeDoesNotHoldTheSameFileNameOfAnother() = runTest {
+        queue.holds.acquire(1, "me.jpg")
+        store.saveJob(photoJob())
+        store.saveJob(photoJob().copy(treeId = 2))
+        queue.runPending(2)
+        assertEquals(listOf(2), uploader.ran.map { it.treeId })
+        queue.runPending(1)
+        assertEquals(listOf(2), uploader.ran.map { it.treeId })
+    }
+
+    @Test
+    fun releasedPhotoStillWaitsWhileTheSettingIsOff() = runTest {
+        linkBoth()
+        photosOn = false
+        val session = queue.holds.acquire(1, "me.jpg")
+        store.saveJob(photoJob())
+        queue.holds.release(session)
+        queue.runPending(1)
+        assertEquals(emptyList<UploadJob>(), uploader.ran)
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+    }
+
+    @Test
+    fun commitRunsOnlyWhileHeld() {
+        val holds = PhotoHolds()
+        val session = holds.acquire(1, "a.jpg")
+        assertEquals(CommitResult(true, false, 1), holds.commit(session) { false })
+        assertTrue(holds.isHeld(1, "a.jpg"))
+        assertEquals(CommitResult(true, true, 1), holds.commit(session) { true })
+        assertTrue(!holds.isHeld(1, "a.jpg"))
+        var ran = false
+        assertEquals(CommitResult(false, false, null), holds.commit(session) { ran = true; true })
+        assertTrue(!ran)
+    }
+
+    @Test
     fun failedPhotoJobDoesNotStopLaterJobs() = runTest {
         linkBoth()
         queue.onSaved(1, treeWithPhoto().let { it.copy(people = listOf(it.people[0].copy(fields = driver), it.people[1])) })

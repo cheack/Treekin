@@ -34,6 +34,7 @@ import app.familygem.FileUri
 import app.familygem.Global
 import app.familygem.R
 import app.familygem.U
+import app.familygem.geni.GeniGlue
 import app.familygem.constant.Destination
 import app.familygem.constant.Extra
 import app.familygem.constant.FileType
@@ -208,9 +209,22 @@ object FileUtil {
             val mimeType = URLConnection.guessContentTypeFromName(mediaFile.name)
             if (mimeType != null && mimeType.startsWith("image/")) {
                 Global.editedMedia = media
+                // GENI-HOOK: the upload to Geni waits for the crop decision
+                val session = GeniGlue.holdPhoto(Global.settings.openTree, mediaFile.name)
+                var handedOver = false
                 val alert: Dialog = AlertDialog.Builder(context).setView(R.layout.crop_image_dialog)
-                    .setPositiveButton(R.string.yes) { _, _ -> cropImage(context, mediaFile, null) }
-                    .setNeutralButton(R.string.no, null).show()
+                    .setPositiveButton(R.string.yes) { _, _ ->
+                        handedOver = true // The editor now owns the hold
+                        try {
+                            cropImage(context, mediaFile, null, null, session)
+                        } catch (e: Exception) {
+                            GeniGlue.releasePhoto(session)
+                            throw e
+                        }
+                    }
+                    .setNeutralButton(R.string.no, null)
+                    .setOnDismissListener { if (!handedOver) GeniGlue.releasePhoto(session) }
+                    .show()
                 showImage(media, alert.findViewById(R.id.crop_image))
             }
             return true
@@ -222,7 +236,7 @@ object FileUtil {
      * Starts cropping an image with CropImage.
      * [fileMedia] and [uriMedia]: one of the two is valid, the other is null.
      */
-    fun cropImage(context: Context, fileMedia: File?, uriMedia: Uri?, launcher: ActivityResultLauncher<Intent>? = null) {
+    fun cropImage(context: Context, fileMedia: File?, uriMedia: Uri?, launcher: ActivityResultLauncher<Intent>? = null, geniSession: Long = 0) {
         // Media path key is stored to clear Glide cache after cropping
         val path = fileMedia?.absolutePath ?: uriMedia!!.path!!
         val cropped = if (Global.croppedPaths.containsKey(path)) Global.croppedPaths[path]!! else 0
@@ -231,6 +245,7 @@ object FileUtil {
         val finalUri = uriMedia ?: Uri.fromFile(fileMedia)
         val intent = Intent(context, CropImageActivity::class.java)
         intent.data = finalUri
+        if (geniSession != 0L) intent.putExtra(CropImageActivity.GENI_SESSION, geniSession) // GENI-HOOK
         if (launcher != null) launcher.launch(intent)
         else context.startActivity(intent)
     }

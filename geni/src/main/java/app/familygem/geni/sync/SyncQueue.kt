@@ -39,6 +39,9 @@ class SyncQueue(
     private val onResult: (UploadJob, Outcome) -> Unit = { _, _ -> }
 ) {
 
+    /** Photos waiting for the user to crop them; a held photo job is not selected. After a release, kick the runner. */
+    val holds = PhotoHolds()
+
     private val locks = mutableMapOf<Int, Mutex>()
     /** Last saved state of each tree, to plan again after an upload changed links or snapshots. */
     private val lastLocal = mutableMapOf<Int, LocalTree>()
@@ -238,6 +241,11 @@ class SyncQueue(
     /** A photo upload is like an add: after a lost response the photo may exist on Geni, so it is never sent again by itself. */
     private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER || kind == JobKind.ADD_PHOTO
 
+    private fun isHeld(job: UploadJob): Boolean {
+        val file = job.params.firstOrNull { it.first == "file" }?.second ?: return false
+        return holds.isHeld(job.treeId, file)
+    }
+
     /**
      * First pending job, in order, that does not wait for another add, whatever order they were planned in:
      * a child waits for every parent still to be added (it must go under the couple's union);
@@ -245,7 +253,9 @@ class SyncQueue(
      */
     private fun nextJob(jobs: List<UploadJob>): UploadJob? {
         val photos = uploadPhotos()
-        val pending = jobs.filter { it.state == JobState.PENDING && (photos || it.kind != JobKind.ADD_PHOTO) }
+        val pending = jobs.filter {
+            it.state == JobState.PENDING && (it.kind != JobKind.ADD_PHOTO || (photos && !isHeld(it)))
+        }
         val adding = jobs.filter { it.isAdd() && it.kind != JobKind.ADD_PHOTO && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
             .mapNotNull { it.personGedcomId }.toSet()
         fun waits(job: UploadJob): Boolean {
