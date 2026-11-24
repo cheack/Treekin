@@ -26,9 +26,9 @@
     <color name="geni_dark_canvas">#181D1A</color>
     <color name="geni_light_canvas">#EBEBD8</color>
 
-    <color name="geni_light_card_male">#E0C4DCF1</color>
-    <color name="geni_light_card_female">#E0F8C4DE</color>
-    <color name="geni_light_card_undefined">#E0E2E2DA</color>
+    <color name="geni_light_card_male">#F0AECDE6</color>
+    <color name="geni_light_card_female">#F0F4B4D6</color>
+    <color name="geni_light_card_undefined">#F0D8D8CE</color>
     <color name="geni_light_card_selected">#FFFFFF</color>
     <color name="geni_dark_card_male">#E02B3F52</color>
     <color name="geni_dark_card_female">#E0523349</color>
