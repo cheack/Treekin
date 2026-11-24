@@ -179,7 +179,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 
 ### Deferred from photos PR 4
 
-- [ ] Crop right after adding a photo uploads the uncropped file (the tree is saved before the crop and the queue runs at once); needs a short hold on new photo jobs with a wake-up
+- [x] Crop right after adding a photo uploaded the uncropped file; new photo jobs now wait for the crop decision (PR #23)
 - [ ] `PhotoScaler`: huge images can decode to about 50 MB (an out-of-memory is now caught as a failed upload); PNG transparency turns black after re-encoding to JPEG; only EXIF orientation 6 is tested
 - [ ] Switching the photo upload on re-plans only trees saved in this process; after a cold start the photos wait for the next save of each tree
 - [ ] Local photos of Geni people from earlier builds upload on the first save after the update (the switch defaults to on), with no notice
