@@ -6,6 +6,7 @@ import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.InMemoryTokenStore
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.ProfileFields
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.MockResponse
@@ -664,7 +665,8 @@ class UploaderTest {
     private fun photoJob(file: String = "me.jpg") = UploadJob(id = 3, treeId = 1, key = "photo:I1:$file", kind = JobKind.ADD_PHOTO, geniId = "profile-36430",
         personGedcomId = "I1", params = listOfNotNull("file" to file, "title" to "Me"), label = "Test User", localHash = 1)
 
-    private fun treeWithMedia(file: String = "me.jpg", bytes: ByteArray? = byteArrayOf(1, 2, 3)): Gedcom {
+    private suspend fun treeWithMedia(file: String = "me.jpg", bytes: ByteArray? = byteArrayOf(1, 2, 3)): Gedcom {
+        store.saveLinks(listOf(link("profile-36430", "I1"))) // The owner is linked to the job's profile
         val gedcom = tree()
         gedcom.people.first { it.id == "I1" }.addMedia(Media().apply { this.file = file; setFileTag("FILE") })
         if (bytes != null) java.io.File(host.mediaDir(1), file).writeBytes(bytes)
@@ -766,8 +768,86 @@ class UploaderTest {
         val failing = object : InMemorySyncStore() {
             override suspend fun savePhotoLink(link: PhotoLink) = error("disk full")
         }
+        failing.saveLinks(listOf(link("profile-36430", "I1")))
         val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
         val outcome = Uploader(client, failing, host).run(photoJob())
         assertTrue(outcome is Outcome.Failed && outcome.message.contains("check on Geni"))
+    }
+
+    private val ivanSnapshot = """{"id":"profile-36430","first_name":"Ivan","last_name":"User"}"""
+    private val photoOf = LocalMedia("me.jpg", "Me", null)
+
+    /** The saved I1 as a lost tag with another name leaves it: the link rules cannot tell if it is the profile. */
+    private fun ambiguousOwner() = LocalPerson("I1", null, "New User", ProfileFields.EMPTY.copy(given = "New", surname = "User"), listOf(photoOf))
+
+    private suspend fun linkWithName() = store.saveLinks(listOf(GeniLink(1, "profile-36430", "I1", true, "1", ivanSnapshot, 5, 99)))
+
+    @Test
+    fun photoOfAmbiguousOwnerIsDeferredWithoutRequest() = runTest {
+        treeWithMedia()
+        linkWithName()
+        host.saved[1 to "I1"] = ambiguousOwner()
+        assertEquals(Outcome.Deferred, uploader().run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun photoWhoseAttachmentWasRemovedIsDeferred() = runTest {
+        treeWithMedia()
+        host.saved[1 to "I1"] = null
+        assertEquals(Outcome.Deferred, uploader().run(photoJob()))
+        host.saved[1 to "I1"] = ambiguousOwner().copy(geniId = "profile-36430", media = emptyList())
+        assertEquals(Outcome.Deferred, uploader().run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun photoWhoseOwnerNowResolvesToAnotherProfileIsDeferred() = runTest {
+        treeWithMedia()
+        store.saveLinks(listOf(link("profile-99", "I1")))
+        host.saved[1 to "I1"] = ambiguousOwner().copy(geniId = "profile-99")
+        assertEquals(Outcome.Deferred, uploader().run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun photoIsDeferredWhenTheSavedTreeCannotBeRead() = runTest {
+        treeWithMedia()
+        host.savedReadFails = true
+        assertEquals(Outcome.Deferred, uploader().run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun savedTreeChangingWhilePreparedStopsTheRequest() = runTest {
+        treeWithMedia()
+        linkWithName()
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        val changing = Uploader(client, store, host, now = { 7_000L }, prepare = {
+            host.saved[1 to "I1"] = ambiguousOwner()
+            byteArrayOf(1)
+        })
+        assertEquals(Outcome.Deferred, changing.run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun photoIsDeferredWhenTheLinkLookupFails() = runTest {
+        treeWithMedia()
+        val broken = object : InMemorySyncStore() {
+            override suspend fun link(treeId: Int, geniId: String): GeniLink? = error("database closed")
+        }
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        assertEquals(Outcome.Deferred, Uploader(client, broken, host).run(photoJob()))
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun matchingOwnerSendsExactlyOnePhotoPost() = runTest {
+        treeWithMedia()
+        server.enqueue(ok(photoJson))
+        assertEquals(Outcome.Done, uploader().run(photoJob()))
+        assertEquals(1, server.requestCount)
+        assertEquals("/api/profile-36430/add-photo", server.takeRequest().url.encodedPath)
     }
 }

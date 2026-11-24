@@ -4,6 +4,7 @@ import app.familygem.geni.TreeHost
 import app.familygem.geni.api.GeniAccountMismatchException
 import app.familygem.geni.api.GeniApiException
 import app.familygem.geni.api.GeniNotConfirmedException
+import app.familygem.geni.api.GeniSendRejectedException
 import app.familygem.geni.api.GeniSessionChangedException
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
@@ -37,6 +38,8 @@ sealed interface Outcome {
     data class Conflict(val groups: List<String>) : Outcome
     /** The job changed while it was checked: nothing was sent, the new version runs next. */
     data object Superseded : Outcome
+    /** The target of the job could not be verified against the saved tree: nothing was sent, the job stays waiting. */
+    data object Deferred : Outcome
 }
 
 private val gson = Gson()
@@ -240,6 +243,7 @@ open class Uploader(
             return Outcome.Failed("the photo file name is not a plain file name")
         // Already uploaded (a finished job run again): never send a second copy
         if (store.photoLinks(treeId, profileId).any { it.fileName == fileName }) return Outcome.Done
+        if (!ownerStillMatches(treeId, profileId, personId, fileName)) return Outcome.Deferred
         val file = File(host.mediaDir(treeId), fileName)
         if (!file.isFile) return Outcome.Failed("the photo file is missing: $fileName")
         val title = job.params.firstOrNull { it.first == "title" }?.second
@@ -255,9 +259,11 @@ open class Uploader(
 
         // From here Geni may have stored the photo even when the request fails: never retry automatically
         val photo: GeniPhoto = try {
-            client.addPhoto(profileId, fileName, title, bytes)
+            client.addPhoto(profileId, fileName, title, bytes) { ownerStillMatches(treeId, profileId, personId, fileName) }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: GeniSendRejectedException) {
+            return Outcome.Deferred // Refused before the request went out
         } catch (e: GeniAuthRequiredException) {
             return Outcome.NeedsLogin // Refused before anything was stored
         } catch (e: GeniApiException) {
@@ -291,6 +297,30 @@ open class Uploader(
             host.refreshScreens()
         }
         return Outcome.Done
+    }
+
+    /**
+     * True if the saved tree still gives the photo to the person, and the link rules still resolve that person to [profileId].
+     * Anything that cannot be verified (unreadable tree, missing person, ambiguous or other link) counts as no.
+     */
+    private suspend fun ownerStillMatches(treeId: Int, profileId: String, personId: String, fileName: String): Boolean {
+        val person = try {
+            host.savedPerson(treeId, personId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        if (person.media.none { it.file == fileName && it.geniPhotoId == null }) return false
+        val (tagged, untagged) = try {
+            person.geniId?.let { store.link(treeId, it) } to (if (person.geniId == null) store.linkByGedcomId(treeId, personId) else null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return false // A database error is not a verified owner
+        }
+        val match = matchLink(person.gedcomId, person.geniId, "profile-", { tagged }, { untagged }) { sameProfile(it, person) }
+        return match is LinkMatch.Linked && match.link.geniId == profileId
     }
 
     /** Merges what Geni changed since the snapshot into the tree; a conflict, a retry or null to go on. */

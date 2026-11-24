@@ -1,5 +1,7 @@
 package app.familygem.geni
 
+import app.familygem.geni.sync.LocalPerson
+import app.familygem.geni.sync.LocalTree
 import org.folg.gedcom.model.Gedcom
 import java.io.File
 
@@ -24,6 +26,20 @@ open class FakeTreeHost : TreeHost {
     override suspend fun openTree(activity: android.app.Activity, treeId: Int): Boolean {
         opened += treeId
         return true
+    }
+
+    /** Set to make [savedPerson] fail, like a read during a write. */
+    var savedReadFails = false
+    /** Persons the saved tree has, when it differs from [trees] (the unsaved edits). Null: the person of [trees]. */
+    val saved = mutableMapOf<Pair<Int, String>, LocalPerson?>()
+    /** Called at every [savedPerson], to change the tree meanwhile. */
+    var onSavedRead: () -> Unit = {}
+
+    override suspend fun savedPerson(treeId: Int, gedcomId: String): LocalPerson? {
+        onSavedRead()
+        if (savedReadFails) throw java.io.IOException("tree is being written")
+        if ((treeId to gedcomId) in saved) return saved[treeId to gedcomId]
+        return trees[treeId]?.let { LocalTree.capture(it) }?.people?.firstOrNull { it.gedcomId == gedcomId }
     }
 
     override fun treeExists(treeId: Int) = treeId in trees

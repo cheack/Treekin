@@ -184,7 +184,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 - [ ] Switching the photo upload on re-plans only trees saved in this process; after a cold start the photos wait for the next save of each tree
 - [ ] Local photos of Geni people from earlier builds upload on the first save after the update (the switch defaults to on), with no notice
 - [ ] A photo whose tag edit failed after upload can get a second local media on the next photo sync (found by tag only)
-- [ ] A pending photo job of an ambiguous person (tag lost and snapshot differs) is kept and could be sent to the stored profile; drop PENDING photo jobs of ambiguous people (keep FAILED and DISMISSED) so they are planned again after the person is resolved
+- [x] A pending photo job of an ambiguous person (tag lost and snapshot differs) is kept and could be sent to the stored profile; drop PENDING photo jobs of ambiguous people (keep FAILED and DISMISSED) so they are planned again after the person is resolved
 - [ ] Old photo jobs keep their old label; the pending count may include photo jobs while the switch is off
 
 ### Deferred from photos PR 5

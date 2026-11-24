@@ -1,5 +1,6 @@
 package app.familygem.geni
 
+import app.familygem.geni.sync.LocalPerson
 import org.folg.gedcom.model.Gedcom
 import java.io.File
 
@@ -15,6 +16,12 @@ interface TreeHost {
      * Calls are serialized.
      */
     suspend fun <T> edit(treeId: Int, block: (Gedcom) -> T): T
+
+    /**
+     * A person as the tree is saved on disk (not the unsaved edits of an open tree), or null if the tree has no such person.
+     * Read-only, with no screen or tree side effects. Throws if the saved tree cannot be read (e.g. during a write).
+     */
+    suspend fun savedPerson(treeId: Int, gedcomId: String): LocalPerson?
 
     /** True if the FamilyGem tree still exists (the user may have deleted it). */
     fun treeExists(treeId: Int): Boolean

@@ -26,6 +26,9 @@ class GeniAccountMismatchException : Exception("signed in to another Geni accoun
 /** The request has no recorded confirming account (an older job): it needs a fresh confirmation, nothing was sent. */
 class GeniNotConfirmedException : Exception("the request was not confirmed by a Geni account")
 
+/** A check made right before dispatch said the request must not go out: nothing was sent. */
+class GeniSendRejectedException : Exception("the request was not sent: its target could not be verified")
+
 /** The login changed while a request was prepared: nothing was sent, the next attempt verifies the account again. */
 class GeniSessionChangedException : Exception("the Geni login changed")
 
@@ -148,12 +151,13 @@ class GeniClient(
     suspend fun photo(photoId: String): GeniPhoto = parsePhoto(getJson(photoId))
 
     /** Uploads a photo to the profile; the first photo of a profile becomes its main one on Geni. */
-    suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray): GeniPhoto {
+    suspend fun addPhoto(profileId: String, fileName: String, title: String?, bytes: ByteArray,
+        beforeSend: (suspend () -> Boolean)? = null): GeniPhoto {
         // Base64 of a large photo is CPU and memory heavy: keep it off the caller's (maybe Main) thread
         val encoded = withContext(Dispatchers.IO) { bytes.toByteString().base64() }
         val params = mutableListOf("file" to encoded, "file_name" to fileName)
         if (title != null) params.add("title" to title)
-        return parsePhoto(post("$profileId/add-photo", params, PHOTO_READ_TIMEOUT_SECONDS))
+        return parsePhoto(post("$profileId/add-photo", params, PHOTO_READ_TIMEOUT_SECONDS, beforeSend))
     }
 
     /** Deletes a photo from Geni. */
@@ -191,16 +195,18 @@ class GeniClient(
      * Raw JSON response of a form POST to an API path relative to the base, like "profile-1/update".
      * Repeated keys are allowed; an empty value clears the field on Geni.
      */
-    suspend fun post(path: String, params: List<Pair<String, String>>, readTimeoutSeconds: Long? = null): String {
+    suspend fun post(path: String, params: List<Pair<String, String>>, readTimeoutSeconds: Long? = null,
+        beforeSend: (suspend () -> Boolean)? = null): String {
         // add() canonicalizes every value, which is slow for a big base64 photo: keep it off the caller's thread
         val form = withContext(Dispatchers.IO) {
             FormBody.Builder().apply { params.forEach { (key, value) -> add(key, value) } }.build()
         }
-        return execute(Request.Builder().url(apiUrl(path)).post(form), readTimeoutSeconds)
+        return execute(Request.Builder().url(apiUrl(path)).post(form), readTimeoutSeconds, beforeSend = beforeSend)
     }
 
     /** Sends the request with the token (a pinned [session] only while it is current); 401 clears that token, 429 is retried once after the rate window. */
-    private suspend fun execute(builder: Request.Builder, readTimeoutSeconds: Long? = null, session: AuthResult.Success? = null): String {
+    private suspend fun execute(builder: Request.Builder, readTimeoutSeconds: Long? = null, session: AuthResult.Success? = null,
+        beforeSend: (suspend () -> Boolean)? = null): String {
         val token = session ?: session()
         val request = builder.header("Authorization", "Bearer ${token.token}").build()
         var retried = false
@@ -208,6 +214,8 @@ class GeniClient(
             limiter.acquire()
             // The limiter may have waited: a pinned request goes out only while its login is still the stored one
             if (session != null && !isCurrent(session)) throw GeniSessionChangedException()
+            // Before every attempt, the replay after a 429 too: the world may have changed while the request waited
+            if (beforeSend != null && !beforeSend()) throw GeniSendRejectedException()
             val (code, body) = withContext(Dispatchers.IO) {
                 (if (readTimeoutSeconds == null) http else http.newBuilder().readTimeout(readTimeoutSeconds, TimeUnit.SECONDS).build())
                     .newCall(request).execute().use { response ->

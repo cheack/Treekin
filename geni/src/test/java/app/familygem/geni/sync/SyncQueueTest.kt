@@ -72,6 +72,53 @@ class SyncQueueTest {
 
     private fun treeWithPhoto() = tree().let { it.copy(people = listOf(it.people[0].copy(media = listOf(LocalMedia("me.jpg", "Me", null))), it.people[1])) }
 
+    private val me = LocalMedia("me.jpg", "Me", null)
+    private fun photoJob(person: String = "I1", geniId: String = "profile-1", state: JobState = JobState.PENDING) = UploadJob(treeId = 1,
+        key = "photo:$person:me.jpg", kind = JobKind.ADD_PHOTO, geniId = geniId, personGedcomId = person, params = listOf("file" to "me.jpg"),
+        label = "Photo", localHash = 0, state = state)
+    private val updateJob = UploadJob(treeId = 1, key = "profile:profile-2", kind = JobKind.UPDATE_PROFILE, geniId = "profile-2",
+        params = listOf("occupation" to "Driver"), label = "x", localHash = 1)
+
+    @Test
+    fun ambiguousSaveDropsPendingPhotoAndResolvedSaveSendsItToTheResolvedProfile() = runTest {
+        linkBoth()
+        val both = treeWithPhoto().let { it.copy(people = listOf(it.people[0], it.people[1].copy(media = listOf(me)))) }
+        queue.onSaved(1, both)
+        assertEquals(setOf("photo:I1:me.jpg", "photo:I2:me.jpg"), store.jobs(1).map { it.key }.toSet())
+        // I1 lost its tag and has another name
+        val lost = LocalPerson("I1", null, "New User", ProfileFields.EMPTY.copy(given = "New", surname = "User"), listOf(me))
+        queue.onSaved(1, both.copy(people = listOf(lost, both.people[1]), stamp = both.stamp + 1))
+        assertEquals(listOf("photo:I2:me.jpg"), store.jobs(1).map { it.key }) // The same file name of another person stays
+        queue.onSaved(1, both.copy(stamp = both.stamp + 2))
+        val photo = store.jobs(1).single { it.key == "photo:I1:me.jpg" }
+        assertEquals("profile-1", photo.geniId)
+        queue.runPending(1)
+        assertEquals(1, uploader.ran.count { it.key == "photo:I1:me.jpg" && it.geniId == "profile-1" })
+    }
+
+    @Test
+    fun deferredPhotoStaysPendingAndOthersRun() = runTest {
+        linkBoth()
+        store.saveJob(photoJob()) // Persisted by an older build: no save planned it
+        store.saveJob(updateJob)
+        uploader.answer = { if (it.kind == JobKind.ADD_PHOTO) Outcome.Deferred else uploader.geniApplies(it) }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(1, uploader.ran.count { it.kind == JobKind.ADD_PHOTO })
+        assertEquals(1, uploader.ran.count { it.kind == JobKind.UPDATE_PROFILE })
+        assertEquals(listOf("photo:I1:me.jpg" to JobState.PENDING), store.jobs(1).map { it.key to it.state })
+    }
+
+    @Test
+    fun retriedFailedPhotoThatCannotBeVerifiedGoesBackToPending() = runTest {
+        linkBoth()
+        val id = store.saveJob(photoJob(state = JobState.FAILED))
+        uploader.answer = { Outcome.Deferred }
+        queue.retryFailed(setOf(id))
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(1, uploader.ran.size)
+        assertEquals(JobState.PENDING, store.jobs(1).single().state)
+    }
+
     @Test
     fun photoJobIsPlannedOnlyWhileTheSettingIsOn() = runTest {
         linkBoth()

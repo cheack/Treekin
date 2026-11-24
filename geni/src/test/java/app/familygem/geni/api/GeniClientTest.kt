@@ -136,6 +136,26 @@ class GeniClientTest {
     }
 
     @Test
+    fun rejectedCheckAfter429NeverReplays() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        server.enqueue(MockResponse.Builder().code(429).addHeader("X-API-Rate-Window", "10").build())
+        server.enqueue(ok(profileJson))
+        var checks = 0
+        val error = runCatching { client().post("profile-1/add-photo", listOf("a" to "b"), beforeSend = { ++checks == 1 }) }.exceptionOrNull()
+        assertTrue(error is GeniSendRejectedException)
+        assertEquals(2, checks)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun rejectedCheckSendsNothing() = runTest {
+        tokens.save(AuthResult.Success("t", 10_000L))
+        val error = runCatching { client().addPhoto("profile-1", "a.jpg", null, byteArrayOf(1)) { false } }.exceptionOrNull()
+        assertTrue(error is GeniSendRejectedException)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun post400ThrowsApiException() = runTest {
         tokens.save(AuthResult.Success("t", 10_000L))
         val body = """{"error":{"type":"ApiException","message":"Invalid union status: divorced"}}"""

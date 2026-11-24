@@ -237,11 +237,21 @@ class UploadPlannerTest {
     }
 
     @Test
-    fun ambiguousPersonKeepsItsPhotoJobs() {
+    fun ambiguousPersonDropsOnlyItsPendingPhotoJobs() {
         val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields, media = listOf(me))) + it.people.drop(1)) }
-        for (state in listOf(JobState.FAILED, JobState.DISMISSED, JobState.PENDING)) {
-            assertFalse("$state", "photo:I1:me.jpg" in plan(local, jobs = listOf(photoJob().copy(state = state))).deleteKeys)
+        for (state in JobState.entries) {
+            val plan = plan(local, jobs = listOf(photoJob().copy(state = state)))
+            assertEquals("$state", state == JobState.PENDING, "photo:I1:me.jpg" in plan.deleteKeys)
+            assertEquals("$state", emptyList<UploadJob>(), plan.upserts.filter { it.kind == JobKind.ADD_PHOTO })
         }
+    }
+
+    @Test
+    fun ambiguousPersonDropsLegacyPendingPhotoJobFoundByItsKey() {
+        val local = couple().let { it.copy(people = listOf(it.people[0].copy(geniId = null, fields = newFields, media = listOf(me))) + it.people.drop(1)) }
+        val legacy = photoJob().copy(personGedcomId = null)
+        assertTrue("photo:I1:me.jpg" in plan(local, jobs = listOf(legacy)).deleteKeys)
+        assertFalse("photo:I1:me.jpg" in plan(local, jobs = listOf(legacy.copy(state = JobState.FAILED))).deleteKeys)
     }
 
     @Test
