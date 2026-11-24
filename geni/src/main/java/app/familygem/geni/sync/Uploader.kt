@@ -150,7 +150,9 @@ open class Uploader(
         } catch (e: GeniApiException) {
             if (e.code != 404) throw e
         }
-        // Geni has deleted it: the local follow-up must never make the job post the delete again
+        // Geni has deleted it: from now no profile response or download may attach it again
+        photos.guard.confirm(job.treeId, photoId)
+        // The local follow-up must never make the job post the delete again
         bestEffort { afterPhotoDeleted(job, photoId) }
         return Outcome.Done
     }

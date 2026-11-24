@@ -20,6 +20,8 @@ import java.io.File
 class PhotoSync(
     private val store: SyncStore,
     private val host: TreeHost,
+    /** Share one guard between every [PhotoSync] of the process (see [PhotoDeletionGuard]). */
+    val guard: PhotoDeletionGuard = PhotoDeletionGuard(),
     private val download: suspend (String, File) -> String = PhotoDownloader()::download
 ) {
 
@@ -28,6 +30,7 @@ class PhotoSync(
      * and unchanged (same Geni photo ID) is not fetched again; if the download fails nothing changes.
      * A photo that was already downloaded as an album photo becomes the main one without a new download.
      * The previous main photo stays on the device as an album photo.
+     * A photo whose deletion Geni confirmed is never attached, even if [profile] was fetched before the deletion.
      * @return true if the tree changed
      */
     suspend fun sync(treeId: Int, profile: GeniProfile, personGedcomId: String): Boolean {
@@ -35,48 +38,73 @@ class PhotoSync(
         val links = store.photoLinks(treeId, profile.id)
         val main = links.firstOrNull { it.isMain }
         if (photo == null) return main?.takeIf { it.state == PhotoState.DOWNLOADED }?.let { remove(treeId, profile, personGedcomId, it) } ?: false
+        if (guard.isDeleted(treeId, photo.id)) return false
         val dir = host.mediaDir(treeId)
         fun present(link: PhotoLink?) = link?.fileName?.let { File(dir, it).isFile } == true
         if (main?.geniPhotoId == photo.id && present(main)) return false
         val known = links.firstOrNull { it.geniPhotoId == photo.id }
-        val fileName = if (present(known)) known!!.fileName!! else fetch(treeId, photo) ?: return false
-        return attach(treeId, profile.id, personGedcomId, photo, fileName, main, asMain = true)
+        return attachFetched(treeId, profile.id, personGedcomId, photo, known?.fileName?.takeIf { present(known) }, asMain = true)
     }
 
     /**
      * Downloads an album photo and attaches it to the person as a plain media (not primary).
-     * @return true if it was added; false if it was already there or the person is not in the tree
+     * @return true if it was added; false if it was already there, was deleted on Geni or the person is not in the tree
      */
     suspend fun addAlbumPhoto(treeId: Int, geniProfileId: String, personGedcomId: String, photo: GeniPhoto): Boolean {
+        if (guard.isDeleted(treeId, photo.id)) return false
         val known = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == photo.id }
         if (known?.fileName?.let { File(host.mediaDir(treeId), it).isFile } == true) return false
-        val fileName = fetch(treeId, photo) ?: return false
-        return attach(treeId, geniProfileId, personGedcomId, photo, fileName, previous = null, asMain = false)
+        return attachFetched(treeId, geniProfileId, personGedcomId, photo, null, asMain = false)
     }
 
-    /** Downloads the photo to the tree's media folder; null if it has no usable URL. Throws on a failed download. */
-    private suspend fun fetch(treeId: Int, photo: GeniPhoto): String? {
+    /** A downloaded file waiting in the media folder under a staging name, and the name it gets when published. */
+    private class Staged(val file: File, val fileName: String)
+
+    /**
+     * Downloads the photo unless [knownFile] already holds it, then attaches it under the tree's lock.
+     * The staging file never outlives the call, whatever the outcome.
+     */
+    private suspend fun attachFetched(
+        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, knownFile: String?, asMain: Boolean
+    ): Boolean {
+        // Tracked here, outside the IO block, so a cancellation that discards the stage() result still finds the file
+        val temps = mutableListOf<File>()
+        try {
+            val staged = if (knownFile == null) stage(treeId, photo, temps) ?: return false else null
+            return attach(treeId, profileId, personGedcomId, photo, staged, knownFile ?: staged!!.fileName, asMain)
+        } finally {
+            temps.forEach { it.delete() }
+        }
+    }
+
+    /** Downloads the photo to a staging file in the tree's media folder, listed in [temps] for the caller to delete; null if it has no usable URL. Throws on a failed download. */
+    private suspend fun stage(treeId: Int, photo: GeniPhoto, temps: MutableList<File>): Staged? {
         val url = photo.urlFor(*SIZES) ?: return null
         val dir = host.mediaDir(treeId)
         // File work stays off the main thread; each call has its own staging file so quick double taps do not clash
         return withContext(Dispatchers.IO) {
             val temp = File.createTempFile("geni-${photo.id}-", ".download", dir)
-            try {
-                val type = download(url, temp)
-                if (!looksLikeImage(temp)) throw java.io.IOException("Downloaded file is not an image")
-                val fileName = "geni-${photo.id}.${extension(type, url)}"
-                val target = File(dir, fileName)
-                if (!temp.renameTo(target)) temp.copyTo(target, overwrite = true)
-                fileName
-            } finally {
-                temp.delete()
-            }
+            temps += temp
+            val type = download(url, temp)
+            if (!looksLikeImage(temp)) throw java.io.IOException("Downloaded file is not an image")
+            Staged(temp, "geni-${photo.id}.${extension(type, url)}")
         }
     }
 
+    /**
+     * Publishes the file, edits the tree and writes the links as one step under the tree's lock, after a last check
+     * that Geni did not delete the photo meanwhile.
+     */
     private suspend fun attach(
-        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, fileName: String, previous: PhotoLink?, asMain: Boolean
-    ): Boolean {
+        treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, staged: Staged?, fileName: String, asMain: Boolean
+    ): Boolean = guard.withTree(treeId) {
+        if (guard.isDeleted(treeId, photo.id)) return@withTree false
+        if (staged != null) withContext(Dispatchers.IO) {
+            val target = File(host.mediaDir(treeId), fileName)
+            if (!staged.file.renameTo(target)) staged.file.copyTo(target, overwrite = true)
+        }
+        // Read under the lock, so a main photo changed since the download is demoted, not a stale one
+        val previous = if (asMain) store.photoLinks(treeId, profileId).firstOrNull { it.isMain } else null
         val attached = host.edit(treeId) { gedcom ->
             val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
                 ?: return@edit false
@@ -95,12 +123,12 @@ class PhotoSync(
             if (asMain) media.primary = "Y"
             true
         }
-        if (!attached) return false
+        if (!attached) return@withTree false
         previous?.takeIf { it.geniPhotoId != photo.id }?.let { store.savePhotoLink(it.copy(isMain = false)) }
-        // A repaired album file keeps main status, read now (not before the download) so a main change meanwhile is not undone
+        // A repaired album file keeps main status
         val stillMain = store.photoLinks(treeId, profileId).any { it.geniPhotoId == photo.id && it.isMain }
         store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, asMain || stillMain, marker(photo), fileName, PhotoState.DOWNLOADED))
-        return true
+        true
     }
 
     private suspend fun remove(treeId: Int, profile: GeniProfile, personGedcomId: String, link: PhotoLink): Boolean {
@@ -118,7 +146,7 @@ class PhotoSync(
     }
 
     /**
-     * Geni confirmed the deletion of [geniPhotoId]: removes it here (media, link, file when unused), then, if it was the
+     * Geni confirmed the deletion of [geniPhotoId] (already recorded in [guard]): removes it here (media, link, file when unused), then, if it was the
      * main photo, looks up the profile with [fetchProfile] and, if Geni now names another main photo, syncs it.
      * A response that still names the deleted photo never brings it back. A failed lookup or download leaves the removal
      * as it is; the next refresh picks the replacement up. Media the user gave a title or a note stays as a plain local
@@ -132,7 +160,9 @@ class PhotoSync(
     ): Boolean {
         // By photo ID, not main status: a load meanwhile may have demoted the photo already
         val link = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == geniPhotoId } ?: return false
-        if (!removeLink(treeId, geniProfileId, personGedcomId, link, detachIfEdited = true)) return false
+        // Under the tree's lock: an attachment running now finishes first, so the removal sees it; the lock is free before any fetch
+        val removed = guard.withTree(treeId) { removeLink(treeId, geniProfileId, personGedcomId, link, detachIfEdited = true) }
+        if (!removed) return false
         onChanged()
         if (!link.isMain) return true // Another photo is already main: nothing to look up
         try {
