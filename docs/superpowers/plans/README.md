@@ -243,6 +243,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-24: A photo whose "Delete on Geni" is still queued is no longer downloaded again from the Geni album by a tap, "Download all" or "Keep offline"; failed or dismissed deletes and other trees do not block it (PR [#25](https://github.com/cheack/Treekin/pull/25)).
 - 2026-11-24: A queued photo goes to Geni only while the saved tree and the link still match its owner to the profile on the job; an unclear match drops the waiting photo and a later save queues it again (PR [#24](https://github.com/cheack/Treekin/pull/24)).
 - 2026-11-24: A newly added photo waits for the crop prompt and editor before it goes to Geni, so Geni gets the cropped image, or the original if you decline or cancel (PR [#23](https://github.com/cheack/Treekin/pull/23)).
 - 2026-11-24: Photos uploaded to Geni are always re-encoded as fresh JPEGs, so GPS and other embedded metadata of the source file are no longer sent; the local original is untouched (PR [#22](https://github.com/cheack/Treekin/pull/22)).
