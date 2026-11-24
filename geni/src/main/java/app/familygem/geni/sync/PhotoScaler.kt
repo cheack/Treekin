@@ -10,14 +10,16 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
 
-/** Shrinks big photos before they are sent to Geni. */
+/** Prepares photos for Geni: scaled down, upright and without the metadata (such as GPS) of the source file. */
 object PhotoScaler {
 
     private const val QUALITY = 85
 
     /**
-     * The bytes to upload for [file]: a JPEG whose longer side is at most [maxSide] is returned as it is,
-     * anything else is decoded, scaled down if needed and encoded as JPEG.
+     * The bytes to upload for [file]: always decoded, scaled down to [maxSide] on the longer side if needed,
+     * turned upright by its EXIF orientation and encoded as a fresh JPEG, so no source metadata (EXIF, XMP, GPS)
+     * is carried over. The file itself is not touched.
+     * @throws IOException if the file cannot be decoded or encoded, so the source bytes are never uploaded.
      */
     suspend fun scaled(file: File, maxSide: Int = 2048): ByteArray = withContext(Dispatchers.IO) {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -31,8 +33,6 @@ object PhotoScaler {
         } catch (e: IOException) {
             ExifInterface.ORIENTATION_NORMAL
         }
-        val upright = orientation == ExifInterface.ORIENTATION_NORMAL || orientation == ExifInterface.ORIENTATION_UNDEFINED
-        if (longer <= maxSide && bounds.outMimeType == "image/jpeg" && upright) return@withContext file.readBytes()
         var sample = 1
         while (longer / (sample * 2) >= maxSide) sample *= 2
         val decoded = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
@@ -43,7 +43,7 @@ object PhotoScaler {
         val bitmap = upright(scaled, orientation)
         try {
             ByteArrayOutputStream().use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, QUALITY, out)
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, QUALITY, out)) throw IOException("Cannot encode: ${file.name}")
                 out.toByteArray()
             }
         } finally {

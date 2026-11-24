@@ -180,7 +180,7 @@ Plan: [2026-11-18-geni-6-photos.md](2026-11-18-geni-6-photos.md). Design: [2026-
 ### Deferred from photos PR 4
 
 - [ ] Crop right after adding a photo uploads the uncropped file (the tree is saved before the crop and the queue runs at once); needs a short hold on new photo jobs with a wake-up
-- [ ] `PhotoScaler`: huge images can decode to about 50 MB (an out-of-memory is now caught as a failed upload); small JPEGs keep their EXIF data (GPS) because they are sent as is; PNG transparency turns black after re-encoding to JPEG; only EXIF orientation 6 is tested
+- [ ] `PhotoScaler`: huge images can decode to about 50 MB (an out-of-memory is now caught as a failed upload); PNG transparency turns black after re-encoding to JPEG; only EXIF orientation 6 is tested
 - [ ] Switching the photo upload on re-plans only trees saved in this process; after a cold start the photos wait for the next save of each tree
 - [ ] Local photos of Geni people from earlier builds upload on the first save after the update (the switch defaults to on), with no notice
 - [ ] A photo whose tag edit failed after upload can get a second local media on the next photo sync (found by tag only)
@@ -243,6 +243,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-24: Photos uploaded to Geni are always re-encoded as fresh JPEGs, so GPS and other embedded metadata of the source file are no longer sent; the local original is untouched (PR pending).
 - 2026-11-23: A queued "Delete on Geni" runs only under the Geni account that confirmed it; after signing in to another account it shows a failed change telling the user to sign back in and retry, and older queued deletes need a fresh confirmation; the person stays on the device until Geni confirms (PR [#21](https://github.com/cheack/Treekin/pull/21)).
 - 2026-11-23: The Geni account screen has a Privacy policy link under Log in with Geni, also shown signed in and in unconfigured builds; a toast appears when no browser can open it; the policy opens through one shared `GeniPrivacyPolicy` (PR [#20](https://github.com/cheack/Treekin/pull/20)).
 - 2026-11-23: Rotating the device during the Geni login return, tree creation or opening no longer loses the automatic open or makes a second tree or diagram; login state is kept in `GeniLoginViewModel` (PR [#19](https://github.com/cheack/Treekin/pull/19)).

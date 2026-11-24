@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.familygem.geni.map.GeniParams
 import app.familygem.geni.map.ProfileFields
+import app.familygem.geni.sync.PhotoScaler
 import com.google.gson.JsonParser
 import kotlinx.coroutines.runBlocking
 import org.folg.gedcom.model.Family
@@ -155,7 +156,7 @@ class GeniImportTool {
             val media = person.media.orEmpty().firstOrNull { it.file != null } ?: continue
             val file = File(dir, media.file.substringAfterLast('/'))
             if (!file.exists() || client.photos(id).isNotEmpty()) continue
-            client.addPhoto(id, file.name, media.title, file.readBytes())
+            client.addPhoto(id, file.name, media.title, PhotoScaler.scaled(file))
             uploaded++
             Log.i("GeniImport", "photo ${file.name} -> $id")
         }

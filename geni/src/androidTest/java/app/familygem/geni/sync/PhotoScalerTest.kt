@@ -11,9 +11,11 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayInputStream
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
@@ -42,9 +44,29 @@ class PhotoScalerTest {
     }
 
     @Test
-    fun smallJpegIsUnchanged() = runTest {
+    fun smallJpegLosesGpsButOriginalKeepsIt() = runTest {
         val file = jpeg("small.jpg", 100, 100)
-        assertArrayEquals(file.readBytes(), PhotoScaler.scaled(file))
+        ExifInterface(file.path).apply {
+            setAttribute(ExifInterface.TAG_GPS_LATITUDE, "50/1,30/1,0/1")
+            setAttribute(ExifInterface.TAG_GPS_LATITUDE_REF, "N")
+            setAttribute(ExifInterface.TAG_GPS_LONGITUDE, "30/1,15/1,0/1")
+            setAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF, "E")
+            saveAttributes()
+        }
+        assertNotNull(ExifInterface(file.path).getAttribute(ExifInterface.TAG_GPS_LATITUDE))
+        val original = file.readBytes()
+
+        val bytes = PhotoScaler.scaled(file)
+
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        assertEquals(100, decoded.width)
+        assertEquals(100, decoded.height)
+        val exif = ExifInterface(ByteArrayInputStream(bytes))
+        assertFalse(exif.getLatLong(FloatArray(2)))
+        assertNull(exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE))
+        assertNull(exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE))
+        assertArrayEquals(original, file.readBytes())
+        assertNotNull(ExifInterface(file.path).getAttribute(ExifInterface.TAG_GPS_LATITUDE))
     }
 
     @Test
