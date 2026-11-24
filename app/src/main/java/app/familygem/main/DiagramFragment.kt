@@ -452,7 +452,8 @@ class DiagramFragment : BaseFragment(R.layout.diagram_fragment) {
             if (personNode.isFulcrumNode) fulcrumView = this
             val wrapper = FileUtil.selectMainMedia(person)
             val imageView = findViewById<ImageView>(R.id.card_picture)
-            if (wrapper != null) loadingImages.add(Pair(wrapper, imageView)) else imageView.visibility = GONE
+            if (wrapper != null) loadingImages.add(Pair(wrapper, imageView))
+            else if (!app.familygem.geni.GeniDiagram.showPlaceholder(imageView, sex)) imageView.visibility = GONE // GENI-HOOK
             findViewById<TextView>(R.id.card_name).text = U.properName(person, true)
             val titleView = findViewById<TextView>(R.id.card_title)
             val title = PersonUtil.writeTitles(person)

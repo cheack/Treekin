@@ -23,6 +23,15 @@ object GeniDiagram {
         else -> if (geni) app.familygem.R.drawable.geni_person_border_undefined else app.familygem.R.drawable.person_border_undefined
     }
 
+    /** In the Geni themes puts a silhouette in [view], the photo of a person without one; false in Original. */
+    fun showPlaceholder(view: android.widget.ImageView, sex: SexUtil): Boolean {
+        if (!geni) return false
+        view.setImageResource(
+            if (sex.isFemale()) app.familygem.R.drawable.geni_silhouette_female else app.familygem.R.drawable.geni_silhouette
+        )
+        return true
+    }
+
     /** Background of the selected person. */
     fun selectedBackground(): Int =
         if (geni) app.familygem.R.drawable.geni_person_background_selected else app.familygem.R.drawable.person_background_selected
