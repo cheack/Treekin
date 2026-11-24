@@ -34,9 +34,17 @@ class AlbumLoader(
         }, removed)
     }
 
-    /** Downloads one photo into the person's media. @return true if it was added */
-    suspend fun download(treeId: Int, geniProfileId: String, personGedcomId: String, photo: GeniPhoto): Boolean =
-        photos.addAlbumPhoto(treeId, geniProfileId, personGedcomId, photo)
+    /**
+     * Downloads one photo into the person's media.
+     * A photo whose deletion on Geni is still queued is skipped, as Geni may keep listing it until the delete runs.
+     * @return true if it was added
+     */
+    suspend fun download(treeId: Int, geniProfileId: String, personGedcomId: String, photo: GeniPhoto): Boolean {
+        val deleting = store.jobs(treeId).any {
+            it.kind == JobKind.DELETE_PHOTO && it.geniId == photo.id && (it.state == JobState.PENDING || it.state == JobState.SENDING)
+        }
+        return !deleting && photos.addAlbumPhoto(treeId, geniProfileId, personGedcomId, photo)
+    }
 
     /**
      * Downloads every photo of the album that is not on the device; a failed photo is reported and skipped.
