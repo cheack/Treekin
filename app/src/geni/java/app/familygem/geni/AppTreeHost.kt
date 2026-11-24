@@ -3,11 +3,15 @@ package app.familygem.geni
 import app.familygem.Global
 import app.familygem.Settings
 import app.familygem.util.TreeUtil
+import app.familygem.geni.sync.LocalPerson
+import app.familygem.geni.sync.LocalTree
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.apache.commons.io.FileUtils
 import org.folg.gedcom.model.Gedcom
+import org.folg.gedcom.parser.JsonParser
 import java.io.File
 
 /** Tree host on top of FamilyGem's settings and JSON tree files. */
@@ -52,6 +56,13 @@ object AppTreeHost : TreeHost {
     /** Runs the block on the open tree if it is [treeId], on the main thread. */
     private suspend fun <T> editOpened(treeId: Int, block: (Gedcom) -> T): Pair<Gedcom, T>? = withContext(Dispatchers.Main) {
         Global.gc?.takeIf { Global.settings.openTree == treeId }?.let { it to block(it) }
+    }
+
+    /** Reads the JSON file directly: TreeUtil.readJson toasts errors and may create a notifier, and nothing here may touch Global.gc. */
+    override suspend fun savedPerson(treeId: Int, gedcomId: String): LocalPerson? = withContext(Dispatchers.IO) {
+        val text = FileUtils.readFileToString(File(Global.context.filesDir, "$treeId.json"), "UTF-8")
+        val gedcom = JsonParser().fromJson(text) ?: error("Tree $treeId not readable")
+        gedcom.people.orEmpty().firstOrNull { it.id == gedcomId }?.let { LocalTree.capturePerson(it) }
     }
 
     override fun treeExists(treeId: Int) = Global.settings.getTree(treeId) != null

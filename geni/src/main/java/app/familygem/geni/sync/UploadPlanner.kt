@@ -22,6 +22,40 @@ data class Plan(
     val unorphaned: List<String> = emptyList()
 )
 
+/** What the link rules say about one record. */
+internal sealed interface LinkMatch {
+    /** The record is linked to [link]. */
+    data class Linked(val link: GeniLink) : LinkMatch
+    /** The record has no usable link (no link, or its tag does not match one). */
+    data object None : LinkMatch
+    /** An untagged record whose ID belonged to a deleted record: the link is [link], to remove. */
+    data class Stale(val link: GeniLink) : LinkMatch
+    /** An untagged record that may or may not be the linked one: nobody can tell. */
+    data class Ambiguous(val link: GeniLink) : LinkMatch
+}
+
+/**
+ * Link of a record: by its tag, or by its GEDCOM ID when the tag was lost (an unsaved edit after an add).
+ * A GEDCOM ID is reused by the next new record after a delete. A link whose record was seen missing (orphaned)
+ * belongs to the deleted record: an untagged record with its ID is new, whatever its name (a deleted record
+ * cannot come back without its tag). A link never orphaned counts unless [sameRecord] finds the snapshot differs.
+ * Shared by the planner and the check right before a photo is sent.
+ */
+internal fun matchLink(gedcomId: String, geniId: String?, prefix: String, byGeniId: (String) -> GeniLink?,
+    byGedcomId: (String) -> GeniLink?, sameRecord: (String) -> Boolean): LinkMatch {
+    if (geniId != null) return byGeniId(geniId)?.takeIf { it.gedcomId == gedcomId }?.let { LinkMatch.Linked(it) } ?: LinkMatch.None
+    val link = byGedcomId(gedcomId)?.takeIf { it.geniId.startsWith(prefix) } ?: return LinkMatch.None
+    return when {
+        link.orphaned -> LinkMatch.Stale(link)
+        link.snapshot == null || sameRecord(link.snapshot) -> LinkMatch.Linked(link)
+        else -> LinkMatch.Ambiguous(link)
+    }
+}
+
+/** True if the snapshot of a profile has the name of [person]. */
+internal fun sameProfile(snapshot: String, person: LocalPerson) =
+    ProfileFields.ofSnapshot(snapshot)?.let { it.given == person.fields.given && it.surname == person.fields.surname } == true
+
 /** Compares a saved tree with the Geni snapshots of its records and works out the upload jobs. Pure: no I/O. */
 object UploadPlanner {
 
@@ -40,26 +74,20 @@ object UploadPlanner {
         val ambiguous = mutableSetOf<String>()
 
         /**
-         * Link of a record: by its tag, or by its GEDCOM ID when the tag was lost (an unsaved edit after an add).
-         * A GEDCOM ID is reused by the next new record after a delete. A link whose record was seen missing (orphaned)
-         * belongs to the deleted record: an untagged record with its ID is new, whatever its name (a deleted record
-         * cannot come back without its tag). A link never orphaned counts unless [sameRecord] finds the snapshot
-         * differs; then nobody can tell, and the record gets no new job and keeps its jobs (no update that could
-         * overwrite another profile, no add that could duplicate this one).
+         * Link of a record by [matchLink]. An ambiguous record gets no new job and keeps its jobs (no update that could
+         * overwrite another profile, no add that could duplicate this one); only its waiting photo jobs go (see below).
          */
-        fun linkOf(gedcomId: String, geniId: String?, prefix: String, sameRecord: (String) -> Boolean): GeniLink? {
-            if (geniId != null) return byGeniId[geniId]?.takeIf { it.gedcomId == gedcomId }
-            val link = byGedcomId[gedcomId]?.takeIf { it.geniId.startsWith(prefix) } ?: return null
-            when {
-                link.orphaned -> staleLinks += link.geniId
-                link.snapshot == null || sameRecord(link.snapshot) -> return link
-                else -> {
+        fun linkOf(gedcomId: String, geniId: String?, prefix: String, sameRecord: (String) -> Boolean): GeniLink? =
+            when (val match = matchLink(gedcomId, geniId, prefix, byGeniId::get, byGedcomId::get, sameRecord)) {
+                is LinkMatch.Linked -> match.link
+                is LinkMatch.Stale -> { staleLinks += match.link.geniId; null }
+                is LinkMatch.Ambiguous -> {
                     ambiguous += gedcomId
-                    linkedKeys += (if (prefix == "profile-") "profile:" else "union:") + link.geniId
+                    linkedKeys += (if (prefix == "profile-") "profile:" else "union:") + match.link.geniId
+                    null
                 }
+                LinkMatch.None -> null
             }
-            return null
-        }
 
         /** Compares one linked record with its snapshot. */
         fun check(link: GeniLink, key: String, hash: Int, params: () -> List<Pair<String, String>>?, job: (List<Pair<String, String>>) -> UploadJob) {
@@ -78,9 +106,7 @@ object UploadPlanner {
         val photoKeys = mutableSetOf<String>() // Keys of the photo jobs still wanted
         val mediaKeys = mutableSetOf<String>() // Keys of every photo that could be sent, whatever the setting
         for (person in local.people) {
-            val link = linkOf(person.gedcomId, person.geniId, "profile-") { snapshot ->
-                ProfileFields.ofSnapshot(snapshot)?.let { it.given == person.fields.given && it.surname == person.fields.surname } == true
-            }
+            val link = linkOf(person.gedcomId, person.geniId, "profile-") { sameProfile(it, person) }
             when {
                 link != null -> {
                     linkedPeople += person.gedcomId
@@ -159,8 +185,9 @@ object UploadPlanner {
             val gone = when {
                 job.key.startsWith("add:") -> job.key.removePrefix("add:") !in planned
                 // With the setting off only the waiting ones go; a failed or dismissed one stays, so it is not planned and sent again later
-                // The photos of an ambiguous person keep their jobs too: the tag may come back and the file must not be sent again
-                job.key.startsWith("photo:") && (job.personGedcomId ?: job.key.split(':').getOrNull(1)) in ambiguous -> false
+                // An ambiguous person's waiting photo jobs go: the destination is not certain, and a later save plans them again
+                // once the match is resolved. A failed, dismissed or sending one stays: it may already be on Geni
+                job.key.startsWith("photo:") && (job.personGedcomId ?: job.key.split(':').getOrNull(1)) in ambiguous -> job.state == JobState.PENDING
                 job.key.startsWith("photo:") -> if (uploadPhotos) job.key !in mediaKeys else job.key !in mediaKeys || job.state == JobState.PENDING
                 else -> job.key !in linkedKeys
             }

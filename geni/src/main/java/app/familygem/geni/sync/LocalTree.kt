@@ -36,21 +36,24 @@ data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFami
         private val captures = AtomicLong()
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif")
 
+        /** One person reduced to what the planner needs (also used to read a saved person alone). */
+        fun capturePerson(person: org.folg.gedcom.model.Person): LocalPerson {
+            val fields = ProfileFields.of(person)
+            val label = listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { person.id }
+            val media = person.media.orEmpty().mapNotNull { m ->
+                if (m.file?.contains("://") != false) return@mapNotNull null // Not a file of this device
+                // Only a plain file name of the tree's media folder, and only an image, is a candidate
+                if ('/' in m.file || '\\' in m.file || m.file.isEmpty()) return@mapNotNull null
+                if (m.file.substringAfterLast('.', "").lowercase() !in IMAGE_EXTENSIONS) return@mapNotNull null
+                val file = m.file
+                LocalMedia(file, m.title, GeniMapper.getTag(m, PhotoSync.PHOTO_TAG))
+            }
+            return LocalPerson(person.id, GeniMapper.getGeniId(person), label, fields, media)
+        }
+
         fun capture(gedcom: Gedcom): LocalTree = LocalTree(
             stamp = captures.incrementAndGet(),
-            people = gedcom.people.orEmpty().map { person ->
-                val fields = ProfileFields.of(person)
-                val label = listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { person.id }
-                val media = person.media.orEmpty().mapNotNull { m ->
-                    if (m.file?.contains("://") != false) return@mapNotNull null // Not a file of this device
-                    // Only a plain file name of the tree's media folder, and only an image, is a candidate
-                    if ('/' in m.file || '\\' in m.file || m.file.isEmpty()) return@mapNotNull null
-                    if (m.file.substringAfterLast('.', "").lowercase() !in IMAGE_EXTENSIONS) return@mapNotNull null
-                    val file = m.file
-                    LocalMedia(file, m.title, GeniMapper.getTag(m, PhotoSync.PHOTO_TAG))
-                }
-                LocalPerson(person.id, GeniMapper.getGeniId(person), label, fields, media)
-            },
+            people = gedcom.people.orEmpty().map { capturePerson(it) },
             families = gedcom.families.orEmpty().map { family ->
                 LocalFamily(
                     gedcomId = family.id,

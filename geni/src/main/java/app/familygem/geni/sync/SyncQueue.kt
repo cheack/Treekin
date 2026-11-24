@@ -167,13 +167,14 @@ class SyncQueue(
                 .forEach { store.saveJob(it.copy(state = JobState.FAILED, error = INTERRUPTED_ADD)) }
         }
         val sent = mutableMapOf<String, List<Pair<String, String>>>() // Changes uploaded in this run, by key
+        val deferred = mutableSetOf<String>() // Keys of photos whose target could not be verified: skipped for the rest of this run
         while (true) {
             val job = lock(treeId).withLock {
-                var next = nextJob(store.jobs(treeId)) ?: return@withLock null
+                var next = nextJob(store.jobs(treeId), deferred) ?: return@withLock null
                 // The same change planned again right after it was sent: Geni stored another value. Stop instead of looping
                 while (sent[next.key] == next.params) {
                     store.saveJob(next.copy(state = JobState.FAILED, error = DIFFERENT_VALUE))
-                    next = nextJob(store.jobs(treeId)) ?: return@withLock null
+                    next = nextJob(store.jobs(treeId), deferred) ?: return@withLock null
                 }
                 synchronized(running) { running[treeId] = next.key }
                 if (next.isAdd()) next.copy(state = JobState.SENDING).also { store.saveJob(it) } else next
@@ -212,6 +213,11 @@ class SyncQueue(
                                 outcome.groups.joinToString(", ") { it.lowercase() }))
                     // The check may have moved the snapshot after the new version was planned: plan it again against it
                     Outcome.Superseded -> synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
+                    // Nothing was sent: back to waiting, and not selected again in this run
+                    Outcome.Deferred -> {
+                        deferred += job.key
+                        if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING))
+                    }
                     is Outcome.Retry, Outcome.NeedsLogin ->
                         if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
                 }
@@ -251,10 +257,10 @@ class SyncQueue(
      * a child waits for every parent still to be added (it must go under the couple's union);
      * a partner waits only while none of its relatives is on Geni or added yet.
      */
-    private fun nextJob(jobs: List<UploadJob>): UploadJob? {
+    private fun nextJob(jobs: List<UploadJob>, skip: Set<String> = emptySet()): UploadJob? {
         val photos = uploadPhotos()
         val pending = jobs.filter {
-            it.state == JobState.PENDING && (it.kind != JobKind.ADD_PHOTO || (photos && !isHeld(it)))
+            it.state == JobState.PENDING && it.key !in skip && (it.kind != JobKind.ADD_PHOTO || (photos && !isHeld(it)))
         }
         val adding = jobs.filter { it.isAdd() && it.kind != JobKind.ADD_PHOTO && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
             .mapNotNull { it.personGedcomId }.toSet()
