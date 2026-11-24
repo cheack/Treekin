@@ -82,6 +82,7 @@ object GeniAppearance {
         val modes = AppearanceMode.entries
         val actual = GeniSettings.appearance(activity)
         view.text = activity.getString(R.string.geni_appearance) + ": " + label(activity, actual)
+        view.isFocusable = true // reachable with a keyboard or a switch
         view.setOnClickListener {
             AlertDialog.Builder(activity)
                 .setTitle(R.string.geni_appearance)

@@ -2,6 +2,7 @@
 
 Every change to upstream FamilyGem files made by this fork.
 Each code hook is marked with a `GENI-HOOK` comment; after a merge from upstream run `git grep GENI-HOOK` and compare with this list.
+Resource files carry no comment marker for the mechanical palette change (`@color/x` to `?attr/geni_x`): find them with `git grep -l "attr/geni_" app/src/main/res` and repeat the replacement in new or changed upstream files.
 
 | File | Change | Why |
 |---|---|---|

@@ -20,7 +20,7 @@ object GeniSettings {
 
     fun setUploadPhotos(context: Context, value: Boolean) = prefs(context).edit().putBoolean(UPLOAD_PHOTOS, value).apply()
 
-    /** The chosen appearance; [AppearanceMode.ORIGINAL] until the user picks another one. */
+    /** The chosen appearance; [AppearanceMode.DEFAULT] (Geni Light) until the user picks another one. */
     fun appearance(context: Context): AppearanceMode =
         appearanceCache ?: AppearanceMode.fromStored(prefs(context).getString(APPEARANCE, null)).also { appearanceCache = it }
 

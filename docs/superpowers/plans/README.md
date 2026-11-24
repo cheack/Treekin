@@ -225,7 +225,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 - [x] Replace "Family Gem" in other strings (example tree, Premium): generated overlay `app/src/geni/res/values*/strings.xml` via `scripts/gen_geni_strings.py` (the about screen shows `app_name`; its `www.familygem.app` link and the Premium purchase itself are still upstream's)
 - [x] `NumberPicker` divider fix from Sternbach-Software/GeniForAndroid: not needed, upstream hides the divider through the theme (`AppTheme.Wheel.TransparentLines`) and no code uses reflection on it
 - [x] CI: weekly trial merge of `upstream/master`, build and tests (`.github/workflows/upstream-check.yml`, Mondays 06:00 UTC and manual dispatch; a failed run is the alert)
-- [x] Settings → Appearance: Original (Family Gem look, follows the device theme), Geni Light, Geni Dark (own palette, light or dark always, horizontal photo cards and straight connectors); applies at once and survives a restart. Checked on the emulator in device light and dark mode; PNG/PDF export of each mode not opened by hand (the emulator's file picker crashes).
+- [x] Settings → Appearance: Original (Family Gem look, follows the device theme), Geni Light (the default), Geni Dark (own palette, light or dark always, horizontal photo cards and straight connectors); applies at once and survives a restart. Checked on the emulator in device light and dark mode; PNG/PDF export of each mode not opened by hand (the emulator's file picker crashes).
 
 ### Geni branding audit (2026-11-20, against https://www.geni.com/platform/developer/help/branding and `/terms`)
 

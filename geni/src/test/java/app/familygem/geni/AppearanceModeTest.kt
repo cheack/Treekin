@@ -21,11 +21,11 @@ class AppearanceModeTest {
     }
 
     @Test
-    fun missingOrUnknownIsOriginal() {
-        assertEquals(AppearanceMode.ORIGINAL, AppearanceMode.fromStored(null))
-        assertEquals(AppearanceMode.ORIGINAL, AppearanceMode.fromStored(""))
-        assertEquals(AppearanceMode.ORIGINAL, AppearanceMode.fromStored("GENI_DARK"))
-        assertEquals(AppearanceMode.ORIGINAL, AppearanceMode.fromStored("sepia"))
+    fun missingOrUnknownIsGeniLight() {
+        assertEquals(AppearanceMode.GENI_LIGHT, AppearanceMode.fromStored(null))
+        assertEquals(AppearanceMode.GENI_LIGHT, AppearanceMode.fromStored(""))
+        assertEquals(AppearanceMode.GENI_LIGHT, AppearanceMode.fromStored("GENI_DARK"))
+        assertEquals(AppearanceMode.GENI_LIGHT, AppearanceMode.fromStored("sepia"))
     }
 
     @Test

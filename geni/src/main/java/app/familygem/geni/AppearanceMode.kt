@@ -16,7 +16,10 @@ enum class AppearanceMode(val stored: String, val nightMode: Int) {
     val isGeni: Boolean get() = this != ORIGINAL
 
     companion object {
-        /** The mode saved as [stored]; a missing or unknown value is [ORIGINAL]. */
-        fun fromStored(value: String?): AppearanceMode = entries.firstOrNull { it.stored == value } ?: ORIGINAL
+        /** The appearance nobody has chosen yet. */
+        val DEFAULT = GENI_LIGHT
+
+        /** The mode saved as [stored]; a missing or unknown value is [DEFAULT]. */
+        fun fromStored(value: String?): AppearanceMode = entries.firstOrNull { it.stored == value } ?: DEFAULT
     }
 }
