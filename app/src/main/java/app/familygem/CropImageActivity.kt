@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
+import app.familygem.geni.GeniCropEditor
 import app.familygem.databinding.CropImageActivityBinding
 import app.familygem.util.toPxFloat
 import com.bumptech.glide.Glide
@@ -24,9 +25,11 @@ import kotlinx.coroutines.withContext
 class CropImageActivity : AppCompatActivity(), CropImageView.OnSetImageUriCompleteListener, CropImageView.OnCropImageCompleteListener {
 
     private lateinit var imageView: CropImageView
+    private val geni = GeniCropEditor() // GENI-HOOK
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (geni.start(this)) return // GENI-HOOK
         val barStyle = SystemBarStyle.dark(ResourcesCompat.getColor(resources, R.color.black_veiled, null))
         enableEdgeToEdge(barStyle, barStyle)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -44,7 +47,7 @@ class CropImageActivity : AppCompatActivity(), CropImageView.OnSetImageUriComple
                         borderCornerOffset = (-3F).toPxFloat()
                     )
                 )
-                customOutputUri = imageUri
+                customOutputUri = geni.output ?: imageUri // GENI-HOOK
                 guidelines = CropImageView.Guidelines.OFF
                 setOnCropImageCompleteListener(this@CropImageActivity)
             }
@@ -59,6 +62,7 @@ class CropImageActivity : AppCompatActivity(), CropImageView.OnSetImageUriComple
     }
 
     override fun onCropImageComplete(view: CropImageView, result: CropImageView.CropResult) {
+        if (geni.complete(this, result)) return // GENI-HOOK
         if (result.isSuccessful) {
             setResult(RESULT_OK, Intent()) // For previous FileActivity
             Global.edited = true
@@ -69,6 +73,11 @@ class CropImageActivity : AppCompatActivity(), CropImageView.OnSetImageUriComple
         } else {
             Toast.makeText(this, result.error?.message, Toast.LENGTH_LONG).show()
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        geni.destroy(this) // GENI-HOOK
     }
 
     // Back arrow on actionbar

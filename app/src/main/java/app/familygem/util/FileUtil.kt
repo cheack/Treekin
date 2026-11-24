@@ -34,6 +34,7 @@ import app.familygem.FileUri
 import app.familygem.Global
 import app.familygem.R
 import app.familygem.U
+import app.familygem.geni.GeniCrop
 import app.familygem.constant.Destination
 import app.familygem.constant.Extra
 import app.familygem.constant.FileType
@@ -211,6 +212,7 @@ object FileUtil {
                 val alert: Dialog = AlertDialog.Builder(context).setView(R.layout.crop_image_dialog)
                     .setPositiveButton(R.string.yes) { _, _ -> cropImage(context, mediaFile, null) }
                     .setNeutralButton(R.string.no, null).show()
+                GeniCrop.watchPrompt(context, alert, Global.settings.openTree, mediaFile) // GENI-HOOK: upload waits for the crop decision
                 showImage(media, alert.findViewById(R.id.crop_image))
             }
             return true
@@ -231,6 +233,7 @@ object FileUtil {
         val finalUri = uriMedia ?: Uri.fromFile(fileMedia)
         val intent = Intent(context, CropImageActivity::class.java)
         intent.data = finalUri
+        GeniCrop.handOver(intent, fileMedia) // GENI-HOOK
         if (launcher != null) launcher.launch(intent)
         else context.startActivity(intent)
     }

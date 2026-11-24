@@ -132,6 +132,40 @@ object GeniGlue {
         path.lineTo(x2, y2)
     }
 
+    /**
+     * Holds the upload of a new photo of a Geni tree until the user decides about cropping it.
+     * Returns the session to pass to [releasePhoto] or to the crop editor, or 0 if the tree is not a Geni tree.
+     */
+    fun holdPhoto(treeId: Int, file: String): Long {
+        install()
+        if (!Geni.isConfigured || !GeniTrees.isGeni(treeId)) return 0
+        return Geni.queue(Global.context).holds.acquire(treeId, file)
+    }
+
+    /** Lets the held photo go to Geni; idempotent. */
+    fun releasePhoto(session: Long) {
+        if (session == 0L) return
+        Geni.queue(Global.context).holds.release(session)?.let { GeniSync.kick(Global.context, it) }
+    }
+
+    /** True while the crop session still holds its photo (false after a release or a process restart). */
+    fun isCropSessionActive(session: Long): Boolean {
+        if (session == 0L) return false
+        install()
+        return Geni.queue(Global.context).holds.isActive(session)
+    }
+
+    /**
+     * Replaces [original] with the finished crop [temp] and releases the photo, unless the session was released.
+     * Returns null if it was released (nothing touched), else whether the file was replaced (the hold stays if not).
+     */
+    fun commitCrop(session: Long, temp: java.io.File, original: java.io.File): Boolean? {
+        val result = Geni.queue(Global.context).holds.commit(session) { temp.length() > 0 && temp.renameTo(original) }
+        if (!result.active) return null
+        if (result.ok) result.treeId?.let { GeniSync.kick(Global.context, it) }
+        return result.ok
+    }
+
     /** True for a Geni tree: its people must not be merged into other trees. */
     fun isGeniTree(treeId: Int): Boolean {
         install()
