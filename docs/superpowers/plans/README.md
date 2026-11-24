@@ -246,6 +246,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-24: Treekin keeps one tree: the first Geni login creates it, later logins of the same account reopen it (offline too), another account is refused until the tree is deleted, and there is no other way to make a tree (no Add tree, GEDCOM or share-link import, backup restore) (PR [#29](https://github.com/cheack/Treekin/pull/29)).
 - 2026-11-24: Settings → Appearance with Original, Geni Light (the default) and Geni Dark: the whole app and the family tree diagram change at once, and the choice survives a restart; Geni cards have gradients, framed photos or silhouettes, and a mourning band (PR [#28](https://github.com/cheack/Treekin/pull/28)).
 - 2026-11-24: After a photo is deleted on Geni, an older profile response or a download already running no longer brings it back or replaces the new main photo, in the profile loader and the album download alike; this holds until the app restarts (PR [#27](https://github.com/cheack/Treekin/pull/27)).
 - 2026-11-24: When a "Delete on Geni" of a main photo completes (also after reconnecting), the photo leaves the open profile's header and Media tab without reopening it, and a replacement main photo from Geni is shown; a photo with your title or note stays as your own (PR [#26](https://github.com/cheack/Treekin/pull/26)).
