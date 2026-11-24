@@ -814,6 +814,21 @@ class UploaderTest {
     }
 
     @Test
+    fun fileOfADetachedPhotoSurvivesTheCleanupOfAnotherProfile() = runTest {
+        val gedcom = personWithMainPhoto()
+        gedcom.people.single { it.id == "I1" }.media.single().title = "Mine"
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto(null)))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        // Another profile shared the file; its copy goes later through the album cleanup
+        store.savePhotoLink(PhotoLink(1, "profile-36433", "photo-5", null, false, null, "geni-photo-5.jpg", PhotoState.DOWNLOADED))
+        gedcom.people.single { it.id == "I2" }.addMedia(mediaOf("photo-5", false))
+        GeniMapper.setGeniId(gedcom.people.single { it.id == "I2" }, "profile-36433")
+        photoSync.reconcileAlbum(1, "profile-36433", "I2", emptyList())
+        assertTrue(File(host.mediaDir(1), "geni-photo-5.jpg").isFile)
+    }
+
+    @Test
     fun deletePhotoOfAPersonWhoseProfileChangedLeavesThePhoto() = runTest {
         val gedcom = personWithMainPhoto()
         store.saveLinks(listOf(link("profile-99999", "I1"))) // I1 now resolves to another profile
