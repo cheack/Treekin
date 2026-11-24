@@ -55,6 +55,8 @@ open class FakeTreeHost : TreeHost {
 
     override fun treeExists(treeId: Int) = treeId in trees
 
+    override fun rootOf(treeId: Int) = roots[treeId]
+
     override suspend fun setRoot(treeId: Int, personId: String) {
         roots[treeId] = personId
     }

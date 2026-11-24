@@ -31,6 +31,9 @@ interface TreeHost {
     /** True if the FamilyGem tree still exists (the user may have deleted it). */
     fun treeExists(treeId: Int): Boolean
 
+    /** The root person of the tree, null until [setRoot]. It is set last in the tree's setup, so it also tells a finished setup from an interrupted one. */
+    fun rootOf(treeId: Int): String?
+
     /** Sets the root person of the tree, the one the diagram starts from. */
     suspend fun setRoot(treeId: Int, personId: String)
 

@@ -37,6 +37,8 @@ class GeniLoginViewModelTest {
         override var canCreateTrees = true
         var createCalls = 0
         val accepted = mutableListOf<AuthResult.Success>()
+        /** "accept" and "create" in the order they happened. */
+        val calls = mutableListOf<String>()
         val profileCandidates = mutableListOf<AuthResult.Success?>()
         override suspend fun profile(candidate: AuthResult.Success?): AccountProfile {
             profileCandidates += candidate
@@ -46,10 +48,12 @@ class GeniLoginViewModelTest {
             ownershipOverride ?: if (other) TreeOwnership.Other else existing(profileId)?.let { TreeOwnership.Own(it, complete = true) } ?: TreeOwnership.None
         override suspend fun createTree(): Int {
             createCalls++
+            calls += "create"
             return create()
         }
         override fun accept(candidate: AuthResult.Success) {
             accepted += candidate
+            calls += "accept"
         }
     }
 
@@ -308,6 +312,7 @@ class GeniLoginViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf(login), flow.accepted)
         assertEquals(1, flow.createCalls)
+        assertEquals(listOf("accept", "create"), flow.calls) // Nothing is created under a login that is not stored yet
     }
 
     @Test

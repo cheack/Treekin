@@ -32,7 +32,7 @@ class SingleTreeTest {
         assumeTrue("destructive: needs -e singleTreeTest 1", InstrumentationRegistry.getArguments().getString("singleTreeTest") == "1")
         GeniGlue.install()
         val store = Geni.store(Global.context)
-        Global.settings.trees.forEach { TreeUtil.deleteTree(it.id) }
+        Global.settings.trees.toList().forEach { TreeUtil.deleteTree(it.id) }
         while (store.trees().isNotEmpty() || Geni.isCleaning(1)) Thread.sleep(50) // Earlier cleanups
 
         val first = make("profile-A")

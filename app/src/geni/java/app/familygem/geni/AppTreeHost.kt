@@ -37,6 +37,9 @@ object AppTreeHost : TreeHost {
             gedcom.header = TreeUtil.createHeader("$treeId.json")
             gedcom.createIndexes()
             TreeUtil.saveJson(gedcom, treeId, false)
+            // saveJson reports a failed write to the user and returns normally: without the file there is no tree, so release it
+            val file = File(Global.context.filesDir, "$treeId.json")
+            if (!file.isFile || file.length() == 0L) throw java.io.IOException("The tree file $treeId.json was not written")
         } catch (e: Throwable) {
             // Released, whatever the reason (also a cancellation): a retry must find no tree that this attempt left behind
             withContext(NonCancellable + Dispatchers.Main) { TreeUtil.deleteTree(treeId) }
@@ -79,6 +82,8 @@ object AppTreeHost : TreeHost {
     }
 
     override fun treeExists(treeId: Int) = Global.settings.getTree(treeId) != null
+
+    override fun rootOf(treeId: Int): String? = Global.settings.getTree(treeId)?.root
 
     override suspend fun setRoot(treeId: Int, personId: String) = withContext(Dispatchers.Main) {
         Global.settings.getTree(treeId)?.let {

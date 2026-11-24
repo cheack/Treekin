@@ -170,15 +170,16 @@ class GeniLoader(
         }
         // The root may have moved while loading (merged profile)
         val info = store.tree(treeId) ?: return
-        store.link(treeId, info.rootGeniId)?.let { host.setRoot(treeId, it.gedcomId) }
+        // The root person is set last: it is the mark of a finished setup, so a process that ended before it is finished by a retry
         host.schedulePrefetch(treeId, info.rootGeniId, info.prefetchDepth)
+        store.link(treeId, info.rootGeniId)?.let { host.setRoot(treeId, it.gedcomId) }
     }
 
     /** Who the tree on this device belongs to, seen from the signed-in account. */
     suspend fun ownership(accountId: String): TreeOwnership {
         val info = store.trees().firstOrNull { host.treeExists(it.treeId) } ?: return TreeOwnership.None
         if (info.ownerGeniId != accountId) return TreeOwnership.Other
-        return TreeOwnership.Own(info.treeId, complete = store.link(info.treeId, info.rootGeniId) != null)
+        return TreeOwnership.Own(info.treeId, complete = store.link(info.treeId, info.rootGeniId) != null && host.rootOf(info.treeId) != null)
     }
 
     private companion object {
@@ -192,7 +193,7 @@ sealed interface TreeOwnership {
     /** No tree yet. */
     data object None : TreeOwnership
 
-    /** The tree of this account; [complete] once its root person is loaded (else the setup was interrupted and a retry finishes it). */
+    /** The tree of this account; [complete] once its root person is loaded and set as the diagram's start (else the setup was interrupted and a retry finishes it). */
     data class Own(val treeId: Int, val complete: Boolean) : TreeOwnership
 
     /** A tree of another account: this one cannot sign in until the tree is deleted. */

@@ -242,6 +242,18 @@ class GeniLoaderTest {
     }
 
     @Test
+    fun retryFinishesASetupInterruptedAfterTheRootLinkWasSaved() = runTest {
+        host.oneTree = true
+        val treeId = loader().ensureTree()
+        host.roots.remove(treeId) // The process ended after the link was saved, before the root was set
+        assertEquals(TreeOwnership.Own(treeId, complete = false), loader().ownership("profile-36430"))
+        assertEquals(treeId, loader().ensureTree())
+        assertEquals(store.link(treeId, "profile-36430")?.gedcomId, host.roots[treeId])
+        assertEquals(2, host.prefetches.size) // The prefetch is planned again, it does not survive the process
+        assertEquals(TreeOwnership.Own(treeId, complete = true), loader().ownership("profile-36430"))
+    }
+
+    @Test
     fun failureWhileRegisteringReleasesTheReservation() = runTest {
         host.oneTree = true
         var failures = 1
