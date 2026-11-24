@@ -118,20 +118,23 @@ class PhotoSync(
     }
 
     /**
-     * Geni confirmed the deletion of [geniPhotoId]: if it is the main photo of the person, removes it here (media, link, file
-     * when unused), then looks up the profile with [fetchProfile] and, if Geni now names another main photo, syncs it.
+     * Geni confirmed the deletion of [geniPhotoId]: removes it here (media, link, file when unused), then, if it was the
+     * main photo, looks up the profile with [fetchProfile] and, if Geni now names another main photo, syncs it.
      * A response that still names the deleted photo never brings it back. A failed lookup or download leaves the removal
-     * as it is; the next refresh picks the replacement up.
+     * as it is; the next refresh picks the replacement up. Media the user gave a title or a note stays as a plain local
+     * photo of the person (no Geni tag, not primary, file kept); only its Geni link goes.
      * @param onChanged called after the removal and again after a replacement arrived
-     * @return true if the main photo was removed here
+     * @return true if the photo was taken off the person here
      */
     suspend fun mainDeleted(
         treeId: Int, geniProfileId: String, personGedcomId: String, geniPhotoId: String,
         fetchProfile: suspend () -> GeniProfile?, onChanged: () -> Unit
     ): Boolean {
-        val link = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == geniPhotoId && it.isMain } ?: return false
-        if (!removeLink(treeId, geniProfileId, personGedcomId, link)) return false
+        // By photo ID, not main status: a load meanwhile may have demoted the photo already
+        val link = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == geniPhotoId } ?: return false
+        if (!removeLink(treeId, geniProfileId, personGedcomId, link, detachIfEdited = true)) return false
         onChanged()
+        if (!link.isMain) return true // Another photo is already main: nothing to look up
         try {
             val profile = fetchProfile() ?: return true
             val next = mugshotToPhoto(profile) ?: return true
@@ -161,10 +164,17 @@ class PhotoSync(
         return removed
     }
 
-    /** @param keepIfEdited leave everything as it is when the media carries a title or notes of the user */
-    private suspend fun removeLink(treeId: Int, profileId: String, personGedcomId: String, link: PhotoLink, keepIfEdited: Boolean = false): Boolean {
+    /**
+     * @param keepIfEdited leave everything as it is when the media carries a title or notes of the user
+     * @param detachIfEdited such media stays as the user's own: it loses its Geni tag and primary mark, and keeps its file
+     */
+    private suspend fun removeLink(
+        treeId: Int, profileId: String, personGedcomId: String, link: PhotoLink,
+        keepIfEdited: Boolean = false, detachIfEdited: Boolean = false
+    ): Boolean {
         var kept = false
         var found = false
+        var detached = false
         val changed = host.edit(treeId) { gedcom ->
             val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
             val before = person?.media.orEmpty().size
@@ -173,13 +183,18 @@ class PhotoSync(
                 kept = true
                 return@edit false
             }
+            if (detachIfEdited) person?.media.orEmpty().filter { GeniMapper.getTag(it, PHOTO_TAG) == link.geniPhotoId && isEdited(it) }.forEach {
+                GeniMapper.setTag(it, PHOTO_TAG, null)
+                it.primary = null
+                detached = true
+            }
             person?.let { it.media = it.media.orEmpty().filter { m -> GeniMapper.getTag(m, PHOTO_TAG) != link.geniPhotoId }.toMutableList() }
-            person != null && person.media.size != before
+            person != null && (person.media.size != before || detached)
         }
         // No inline media with the tag (e.g. made a shared media): the user owns it, so its link and file stay
         if (kept || !found) return false
         store.deletePhotoLink(treeId, profileId, link.geniPhotoId)
-        deleteFileIfUnused(treeId, link.fileName)
+        if (!detached) deleteFileIfUnused(treeId, link.fileName)
         return changed
     }
 

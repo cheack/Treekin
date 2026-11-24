@@ -783,6 +783,37 @@ class UploaderTest {
     }
 
     @Test
+    fun deletePhotoRemovesAPhotoThatWasDemotedMeanwhileWithoutALookup() = runTest {
+        val gedcom = personWithMainPhoto("photo-6")
+        // A load made photo-6 the main one while the delete was pending
+        val person = gedcom.people.single { it.id == "I1" }
+        person.media.forEach { it.primary = if (GeniMapper.getTag(it, PhotoSync.PHOTO_TAG) == "photo-6") "Y" else null }
+        store.savePhotoLink(store.photoLinks(1, "profile-36430").single { it.geniPhotoId == "photo-5" }.copy(isMain = false))
+        store.savePhotoLink(store.photoLinks(1, "profile-36430").single { it.geniPhotoId == "photo-6" }.copy(isMain = true))
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertEquals(1, server.requestCount)
+        assertEquals(listOf("geni-photo-6.jpg"), gedcom.files())
+        assertEquals("geni-photo-6.jpg", gedcom.primaryFile())
+        assertEquals(listOf("photo-6"), store.photoLinks(1, "profile-36430").map { it.geniPhotoId })
+    }
+
+    @Test
+    fun deletePhotoKeepsTheUsersNoteAsAPlainLocalPhoto() = runTest {
+        val gedcom = personWithMainPhoto()
+        gedcom.people.single { it.id == "I1" }.media.single().title = "Grandpa at the dacha"
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto(null)))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        val media = gedcom.people.single { it.id == "I1" }.media.single()
+        assertEquals("Grandpa at the dacha", media.title)
+        assertNull(GeniMapper.getTag(media, PhotoSync.PHOTO_TAG))
+        assertNull(media.primary)
+        assertTrue(File(host.mediaDir(1), "geni-photo-5.jpg").isFile)
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+    }
+
+    @Test
     fun deletePhotoOfAPersonWhoseProfileChangedLeavesThePhoto() = runTest {
         val gedcom = personWithMainPhoto()
         store.saveLinks(listOf(link("profile-99999", "I1"))) // I1 now resolves to another profile
