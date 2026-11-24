@@ -736,6 +736,56 @@ class UploaderTest {
         assertEquals(2, seen.size)
     }
 
+    /** A profile response fetched before the deletion, still naming photo-5. */
+    private fun staleProfile() = app.familygem.geni.api.GeniProfile(
+        id = "profile-36430",
+        mugshotUrls = mapOf("medium" to "https://x.test/photo-5/medium.jpg", "url" to "https://api.test/photo-5")
+    )
+
+    /** What a loader that fetched its profiles before the deletion does afterwards: its own [PhotoSync], the shared guard. */
+    private fun staleLoaderSync() = PhotoSync(store, host, photoSync.guard) { url, target ->
+        downloads += url
+        target.writeBytes(jpeg)
+        "image/jpeg"
+    }
+
+    @Test
+    fun aStaleProfileNeverBringsBackAPhotoGeniDeleted() = runTest {
+        val gedcom = personWithMainPhoto()
+        server.enqueue(ok("""{"result":"Deleted"}"""))
+        server.enqueue(ok(profileWithPhoto("photo-6")))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertFalse(staleLoaderSync().sync(1, staleProfile(), "I1"))
+        assertEquals(listOf("geni-photo-6.jpg"), gedcom.files())
+        assertEquals("geni-photo-6.jpg", gedcom.primaryFile())
+        assertEquals(listOf("https://x.test/photo-6/medium.jpg"), downloads)
+        assertEquals(listOf("photo-6" to true), store.photoLinks(1, "profile-36430").map { it.geniPhotoId to it.isMain })
+        assertTrue(gedcom.people.single { it.id == "I1" }.media.none { GeniMapper.getTag(it, PhotoSync.PHOTO_TAG) == "photo-5" })
+        assertFalse(File(host.mediaDir(1), "geni-photo-5.jpg").exists())
+    }
+
+    @Test
+    fun aDeleteThatFindsThePhotoGoneOnGeniStillBlocksAStaleProfile() = runTest {
+        val gedcom = tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(error(404, """{"error":{"message":"Not found"}}"""))
+        assertEquals(Outcome.Done, uploader().run(deletePhotoJob()))
+        assertFalse(staleLoaderSync().sync(1, staleProfile(), "I1"))
+        assertTrue(downloads.isEmpty())
+        assertTrue(gedcom.files().isEmpty())
+        assertTrue(store.photoLinks(1, "profile-36430").isEmpty())
+    }
+
+    @Test
+    fun aFailedGeniDeleteDoesNotBlockThePhoto() = runTest {
+        val gedcom = tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(error(500, "{}"))
+        assertTrue(uploader().run(deletePhotoJob()) is Outcome.Retry)
+        assertTrue(staleLoaderSync().sync(1, staleProfile(), "I1"))
+        assertEquals(listOf("geni-photo-5.jpg"), gedcom.files())
+    }
+
     @Test
     fun deletePhotoPromotesAReplacementAlreadyInTheAlbum() = runTest {
         val gedcom = personWithMainPhoto("photo-6")

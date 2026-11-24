@@ -4,6 +4,7 @@ import app.familygem.geni.FakeTreeHost
 import app.familygem.geni.api.GeniPhoto
 import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.map.GeniMapper
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
 import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Media
@@ -52,6 +53,34 @@ class PhotoSyncTest {
 
     private val person get() = gedcom.people.single()
     private fun dir() = host.mediaDir(treeId)
+
+    @Test
+    fun aDownloadThatSpansTheConfirmedDeletionLeavesNothingBehind() = runTest {
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val resume = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val slow = PhotoSync(store, host, sync.guard) { _, target ->
+            started.complete(Unit)
+            resume.await()
+            target.writeBytes(bytes)
+            "image/jpeg"
+        }
+        val result = this.async { slow.sync(treeId, profile("photo-7"), "I1") }
+        started.await()
+        sync.guard.confirm(treeId, "photo-7")
+        resume.complete(Unit)
+        assertFalse(result.await())
+        assertTrue(person.media.isEmpty())
+        assertTrue(store.photoLinks(treeId).isEmpty())
+        assertTrue(dir().listFiles().orEmpty().isEmpty())
+    }
+
+    @Test
+    fun aPhotoConfirmedDeletedIsNotDownloadedAtAll() = runTest {
+        sync.guard.confirm(treeId, "photo-7")
+        assertFalse(sync.sync(treeId, profile("photo-7"), "I1"))
+        assertFalse(sync.addAlbumPhoto(treeId, "profile-1", "I1", GeniPhoto("photo-7", null, "image/jpeg", mapOf("medium" to "https://p.example/7.jpg"), null, null)))
+        assertTrue(downloads.isEmpty())
+    }
 
     @Test
     fun newPhotoIsDownloadedAndAttachedAsPrimary() = runTest {

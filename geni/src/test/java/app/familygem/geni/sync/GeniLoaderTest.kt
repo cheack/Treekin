@@ -77,7 +77,7 @@ class GeniLoaderTest {
 
     private fun TestScope.photoLoader(errors: MutableList<String>, download: suspend (String, java.io.File) -> String) = GeniLoader(
         GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }),
-        store, host, now = { 5_000L }, photos = PhotoSync(store, host, download), onPhotoError = { id, _ -> errors += id }
+        store, host, now = { 5_000L }, photos = PhotoSync(store, host, download = download), onPhotoError = { id, _ -> errors += id }
     )
 
     @Test

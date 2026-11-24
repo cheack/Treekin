@@ -119,6 +119,16 @@ class AlbumLoaderTest {
     }
 
     @Test
+    fun downloadSkipsAPhotoFromAnOlderListingOnceItsDeleteIsConfirmed() = runTest {
+        // The delete job is gone from the queue; only the shared record of the confirmation remains
+        sync.guard.confirm(treeId, "photo-1")
+        assertFalse(loader().download(treeId, "profile-1", "I1", loaderPhoto(1)))
+        assertTrue(gedcom.people.single().media.isEmpty())
+        assertTrue(store.photoLinks(treeId).isEmpty())
+        assertTrue(loader().download(treeId, "profile-1", "I1", loaderPhoto(2)))
+    }
+
+    @Test
     fun downloadStillWorksWhenTheDeleteFailedWasDismissedOrIsInAnotherTree() = runTest {
         store.saveJob(deleteJob("photo-1", JobState.FAILED))
         store.saveJob(deleteJob("photo-2", JobState.DISMISSED))
