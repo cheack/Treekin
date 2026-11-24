@@ -94,10 +94,15 @@ class GeniLoginViewModel(private val flow: LoginFlow, scope: CoroutineScope? = n
      * nothing runs under it, so queued edits cannot go out as the wrong user.
      */
     fun completeLogin(candidate: AuthResult.Success) = start(candidate) { mine, p ->
-        val own = flow.ownership(p.id)
-        if (own == TreeOwnership.Other) return@start mismatch(mine, p)
-        if (mine != generation) return@start // Dropped (logout, newer login): its login must not be stored
-        flow.accept(candidate)
+        // Under the creation lock: a creation that is still registering its tree (it cannot be cancelled) must finish first,
+        // or this login would be stored for an account that the tree it is about to register refuses
+        val own = createLock.withLock {
+            val own = flow.ownership(p.id)
+            if (own == TreeOwnership.Other) return@start mismatch(mine, p)
+            if (mine != generation) return@start // Dropped (logout, newer login): its login must not be stored
+            flow.accept(candidate)
+            own
+        }
         when {
             own is TreeOwnership.Own && own.complete -> publish(mine, LoginState.ReadyToOpen(p.name, own.treeId, created = false))
             flow.canCreateTrees -> create(mine, p)

@@ -316,6 +316,24 @@ class GeniLoginViewModelTest {
     }
 
     @Test
+    fun loginWaitsForACreationThatIsStillRegisteringItsTree() = runTest {
+        val flow = FakeFlow()
+        val gate = CompletableDeferred<Int>()
+        flow.create = { gate.await().also { flow.other = true } } // Once registered, the tree refuses every other account
+        val vm = model(flow)
+        val first = AuthResult.Success("first", Long.MAX_VALUE)
+        vm.completeLogin(first)
+        runCurrent() // The first login is creating the tree
+        vm.completeLogin(login) // Another account's login arrives before the registration ended
+        runCurrent()
+        assertTrue(flow.accepted == listOf(first)) // Not stored yet: it waits
+        gate.complete(7)
+        advanceUntilIdle()
+        assertEquals(listOf(first), flow.accepted) // Refused, never stored
+        assertEquals(LoginState.Failed(LoginState.Kind.ACCOUNT_MISMATCH, null, "V P", canCreate = false), vm.state.value)
+    }
+
+    @Test
     fun loginDroppedWhileTheAccountIsLookedUpIsNotStored() = runTest {
         val flow = FakeFlow()
         val gate = CompletableDeferred<AccountProfile>()
