@@ -6,6 +6,6 @@
     android:viewportWidth="10.0"
     android:viewportHeight="20.0">
     <path
-        android:fillColor="@color/primary_light"
+        android:fillColor="?attr/geni_primaryLight"
         android:pathData="M0,0 v20 h10 Z" />
 </vector>

@@ -10,7 +10,7 @@
         android:id="@+id/group_trail"
         android:layout_width="6dp"
         android:layout_height="3dp"
-        android:background="@color/primary_light"
+        android:background="?attr/geni_primaryLight"
         app:layout_constraintBottom_toBottomOf="@id/group_title"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="@+id/group_title" />
@@ -19,7 +19,7 @@
         android:id="@+id/group_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@color/primary_light"
+        android:background="?attr/geni_primaryLight"
         android:paddingStart="8dp"
         android:paddingTop="2dp"
         android:paddingEnd="8dp"

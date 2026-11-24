@@ -72,6 +72,7 @@ public class Global extends Application {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) context = getApplicationContext();
         else context = ContextCompat.getContextForLanguage(getApplicationContext()); // Context with app locale
         application = this;
+        app.familygem.geni.GeniAppearance.INSTANCE.install(this); // GENI-HOOK night mode and palette of the chosen appearance
         // App settings
         File settingsFile = new File(context.getFilesDir(), "settings.json");
         // Renames "preferenze.json" to "settings.json" (introduced in version 0.8)

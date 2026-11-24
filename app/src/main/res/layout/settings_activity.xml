@@ -73,6 +73,13 @@
         android:text="@string/local_backup" />
 
     <TextView
+        android:id="@+id/settings_appearance"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="36dp"
+        tools:text="Appearance: Original" />
+
+    <TextView
         android:id="@+id/settings_language"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

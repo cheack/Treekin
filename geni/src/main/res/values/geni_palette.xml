@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Treekin's own palettes, light surfaces with muted green (Geni Light) and charcoal (Geni Dark).
+     Applied on top of AppTheme as theme overlays by GeniAppearance in the app module. -->
+<resources>
+    <color name="geni_light_primary">#4A7C59</color>
+    <color name="geni_light_primary_dark">#2F5440</color>
+    <color name="geni_light_primary_light">#6A9A78</color>
+    <color name="geni_light_accent">#C9791A</color>
+    <color name="geni_light_accent_light">#F6DDB8</color>
+    <color name="geni_light_background">#EDEDDC</color>
+    <color name="geni_light_surface">#FFFFFF</color>
+    <color name="geni_light_text">#1E2822</color>
+    <color name="geni_light_text_gray">#66726B</color>
+    <color name="geni_light_lines">#2E2E2E</color>
+
+    <color name="geni_dark_primary">#2E4A3A</color>
+    <color name="geni_dark_primary_dark">#16241C</color>
+    <color name="geni_dark_primary_light">#3C5E4A</color>
+    <color name="geni_dark_accent">#E3A04A</color>
+    <color name="geni_dark_accent_light">#5A4220</color>
+    <color name="geni_dark_background">#121614</color>
+    <color name="geni_dark_surface">#202724</color>
+    <color name="geni_dark_text">#E8EEEA</color>
+    <color name="geni_dark_text_gray">#9AA7A0</color>
+    <color name="geni_dark_lines">#7C8A82</color>
+    <color name="geni_dark_canvas">#181D1A</color>
+    <color name="geni_light_canvas">#EBEBD8</color>
+
+    <color name="geni_light_card_male">#F0AECDE6</color>
+    <color name="geni_light_card_female">#F0F4B4D6</color>
+    <color name="geni_light_card_undefined">#F0D8D8CE</color>
+    <color name="geni_light_card_selected">#FFFFFF</color>
+    <color name="geni_dark_card_male">#E02B3F52</color>
+    <color name="geni_dark_card_female">#E0523349</color>
+    <color name="geni_dark_card_undefined">#E02E3330</color>
+    <color name="geni_dark_card_selected">#3A463F</color>
+
+    <drawable name="geni_light_diagram_background">@color/geni_light_canvas</drawable>
+    <drawable name="geni_dark_diagram_background">@color/geni_dark_canvas</drawable>
+
+    <style name="Geni.Palette.Light" parent="">
+        <item name="colorPrimaryDark">@color/geni_light_primary_dark</item>
+        <item name="colorAccent">@color/geni_light_accent</item>
+        <item name="android:windowBackground">@color/geni_light_background</item>
+        <item name="geni_primary">@color/geni_light_primary</item>
+        <item name="geni_primaryDark">@color/geni_light_primary_dark</item>
+        <item name="geni_primaryLight">@color/geni_light_primary_light</item>
+        <item name="geni_accent">@color/geni_light_accent</item>
+        <item name="geni_accentLight">@color/geni_light_accent_light</item>
+        <item name="geni_background">@color/geni_light_background</item>
+        <item name="geni_surface">@color/geni_light_surface</item>
+        <item name="geni_text">@color/geni_light_text</item>
+        <item name="geni_textGray">@color/geni_light_text_gray</item>
+        <item name="geni_diagramLines">@color/geni_light_lines</item>
+        <item name="geni_diagramIcon">@color/geni_light_text</item>
+        <item name="geni_cardMale">@color/geni_light_card_male</item>
+        <item name="geni_cardFemale">@color/geni_light_card_female</item>
+        <item name="geni_cardUndefined">@color/geni_light_card_undefined</item>
+        <item name="geni_cardSelected">@color/geni_light_card_selected</item>
+        <item name="geni_diagramBackground">@drawable/geni_light_diagram_background</item>
+    </style>
+
+    <style name="Geni.Palette.Dark" parent="">
+        <item name="colorPrimaryDark">@color/geni_dark_primary_dark</item>
+        <item name="colorAccent">@color/geni_dark_accent</item>
+        <item name="android:windowBackground">@color/geni_dark_background</item>
+        <item name="geni_primary">@color/geni_dark_primary</item>
+        <item name="geni_primaryDark">@color/geni_dark_primary_dark</item>
+        <item name="geni_primaryLight">@color/geni_dark_primary_light</item>
+        <item name="geni_accent">@color/geni_dark_accent</item>
+        <item name="geni_accentLight">@color/geni_dark_accent_light</item>
+        <item name="geni_background">@color/geni_dark_background</item>
+        <item name="geni_surface">@color/geni_dark_surface</item>
+        <item name="geni_text">@color/geni_dark_text</item>
+        <item name="geni_textGray">@color/geni_dark_text_gray</item>
+        <item name="geni_diagramLines">@color/geni_dark_lines</item>
+        <item name="geni_diagramIcon">@color/geni_dark_text</item>
+        <item name="geni_cardMale">@color/geni_dark_card_male</item>
+        <item name="geni_cardFemale">@color/geni_dark_card_female</item>
+        <item name="geni_cardUndefined">@color/geni_dark_card_undefined</item>
+        <item name="geni_cardSelected">@color/geni_dark_card_selected</item>
+        <item name="geni_diagramBackground">@drawable/geni_dark_diagram_background</item>
+    </style>
+</resources>

@@ -42,7 +42,7 @@
             style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="10dp"
-            android:progressTint="@color/accent"
+            android:progressTint="?attr/geni_accent"
             app:layout_constraintTop_toBottomOf="@+id/progress_guide"
             tools:progress="50" />
     </androidx.constraintlayout.widget.ConstraintLayout>

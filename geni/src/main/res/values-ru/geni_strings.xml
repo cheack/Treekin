@@ -78,4 +78,8 @@
     <string name="geni_privacy_policy_no_browser">Нет приложения, чтобы открыть политику конфиденциальности</string>
     <string name="geni_terms">Пользовательское соглашение</string>
     <string name="geni_terms_no_browser">Нет приложения, чтобы открыть пользовательское соглашение</string>
+    <string name="geni_appearance">Оформление</string>
+    <string name="geni_appearance_original">Оригинальное</string>
+    <string name="geni_appearance_light">Geni, светлое</string>
+    <string name="geni_appearance_dark">Geni, тёмное</string>
 </resources>

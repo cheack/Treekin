@@ -78,4 +78,8 @@
     <string name="geni_privacy_policy_no_browser">No app found to open the privacy policy</string>
     <string name="geni_terms">Terms of use</string>
     <string name="geni_terms_no_browser">No app found to open the terms of use</string>
+    <string name="geni_appearance">Appearance</string>
+    <string name="geni_appearance_original">Original</string>
+    <string name="geni_appearance_light">Geni Light</string>
+    <string name="geni_appearance_dark">Geni Dark</string>
 </resources>

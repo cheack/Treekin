@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Treekin card: tint with a top highlight gradient and a thin outline (own look, not Geni's) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape>
+            <solid android:color="?attr/geni_cardUndefined" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <gradient
+                android:angle="270"
+                android:startColor="#66FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <stroke
+                android:width="1dp"
+                android:color="#66708090" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+</layer-list>

@@ -27,6 +27,6 @@
         android:layout_height="wrap_content"
         android:layout_below="@id/merge_title"
         android:layout_toEndOf="@id/merge_radio"
-        android:textColor="@color/gray_text"
+        android:textColor="?attr/geni_textGray"
         android:textSize="14sp" />
 </RelativeLayout>

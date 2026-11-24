@@ -33,7 +33,7 @@ class ChoiceFragment : BaseFragment(R.layout.merge_choice_fragment) {
                     val treeItem = mergeList.getChildAt(i)
                     val radioButton = treeItem.findViewById<RadioButton>(R.id.merge_radio)
                     if (model.trees[i].id == it) {
-                        treeItem.setBackgroundColor(getColor(resources, R.color.accent_light, null))
+                        treeItem.setBackgroundColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.accentLight)) // GENI-HOOK
                         radioButton.isChecked = true
                     } else {
                         treeItem.setBackgroundColor(0x0000)
@@ -49,7 +49,7 @@ class ChoiceFragment : BaseFragment(R.layout.merge_choice_fragment) {
                     State.ACTIVE -> {
                         for (i in 0 until mergeList.childCount) {
                             val treeView = mergeList.getChildAt(i)
-                            treeView.findViewById<TextView>(R.id.merge_title).setTextColor(getColor(resources, R.color.gray_text, null))
+                            treeView.findViewById<TextView>(R.id.merge_title).setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
                             treeView.findViewById<RadioButton>(R.id.merge_radio).isEnabled = false
                         }
                         mergeSearchDuplicates.isEnabled = false
@@ -59,7 +59,7 @@ class ChoiceFragment : BaseFragment(R.layout.merge_choice_fragment) {
                     State.RESET -> {
                         for (i in 0 until mergeList.childCount) {
                             val treeView = mergeList.getChildAt(i)
-                            treeView.findViewById<TextView>(R.id.merge_title).setTextColor(getColor(resources, R.color.text, null))
+                            treeView.findViewById<TextView>(R.id.merge_title).setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.text)) // GENI-HOOK
                             treeView.findViewById<RadioButton>(R.id.merge_radio).isEnabled = true
                         }
                         mergeSearchDuplicates.isEnabled = true

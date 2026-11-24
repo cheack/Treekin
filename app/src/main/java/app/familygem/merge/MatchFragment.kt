@@ -43,7 +43,7 @@ class MatchFragment : BaseFragment(R.layout.merge_match_fragment) {
         binding.mergeKeep.setOnClickListener { nextMatch(Will.KEEP) }
         // Accent color for selected option
         val destiny = model.personMatches[model.actualMatch].destiny
-        val tint = ColorStateList.valueOf(ContextCompat.getColor(requireContext(), R.color.accent))
+        val tint = ColorStateList.valueOf(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.accent)) // GENI-HOOK
         if (destiny == Will.MERGE) binding.mergeMerge.backgroundTintList = tint
         else if (destiny == Will.KEEP) binding.mergeKeep.backgroundTintList = tint
         // Options menu

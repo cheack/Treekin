@@ -19,7 +19,7 @@
             android:id="@+id/source_id"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/gray_text"
+            android:textColor="?attr/geni_textGray"
             android:textSize="15sp"
             tools:text="S0123" />
 

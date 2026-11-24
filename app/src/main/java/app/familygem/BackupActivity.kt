@@ -166,7 +166,7 @@ class BackupActivity : AppCompatActivity() {
                                 val detailView = treeView.findViewById<TextView>(R.id.backupTree_detail)
                                 detailView.text = item.detail
                                 if (item.backupDone == true)
-                                    detailView.setTextColor(getColor(requireContext(), R.color.text))
+                                    detailView.setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.text)) // GENI-HOOK
                                 else if (item.backupDone == false)
                                     detailView.setTextColor(getColor(requireContext(), android.R.color.holo_red_dark))
                                 val checkbox = treeView.findViewById<CheckBox>(R.id.backupTree_checkbox)
@@ -284,7 +284,7 @@ class BackupActivity : AppCompatActivity() {
                 val recoverButton = detailView.findViewById<Button>(R.id.backup_recover)
                 when (item.valid) {
                     null -> { // Initial state
-                        labelView.setTextColor(getColor(requireContext(), R.color.accent))
+                        labelView.setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.accent)) // GENI-HOOK
                         recoverButton.visibility = View.GONE
                     }
                     true -> { // Valid backup
@@ -299,7 +299,7 @@ class BackupActivity : AppCompatActivity() {
                         }
                     }
                     else -> { // Invalid backup
-                        labelView.setTextColor(getColor(requireContext(), R.color.gray_text))
+                        labelView.setTextColor(app.familygem.geni.GeniAppearance.color(requireContext(), app.familygem.geni.GeniAppearance.textGray)) // GENI-HOOK
                         recoverButton.visibility = View.GONE
                         backupView.findViewById<RelativeLayout>(R.id.backup_text).alpha = 0.7F
                     }

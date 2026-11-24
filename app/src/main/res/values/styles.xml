@@ -6,6 +6,23 @@
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>
         <item name="android:windowBackground">@color/background</item>
+        <!-- GENI-HOOK: palette attributes (declared in :geni); the Geni themes override them with an overlay -->
+        <item name="geni_primary">@color/primary</item>
+        <item name="geni_primaryDark">@color/primary_dark</item>
+        <item name="geni_primaryLight">@color/primary_light</item>
+        <item name="geni_accent">@color/accent</item>
+        <item name="geni_accentLight">@color/accent_light</item>
+        <item name="geni_background">@color/background</item>
+        <item name="geni_surface">@color/back_element</item>
+        <item name="geni_text">@color/text</item>
+        <item name="geni_textGray">@color/gray_text</item>
+        <item name="geni_diagramLines">@color/diagram_lines_screen</item>
+        <item name="geni_diagramIcon">@android:color/white</item>
+        <item name="geni_cardMale">@color/male</item>
+        <item name="geni_cardFemale">@color/female</item>
+        <item name="geni_cardUndefined">@color/undefined</item>
+        <item name="geni_cardSelected">@color/back_element</item>
+        <item name="geni_diagramBackground">@drawable/diagram_background</item>
         <item name="drawerArrowStyle">@style/AppTheme.DrawerArrow</item>
         <item name="actionOverflowButtonStyle">@style/AppTheme.OverflowButton</item>
         <item name="searchViewStyle">@style/AppTheme.SearchView</item>
@@ -47,17 +64,17 @@
     </style>
 
     <style name="AppTheme.BasicText">
-        <item name="android:textColor">@color/text</item>
+        <item name="android:textColor">?attr/geni_text</item>
         <item name="android:textSize">16sp</item>
     </style>
 
     <style name="AppTheme.Title">
-        <item name="android:textColor">@color/gray_text</item>
+        <item name="android:textColor">?attr/geni_textGray</item>
         <item name="android:textSize">20sp</item>
     </style>
 
     <style name="AppTheme.LittleTitle">
-        <item name="android:textColor">@color/gray_text</item>
+        <item name="android:textColor">?attr/geni_textGray</item>
         <item name="android:textSize">15sp</item>
         <item name="android:textStyle">bold</item>
     </style>
@@ -96,7 +113,7 @@
     </style>
 
     <style name="AppTheme.Slug">
-        <item name="android:textColor">@color/gray_text</item>
+        <item name="android:textColor">?attr/geni_textGray</item>
         <item name="android:textSize">13sp</item>
         <item name="android:typeface">monospace</item>
         <item name="android:background">@drawable/slug_background</item>
@@ -107,8 +124,8 @@
     </style>
 
     <style name="AppTheme.Navigator" parent="ThemeOverlay.AppCompat">
-        <item name="colorPrimary">@color/primary</item> <!-- Selected text and icon -->
-        <item name="colorControlHighlight">@color/accent</item> <!-- Selected background -->
+        <item name="colorPrimary">?attr/geni_primary</item> <!-- Selected text and icon -->
+        <item name="colorControlHighlight">?attr/geni_accent</item> <!-- Selected background -->
     </style>
 
     <style name="AppTheme.Wheel">
@@ -133,7 +150,7 @@
     </style>
 
     <style name="AppTheme.DragHandle" parent="Widget.Material3.BottomSheet.DragHandle">
-        <item name="tint">@color/text</item>
+        <item name="tint">?attr/geni_text</item>
         <item name="android:alpha">0.3</item>
     </style>
 </resources>
