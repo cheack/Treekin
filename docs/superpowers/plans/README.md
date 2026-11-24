@@ -243,6 +243,7 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-24: A newly added photo waits for the crop prompt and editor before it goes to Geni, so Geni gets the cropped image, or the original if you decline or cancel (PR [#23](https://github.com/cheack/Treekin/pull/23)).
 - 2026-11-24: Photos uploaded to Geni are always re-encoded as fresh JPEGs, so GPS and other embedded metadata of the source file are no longer sent; the local original is untouched (PR [#22](https://github.com/cheack/Treekin/pull/22)).
 - 2026-11-23: A queued "Delete on Geni" runs only under the Geni account that confirmed it; after signing in to another account it shows a failed change telling the user to sign back in and retry, and older queued deletes need a fresh confirmation; the person stays on the device until Geni confirms (PR [#21](https://github.com/cheack/Treekin/pull/21)).
 - 2026-11-23: The Geni account screen has a Privacy policy link under Log in with Geni, also shown signed in and in unconfigured builds; a toast appears when no browser can open it; the policy opens through one shared `GeniPrivacyPolicy` (PR [#20](https://github.com/cheack/Treekin/pull/20)).
