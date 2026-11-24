@@ -6,7 +6,9 @@ import android.view.Menu
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.familygem.Global
 import android.content.Context
@@ -17,6 +19,7 @@ import app.familygem.geni.sync.DeleteQueued
 import app.familygem.geni.sync.DeleteDecision
 import app.familygem.geni.sync.DeleteRules
 import app.familygem.geni.sync.PersonRemoval
+import app.familygem.geni.sync.PersonPhotoChanges
 import app.familygem.geni.sync.PhotoSync
 import org.folg.gedcom.model.Media
 import kotlinx.coroutines.Dispatchers
@@ -372,6 +375,12 @@ object GeniGlue {
         val geniId = person?.let { GeniMapper.getGeniId(it) } ?: return
         val owner = activity as? LifecycleOwner ?: return
         val treeId = Global.settings.openTree
+        // A main photo deleted on Geni (or its replacement) arrives while this profile stays open
+        owner.lifecycleScope.launch {
+            owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                PersonPhotoChanges.of(treeId, person.id).collect { withContext(Dispatchers.Main) { refresh() } }
+            }
+        }
         owner.lifecycleScope.launch {
             val link = Geni.store(activity).link(treeId, geniId)
             if (!LoadPolicy.shouldLoad(link, System.currentTimeMillis(), LoadPolicy.OPEN_REFRESH_MILLIS)) return@launch

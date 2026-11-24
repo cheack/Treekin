@@ -118,6 +118,33 @@ class PhotoSync(
     }
 
     /**
+     * Geni confirmed the deletion of [geniPhotoId]: if it is the main photo of the person, removes it here (media, link, file
+     * when unused), then looks up the profile with [fetchProfile] and, if Geni now names another main photo, syncs it.
+     * A response that still names the deleted photo never brings it back. A failed lookup or download leaves the removal
+     * as it is; the next refresh picks the replacement up.
+     * @param onChanged called after the removal and again after a replacement arrived
+     * @return true if the main photo was removed here
+     */
+    suspend fun mainDeleted(
+        treeId: Int, geniProfileId: String, personGedcomId: String, geniPhotoId: String,
+        fetchProfile: suspend () -> GeniProfile?, onChanged: () -> Unit
+    ): Boolean {
+        val link = store.photoLinks(treeId, geniProfileId).firstOrNull { it.geniPhotoId == geniPhotoId && it.isMain } ?: return false
+        if (!removeLink(treeId, geniProfileId, personGedcomId, link)) return false
+        onChanged()
+        try {
+            val profile = fetchProfile() ?: return true
+            val next = mugshotToPhoto(profile) ?: return true
+            if (next.id != geniPhotoId && sync(treeId, profile, personGedcomId)) onChanged()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The deletion stands; a later refresh fetches the replacement
+        }
+        return true
+    }
+
+    /**
      * Removes the album photos of a profile that Geni no longer lists: media, link and file, as [removeLocal] does.
      * Not touched: the main photo, photos not downloaded yet or waiting for upload or deletion, and photos
      * the user made their own with a title or a note (the media stays and so does its link).
