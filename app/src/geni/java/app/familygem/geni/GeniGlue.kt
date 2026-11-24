@@ -149,7 +149,11 @@ object GeniGlue {
     }
 
     /** True while the crop session still holds its photo (false after a release or a process restart). */
-    fun isCropSessionActive(session: Long): Boolean = session != 0L && Geni.queue(Global.context).holds.isActive(session)
+    fun isCropSessionActive(session: Long): Boolean {
+        if (session == 0L) return false
+        install()
+        return Geni.queue(Global.context).holds.isActive(session)
+    }
 
     /**
      * Replaces [original] with the finished crop [temp] and releases the photo, unless the session was released.
