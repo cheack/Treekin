@@ -140,11 +140,11 @@ class TreesActivity : AppCompatActivity() {
                     treeView.setOnClickListener {
                         progress.visibility = View.VISIBLE
                         if (Global.gc != null && treeId == Global.settings.openTree) { // Tree already opened
-                            startActivity(Intent(this@TreesActivity, MainActivity::class.java))
+                            startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity)) // GENI-HOOK opens on Home
                         } else {
                             lifecycleScope.launch(IO) {
                                 if (TreeUtil.openGedcom(treeId, true))
-                                    startActivity(Intent(this@TreesActivity, MainActivity::class.java))
+                                    startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity)) // GENI-HOOK
                                 else withContext(Main) { progress.visibility = View.GONE }
                             }
                         }
@@ -304,7 +304,7 @@ class TreesActivity : AppCompatActivity() {
             lifecycleScope.launch(IO) {
                 if (TreeUtil.openGedcom(Global.settings.openTree, false)) {
                     autoOpenedTree = true
-                    startActivity(Intent(this@TreesActivity, MainActivity::class.java))
+                    startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity)) // GENI-HOOK opens on Home
                 } else withContext(Main) { progress.visibility = View.GONE }
             }
         }

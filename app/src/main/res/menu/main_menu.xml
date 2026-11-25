@@ -5,6 +5,11 @@
     tools:showIn="navigation_view">
 
     <group android:checkableBehavior="single">
+        <!-- GENI-HOOK Treekin Home -->
+        <item
+            android:id="@+id/menu_home"
+            android:icon="@drawable/geni_menu_home"
+            android:title="@string/geni_home" />
         <item
             android:id="@+id/menu_diagram"
             android:icon="@drawable/menu_diagramma"

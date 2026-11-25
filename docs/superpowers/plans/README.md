@@ -236,6 +236,23 @@ One live screen, **Sync backlog** in the trees menu, for every Geni tree: what i
 - [ ] Direct person refresh, daily refresh, album listing, a single photo and Download all one by one on a device (unit tests cover the loader side)
 - [ ] A download still queued or running when its tree is deleted can show under a new tree that reuses the ID; bind rows to a tree incarnation, not the numeric ID (CodeRabbit security summary, PR #30)
 
+## 9. Home screen: recent events
+
+A **Home** screen opens with the tree: upcoming birthdays (next 14 days) and recent birthdays and profile changes (today and the 90 days before), built from the people on this device. The diagram stays in the drawer. Geni's API has no feed, birthdays or per-profile history endpoint (checked 2026-11-25), so the feed is local.
+
+- [x] `HomeFragment` (fork code in `app.familygem.geni.home`) in the drawer above Diagram; `furnishMenu()` finds the counted items by ID; rotation and Back (Home → Diagram → Back) keep Home
+- [x] Ordinary opens go to Home: startup auto-load, a tap on the tree, and `AppTreeHost.openTree` after the account flow (`HomeFragment.OPEN` extra). Birthday notification taps, `Choice.*` pickers and every other MainActivity start keep the diagram or their screen
+- [x] `RecentEvents` feed builder (date and zone as inputs): Notifier's birthday rule (alive, single D M Y date), the tree's lifespan per occurrence, February 29 on February 28, year rollover; the day of birth itself is not a birthday
+- [x] Profile changes from each person's `CHAN` (its stored zone, else the device one), one per person, merged into the day groups; malformed and future timestamps skipped. No Geni request, no tree write
+- [x] Rows open the profile; **Birthday photos** on today's and past birthdays opens the Media tab; refreshed on every return; empty state; English and Russian strings with age plurals
+- [x] Checked on the emulator: tree tap and offline auto-load open Home; edit → back shows the change once under Today; Birthday photos → Media tab; rotation; Home → Diagram → Back; Russian dates and plurals; simulated notification tap opens Diagram on the person; Link existing person opens the Persons picker; `SingleTreeTest` passes
+
+### Not checked by hand for Home
+
+- [ ] Fresh install → Geni onboarding → setup opens one Home screen (needs a sandbox login; `GeniLoginViewModelTest` passes)
+- [ ] A missing or unreadable tree file leaves the user at the tree list (routing changed only the started intent, not the failure path)
+- [ ] Geni `updated_at` of cached profiles as a second source of "Profile updated" (it would show edits made on Geni by others)
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)

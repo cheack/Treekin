@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One event of the Home feed: photo, name, what happened, and the birthday photos action. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="6dp"
+    android:background="?attr/geni_surface"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/geni_home_person"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?android:attr/selectableItemBackground"
+        android:gravity="center_vertical"
+        android:minHeight="64dp"
+        android:orientation="horizontal"
+        android:padding="8dp">
+
+        <ImageView
+            android:id="@+id/geni_home_image"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="12dp"
+            android:importantForAccessibility="no"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/person_image" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/geni_home_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="?attr/geni_text"
+                android:textSize="17sp"
+                tools:text="Ivan Petrov" />
+
+            <TextView
+                android:id="@+id/geni_home_detail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/geni_textGray"
+                android:textSize="14sp"
+                tools:text="Birthday · Turns 36" />
+
+            <Button
+                android:id="@+id/geni_home_photos"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="-12dp"
+                android:minHeight="40dp"
+                android:text="@string/geni_home_birthday_photos"
+                android:textColor="?attr/geni_accent" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

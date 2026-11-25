@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Section title (Upcoming birthdays, Recent events) or day of the Home feed. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/geni_home_header"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingStart="4dp"
+    android:paddingTop="16dp"
+    android:paddingEnd="4dp"
+    android:paddingBottom="2dp"
+    android:textColor="?attr/geni_textGray"
+    android:textSize="14sp"
+    android:textStyle="bold"
+    tools:text="Today" />
