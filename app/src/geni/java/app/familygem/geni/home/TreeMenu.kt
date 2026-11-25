@@ -77,7 +77,10 @@ object TreeMenu {
         }
         if (Global.settings.expert) {
             menu.add(R.string.export_gedcom).setOnMenuItemClickListener { exportGedcom(activity, treeId); true }
-            menu.add(R.string.make_backup).setOnMenuItemClickListener { export(activity, treeId, FileType.ZIP_BACKUP); true }
+            menu.add(R.string.make_backup).setOnMenuItemClickListener {
+                activity.lifecycleScope.launch { if (saveFirst(activity, treeId)) export(activity, treeId, FileType.ZIP_BACKUP) }
+                true
+            }
         }
         menu.add(GR.string.geni_delete_tree).setOnMenuItemClickListener {
             Util.confirmDelete(activity) {
@@ -89,15 +92,27 @@ object TreeMenu {
         }
     }
 
+    /**
+     * Exports read the tree file, and the GEDCOM export reloads the open tree from it afterwards: unsaved edits are saved first.
+     * False if they could not be (`saveJson` reports a failed write only with a toast, so the file's time tells), and the edits stay pending.
+     */
+    private suspend fun saveFirst(activity: MainActivity, treeId: Int): Boolean {
+        if (!Global.shouldSave) return true
+        val file = java.io.File(activity.filesDir, "$treeId.json")
+        val saved = withContext(Dispatchers.IO) {
+            val before = file.lastModified()
+            TreeUtil.saveJson(Global.gc, treeId)
+            file.exists() && file.lastModified() != before
+        }
+        if (saved) Global.shouldSave = false
+        return saved
+    }
+
     /** As the trees list does: GEDCOM only, or zipped with its media when there are media files to attach. */
     private fun exportGedcom(activity: MainActivity, treeId: Int) {
         val exporter = Exporter(activity)
         activity.lifecycleScope.launch {
-            // The export works on the open tree and reloads it from disk afterwards: unsaved edits are saved first
-            if (Global.shouldSave) {
-                withContext(Dispatchers.IO) { TreeUtil.saveJson(Global.gc, treeId) }
-                Global.shouldSave = false
-            }
+            if (!saveFirst(activity, treeId)) return@launch
             if (!withContext(Dispatchers.IO) { exporter.openTree(treeId) }) {
                 Toast.makeText(activity, exporter.errorMessage, Toast.LENGTH_LONG).show()
                 return@launch
@@ -120,9 +135,10 @@ object TreeMenu {
      */
     private fun export(activity: MainActivity, treeId: Int, type: FileType, opened: Exporter? = null) {
         val exporter = opened ?: Exporter(activity)
-        lateinit var launcher: ActivityResultLauncher<Intent>
-        launcher = activity.activityResultRegistry.register("treekin.export.${type.name}", ActivityResultContracts.StartActivityForResult()) { result ->
-            launcher.unregister()
+        // A key of its own per export: no result left from an earlier one can arrive while registering
+        var launcher: ActivityResultLauncher<Intent>? = null
+        launcher = activity.activityResultRegistry.register("treekin.export.${type.name}.${System.nanoTime()}", ActivityResultContracts.StartActivityForResult()) { result ->
+            launcher?.unregister()
             val uri: Uri = result.data?.data ?: return@register
             if (result.resultCode != android.app.Activity.RESULT_OK) return@register
             activity.lifecycleScope.launch(Dispatchers.IO) {
@@ -133,7 +149,9 @@ object TreeMenu {
                     else -> false
                 }
                 // The GEDCOM export rewrites the header and trims the open tree; a failed one would leave it so
-                if (type != FileType.ZIP_BACKUP && Global.settings.openTree == treeId) TreeUtil.readJson(treeId)?.let { Global.gc = it }
+                if (type != FileType.ZIP_BACKUP) TreeUtil.readJson(treeId)?.let { reloaded ->
+                    withContext(Dispatchers.Main) { if (Global.settings.openTree == treeId) Global.gc = reloaded }
+                }
                 Util.toast(if (done) exporter.successMessage else exporter.errorMessage)
             }
         }
