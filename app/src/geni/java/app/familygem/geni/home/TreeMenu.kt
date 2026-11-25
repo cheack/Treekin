@@ -3,6 +3,7 @@ package app.familygem.geni.home
 import android.content.Intent
 import android.net.Uri
 import android.view.Menu
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -78,7 +79,10 @@ object TreeMenu {
         if (Global.settings.expert) {
             menu.add(R.string.export_gedcom).setOnMenuItemClickListener { exportGedcom(activity, treeId); true }
             menu.add(R.string.make_backup).setOnMenuItemClickListener {
-                activity.lifecycleScope.launch { if (saveFirst(activity, treeId)) export(activity, treeId, FileType.ZIP_BACKUP) }
+                val busy = busy(activity)
+                activity.lifecycleScope.launch {
+                    if (saveFirst(treeId)) export(activity, treeId, FileType.ZIP_BACKUP, busy) else busy.dismiss()
+                }
                 true
             }
         }
@@ -93,17 +97,19 @@ object TreeMenu {
     }
 
     /**
-     * Exports read the tree file, and the GEDCOM export reloads the open tree from it afterwards: unsaved edits are saved first.
-     * False if they could not be (`saveJson` reports a failed write only with a toast, so the file's time tells), and the edits stay pending.
+     * A dialog that cannot be dismissed, shown from the save before an export until the open tree is reloaded after it:
+     * the tree cannot be edited in between, so no edit is missing from the saved file or replaced by the reload.
      */
-    private suspend fun saveFirst(activity: MainActivity, treeId: Int): Boolean {
+    private fun busy(activity: MainActivity): AlertDialog {
+        val padding = (24 * activity.resources.displayMetrics.density).toInt()
+        val bar = ProgressBar(activity).apply { setPadding(padding, padding, padding, padding) }
+        return AlertDialog.Builder(activity).setView(bar).setCancelable(false).show()
+    }
+
+    /** Exports read the tree file: unsaved edits are saved first. False if the write failed; the edits then stay pending. */
+    private suspend fun saveFirst(treeId: Int): Boolean {
         if (!Global.shouldSave) return true
-        val file = java.io.File(activity.filesDir, "$treeId.json")
-        val saved = withContext(Dispatchers.IO) {
-            val before = file.lastModified()
-            TreeUtil.saveJson(Global.gc, treeId)
-            file.exists() && file.lastModified() != before
-        }
+        val saved = withContext(Dispatchers.IO) { TreeUtil.saveJson(Global.gc, treeId) }
         if (saved) Global.shouldSave = false
         return saved
     }
@@ -111,20 +117,25 @@ object TreeMenu {
     /** As the trees list does: GEDCOM only, or zipped with its media when there are media files to attach. */
     private fun exportGedcom(activity: MainActivity, treeId: Int) {
         val exporter = Exporter(activity)
+        val busy = busy(activity)
         activity.lifecycleScope.launch {
-            if (!saveFirst(activity, treeId)) return@launch
+            if (!saveFirst(treeId)) {
+                busy.dismiss()
+                return@launch
+            }
             if (!withContext(Dispatchers.IO) { exporter.openTree(treeId) }) {
+                busy.dismiss()
                 Toast.makeText(activity, exporter.errorMessage, Toast.LENGTH_LONG).show()
                 return@launch
             }
             val media = exporter.countMediaFilesToAttach()
-            if (media == 0) export(activity, treeId, FileType.GEDCOM, exporter)
+            if (media == 0) export(activity, treeId, FileType.GEDCOM, busy, exporter)
             else {
                 val choices = arrayOf(activity.getString(R.string.gedcom_media_zip, media), activity.getString(R.string.gedcom_only))
                 AlertDialog.Builder(activity).setTitle(R.string.export_gedcom).setSingleChoiceItems(choices, -1) { dialog, selected ->
-                    export(activity, treeId, if (selected == 0) FileType.ZIPPED_GEDCOM else FileType.GEDCOM, exporter)
+                    export(activity, treeId, if (selected == 0) FileType.ZIPPED_GEDCOM else FileType.GEDCOM, busy, exporter)
                     dialog.dismiss()
-                }.show()
+                }.setOnCancelListener { reloadAndDismiss(treeId, busy) }.show()
             }
         }
     }
@@ -133,28 +144,48 @@ object TreeMenu {
      * Asks where to save the file, then writes it. The result launcher is registered on demand and dropped after one use,
      * since it outlives no screen: a result arriving after MainActivity was recreated is lost, as the user can export again.
      */
-    private fun export(activity: MainActivity, treeId: Int, type: FileType, opened: Exporter? = null) {
+    private fun export(activity: MainActivity, treeId: Int, type: FileType, busy: AlertDialog, opened: Exporter? = null) {
         val exporter = opened ?: Exporter(activity)
         // A key of its own per export: no result left from an earlier one can arrive while registering
         var launcher: ActivityResultLauncher<Intent>? = null
         launcher = activity.activityResultRegistry.register("treekin.export.${type.name}.${System.nanoTime()}", ActivityResultContracts.StartActivityForResult()) { result ->
             launcher?.unregister()
-            val uri: Uri = result.data?.data ?: return@register
-            if (result.resultCode != android.app.Activity.RESULT_OK) return@register
-            activity.lifecycleScope.launch(Dispatchers.IO) {
-                val done = when (type) {
-                    FileType.GEDCOM -> exporter.exportGedcom(uri)
-                    FileType.ZIPPED_GEDCOM -> exporter.exportGedcomToZip(uri)
-                    FileType.ZIP_BACKUP -> exporter.openTree(treeId) && exporter.exportZipBackup(null, -1, uri)
-                    else -> false
+            val uri: Uri? = result.data?.data
+            if (result.resultCode != android.app.Activity.RESULT_OK || uri == null) {
+                reloadAndDismiss(treeId, busy, type)
+                return@register
+            }
+            activity.lifecycleScope.launch {
+                // Upstream's Exporter writes on this thread and, for a GEDCOM, swaps Global.gc itself; edits are blocked meanwhile
+                val done = withContext(Dispatchers.IO) {
+                    when (type) {
+                        FileType.GEDCOM -> exporter.exportGedcom(uri)
+                        FileType.ZIPPED_GEDCOM -> exporter.exportGedcomToZip(uri)
+                        FileType.ZIP_BACKUP -> exporter.openTree(treeId) && exporter.exportZipBackup(null, -1, uri)
+                        else -> false
+                    }
                 }
-                // The GEDCOM export rewrites the header and trims the open tree; a failed one would leave it so
-                if (type != FileType.ZIP_BACKUP) TreeUtil.readJson(treeId)?.let { reloaded ->
-                    withContext(Dispatchers.Main) { if (Global.settings.openTree == treeId) Global.gc = reloaded }
-                }
-                Util.toast(if (done) exporter.successMessage else exporter.errorMessage)
+                Toast.makeText(activity, (if (done) exporter.successMessage else exporter.errorMessage) ?: "", Toast.LENGTH_LONG).show()
+                reloadAndDismiss(treeId, busy, type)
             }
         }
         FileUtil.openSaf(treeId, type, launcher)
+    }
+
+    /**
+     * The GEDCOM export rewrites the header and trims the open tree in memory (`openTree` hands it the open tree), also when it
+     * stops early: the open tree is read back from the file just saved. Then edits are allowed again.
+     */
+    private fun reloadAndDismiss(treeId: Int, busy: AlertDialog, type: FileType = FileType.GEDCOM) {
+        if (type == FileType.ZIP_BACKUP) {
+            busy.dismiss()
+            return
+        }
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.Main) {
+            val reloaded = withContext(Dispatchers.IO) { TreeUtil.readJson(treeId) }
+            if (reloaded != null && Global.settings.openTree == treeId) Global.gc = reloaded
+            busy.dismiss()
+        }
     }
 }

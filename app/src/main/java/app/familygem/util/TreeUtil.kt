@@ -191,7 +191,8 @@ object TreeUtil {
     }
 
     /** Saves the GEDCOM tree as JSON. */
-    suspend fun saveJson(gedcom: Gedcom, treeId: Int, makeBackup: Boolean = Global.settings.backup) {
+    suspend fun saveJson(gedcom: Gedcom, treeId: Int, makeBackup: Boolean = Global.settings.backup): Boolean { // GENI-HOOK returns whether the file was written
+        var written = true // GENI-HOOK
         gedcom.header?.apply {
             if (generator?.value == "FAMILY_GEM") { // Only if header is by Family Gem
                 dateTime = ChangeUtil.actualDateTime()
@@ -202,8 +203,10 @@ object TreeUtil {
         try {
             FileUtils.writeStringToFile(File(Global.context.filesDir, "$treeId.json"), JsonParser().toJson(gedcom), "UTF-8")
         } catch (exception: Exception) {
+            written = false // GENI-HOOK
             Util.toast(exception.localizedMessage)
         } catch (error: Error) {
+            written = false // GENI-HOOK
             val message = if (error is OutOfMemoryError) string(R.string.not_memory_tree)
             else error.localizedMessage ?: string(R.string.something_wrong)
             Util.toast(message)
@@ -211,6 +214,7 @@ object TreeUtil {
         Notifier(Global.context, gedcom, treeId, Notifier.What.DEFAULT)
         if (makeBackup) Global.backupViewModel.backupDelayed(treeId)
         app.familygem.geni.GeniGlue.onTreeSaved(gedcom, treeId) // GENI-HOOK
+        return written // GENI-HOOK
     }
 
     // Temporary hack to call a suspend function from Java

@@ -16,6 +16,7 @@ Resource files carry no comment marker for the mechanical palette change (`@colo
 | `app/src/main/java/app/familygem/profile/ProfileActivity.kt` | `GeniGlue.addProfileMenu(this, menu, person)` in `onCreateOptionsMenu` | "Keep offline" item for people of Geni trees. |
 | `app/src/main/java/app/familygem/util/TreeUtil.kt` | `GeniGlue.onTreeDeleted(treeId)` at the start of `deleteTree` | Drops the Geni rows of a deleted tree, so a new tree with the same ID does not inherit them. |
 | `app/src/main/java/app/familygem/util/TreeUtil.kt` | `GeniGlue.onTreeSaved(gedcom, treeId)` at the end of `saveJson` | Plans Geni uploads from every saved Geni tree. |
+| `app/src/main/java/app/familygem/util/TreeUtil.kt` | `saveJson` returns `Boolean`: `var written = true`, `written = false` in both catch blocks, `return written` at the end | `TreeMenu` keeps unsaved edits pending, and skips the export, when the write failed. |
 | `app/src/main/java/app/familygem/TreesActivity.kt` | `GeniGlue.trimTreeMenu(treeId, menu)` before `popup.setOnMenuItemClickListener` | Hides share, merge and compare from the menu of a Geni tree. |
 | `app/src/main/java/app/familygem/profile/RelativesFragment.kt` | `GeniGlue.blockUnlink(context)` at the start of the Unlink in the family tab | Geni's API cannot remove a relationship: refused in Geni trees. |
 | `app/src/main/java/app/familygem/main/DiagramFragment.kt` | `GeniGlue.blockUnlink(context)` at the start of the Unlink in the diagram menu | Geni's API cannot remove a relationship: refused in Geni trees. |
