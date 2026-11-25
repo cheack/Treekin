@@ -184,7 +184,10 @@ object TreeMenu {
         @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
         kotlinx.coroutines.GlobalScope.launch(Dispatchers.Main) {
             val reloaded = withContext(Dispatchers.IO) { TreeUtil.readJson(treeId) }
-            if (reloaded != null && Global.settings.openTree == treeId) Global.gc = reloaded
+            if (reloaded != null && Global.settings.openTree == treeId) {
+                Global.gc = reloaded
+                Global.edited = true // Screens left in the back stack rebuild from the new objects when they come back
+            }
             busy.dismiss()
         }
     }
