@@ -5,7 +5,9 @@ import app.familygem.geni.home.FeedEvent.Kind.PROFILE_UPDATED
 import org.folg.gedcom.model.Change
 import org.folg.gedcom.model.DateTime
 import org.folg.gedcom.model.EventFact
+import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Person
+import org.folg.gedcom.model.SpouseRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -35,13 +37,27 @@ class RecentEventsTest {
             }
         }
 
-    private fun build(vararg people: Person, now: Instant = at("2026-11-25"), lifeSpan: Int = 120) =
-        RecentEvents.build(people.toList(), lifeSpan, now, zone)
+    private fun build(vararg people: Person, now: Instant = at("2026-11-25"), lifeSpan: Int = 120, families: List<Family> = emptyList()) =
+        RecentEvents.build(people.toList(), families, lifeSpan, now, zone)
+
+    private fun family(id: String, vararg partners: String, marriage: String? = null, divorced: Boolean = false) = Family().apply {
+        this.id = id
+        partners.forEachIndexed { i, ref ->
+            if (i == 0) addHusband(SpouseRef().apply { this.ref = ref }) else addWife(SpouseRef().apply { this.ref = ref })
+        }
+        marriage?.let { addEventFact(EventFact().apply { tag = "MARR"; date = it }) }
+        if (divorced) addEventFact(EventFact().apply { tag = "DIV" })
+    }
+
+    private fun deadPerson(id: String, death: String) = Person().apply {
+        this.id = id
+        addEventFact(EventFact().apply { tag = "DEAT"; date = death })
+    }
 
     @Test
     fun `upcoming birthdays soonest first with the age reached`() {
         val feed = build(person("I2", "2 DEC 1980"), person("I1", "28 NOV 1990"))
-        assertEquals(listOf("I1" to 36, "I2" to 46), feed.upcoming.map { it.personId to it.age })
+        assertEquals(listOf("I1" to 36, "I2" to 46), feed.upcoming.map { it.personId to it.years })
         assertEquals(listOf(LocalDate.of(2026, 11, 28), LocalDate.of(2026, 12, 2)), feed.upcoming.map { it.date })
     }
 
@@ -68,17 +84,17 @@ class RecentEventsTest {
     @Test
     fun `december to january rollover`() {
         val feed = build(person("I1", "3 JAN 2000"), now = at("2026-12-25"))
-        assertEquals(listOf(LocalDate.of(2027, 1, 3) to 27), feed.upcoming.map { it.date to it.age })
+        assertEquals(listOf(LocalDate.of(2027, 1, 3) to 27), feed.upcoming.map { it.date to it.years })
         // Past birthdays of the previous year
         val past = build(person("I2", "20 DEC 2000"), now = at("2027-01-05"))
         assertEquals(listOf(LocalDate.of(2026, 12, 20)), past.recent.map { it.first })
-        assertEquals(26, past.recent[0].second[0].age)
+        assertEquals(26, past.recent[0].second[0].years)
     }
 
     @Test
     fun `february 29 falls on february 28 in non leap years`() {
         val feed = build(person("I1", "29 FEB 2000"), now = at("2027-02-20"))
-        assertEquals(listOf(LocalDate.of(2027, 2, 28) to 27), feed.upcoming.map { it.date to it.age })
+        assertEquals(listOf(LocalDate.of(2027, 2, 28) to 27), feed.upcoming.map { it.date to it.years })
         val leap = build(person("I1", "29 FEB 2000"), now = at("2028-02-20"))
         assertEquals(listOf(LocalDate.of(2028, 2, 29)), leap.upcoming.map { it.date })
     }
@@ -153,5 +169,39 @@ class RecentEventsTest {
         assertEquals(java.time.LocalTime.of(14, 3, 22), RecentEvents.parseTime("14:03:22.5"))
         assertEquals(java.time.LocalTime.of(9, 5), RecentEvents.parseTime("9:05"))
         assertNull(RecentEvents.parseTime("noon"))
+    }
+
+    @Test
+    fun `wedding anniversary of a living couple`() {
+        val feed = build(
+            person("I1"), person("I2"), person("I3"), person("I4", dead = "DEAT"), person("I5"), person("I6"),
+            families = listOf(
+                family("F1", "I1", "I2", marriage = "2 DEC 1990"),
+                family("F2", "I3", "I4", marriage = "2 DEC 1990"), // A partner died
+                family("F3", "I5", "I6", marriage = "2 DEC 1990", divorced = true),
+                family("F4", "I1", marriage = "2 DEC 1990"), // One partner only
+                family("F5", "I5", "I6", marriage = "DEC 1990") // No day
+            )
+        )
+        assertEquals(listOf(FeedEvent(FeedEvent.Kind.WEDDING_ANNIVERSARY, "I1", LocalDate.of(2026, 12, 2), 36, familyId = "F1", partnerId = "I2")),
+            feed.upcoming)
+    }
+
+    @Test
+    fun `memorial day within the lifespan`() {
+        val feed = build(deadPerson("I1", "20 NOV 2020"), deadPerson("I2", "20 NOV 1800"), deadPerson("I3", "NOV 2020"),
+            deadPerson("I4", "25 NOV 2026"), lifeSpan = 100)
+        assertEquals(listOf(FeedEvent(FeedEvent.Kind.MEMORIAL, "I1", LocalDate.of(2026, 11, 20), 6)), feed.recent.flatMap { it.second })
+        assertTrue(feed.upcoming.isEmpty())
+    }
+
+    @Test
+    fun `kinds of one day in a fixed order`() {
+        val feed = build(
+            person("I1", "20 NOV 1980", change = "20 Nov 2026"), deadPerson("I3", "20 NOV 2000"), person("I4"), person("I5"),
+            families = listOf(family("F1", "I4", "I5", marriage = "20 NOV 2000"))
+        )
+        assertEquals(listOf(FeedEvent.Kind.BIRTHDAY, FeedEvent.Kind.WEDDING_ANNIVERSARY, FeedEvent.Kind.MEMORIAL, FeedEvent.Kind.PROFILE_UPDATED),
+            feed.recent.single().second.map { it.kind })
     }
 }

@@ -2,6 +2,8 @@ package app.familygem.geni.home
 
 import app.familygem.DateConverter
 import app.familygem.constant.Format
+import org.folg.gedcom.model.EventFact
+import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Person
 import java.time.Instant
 import java.time.LocalDate
@@ -9,30 +11,38 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
-/** One row of the Home feed. [age] is the age reached on [date] (birthdays only). */
+/**
+ * One row of the Home feed. [years] is the age reached (birthday), the years of marriage (anniversary)
+ * or the years since the death (memorial day) on [date].
+ */
 data class FeedEvent(
     val kind: Kind,
+    /** The person of the event; for a wedding anniversary the first partner. */
     val personId: String,
     val date: LocalDate,
-    val age: Int = 0,
+    val years: Int = 0,
     /** When the profile was changed (profile updates only): orders the updates of one day, newest first. */
-    val changedAt: Instant? = null
+    val changedAt: Instant? = null,
+    /** Wedding anniversaries only: the family and the second partner. */
+    val familyId: String? = null,
+    val partnerId: String? = null
 ) {
-    enum class Kind { BIRTHDAY, PROFILE_UPDATED }
+    /** In the order they are listed within one day. */
+    enum class Kind { BIRTHDAY, WEDDING_ANNIVERSARY, MEMORIAL, PROFILE_UPDATED }
 }
 
-/** Upcoming birthdays (soonest first) and the recent events grouped by day (newest day first, today included). */
+/** Upcoming yearly events (soonest first) and the recent events grouped by day (newest day first, today included). */
 data class Feed(val upcoming: List<FeedEvent>, val recent: List<Pair<LocalDate, List<FeedEvent>>>) {
     val isEmpty get() = upcoming.isEmpty() && recent.isEmpty()
 }
 
 /**
- * Builds the Home feed from the people of the local tree: no Geni request, no write to the tree.
+ * Builds the Home feed from the people and families of the local tree: no Geni request, no write to the tree.
  * Pure function of its inputs, so the date and the time zone are given and not read from the device.
  */
 object RecentEvents {
 
-    /** Days after today with upcoming birthdays. */
+    /** Days after today with upcoming events. */
     const val UPCOMING_DAYS = 14L
 
     /** Days before today with recent events (today is shown too). */
@@ -40,32 +50,48 @@ object RecentEvents {
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
-    fun build(people: List<Person>, lifeSpan: Int, now: Instant, zone: ZoneId): Feed {
+    fun build(people: List<Person>, families: List<Family>, lifeSpan: Int, now: Instant, zone: ZoneId): Feed {
         val today = now.atZone(zone).toLocalDate()
         val upcomingEnd = today.plusDays(UPCOMING_DAYS)
         val recentStart = today.minusDays(RECENT_DAYS)
         val upcoming = mutableListOf<FeedEvent>()
         val recent = mutableListOf<FeedEvent>()
+
+        /** Adds the yearly returns of [origin] that fall in the windows, from the first one up to [lifeSpan] years. */
+        fun yearly(origin: LocalDate, event: (date: LocalDate, years: Int) -> FeedEvent) {
+            // The windows span at most a year boundary, so the previous, current and next year cover them
+            for (year in today.year - 1..today.year + 1) {
+                val date = anniversary(origin, year)
+                val years = year - origin.year
+                if (years < 1 || years > lifeSpan) continue // The day itself is not a return; the tree's lifespan limits the rest
+                if (date.isAfter(today) && !date.isAfter(upcomingEnd)) upcoming += event(date, years)
+                else if (!date.isAfter(today) && !date.isBefore(recentStart)) recent += event(date, years)
+            }
+        }
+
+        val living = mutableMapOf<String, Person>()
         for (person in people) {
             val id = person.id ?: continue
-            birthDate(person)?.let { birth ->
-                // The windows span at most a year boundary, so the previous, current and next year cover them
-                for (year in today.year - 1..today.year + 1) {
-                    val date = birthday(birth, year)
-                    val age = year - birth.year
-                    if (age < 1 || age > lifeSpan) continue // Day of birth is not a birthday; the tree's lifespan limits the rest
-                    val event = FeedEvent(FeedEvent.Kind.BIRTHDAY, id, date, age)
-                    if (date.isAfter(today) && !date.isAfter(upcomingEnd)) upcoming += event
-                    else if (!date.isAfter(today) && !date.isBefore(recentStart)) recent += event
-                }
-            }
+            if (!isDead(person)) living[id] = person
+            birthDate(person)?.let { birth -> yearly(birth) { date, years -> FeedEvent(FeedEvent.Kind.BIRTHDAY, id, date, years) } }
+            deathDate(person)?.let { death -> yearly(death) { date, years -> FeedEvent(FeedEvent.Kind.MEMORIAL, id, date, years) } }
             changeInstant(person, zone)?.let { changedAt ->
                 if (changedAt.isAfter(now)) return@let // A clock set wrong somewhere: not a recent change
                 val date = changedAt.atZone(zone).toLocalDate()
                 if (!date.isBefore(recentStart)) recent += FeedEvent(FeedEvent.Kind.PROFILE_UPDATED, id, date, changedAt = changedAt)
             }
         }
-        upcoming.sortWith(compareBy<FeedEvent> { it.date }.thenBy { it.personId })
+        for (family in families) {
+            val familyId = family.id ?: continue
+            val marriage = marriageDate(family) ?: continue
+            // Only a couple still together: two living partners, no divorce or annulment
+            val partners = (family.husbandRefs.orEmpty() + family.wifeRefs.orEmpty()).mapNotNull { it.ref }
+            if (partners.size != 2 || partners.any { it !in living }) continue
+            yearly(marriage) { date, years ->
+                FeedEvent(FeedEvent.Kind.WEDDING_ANNIVERSARY, partners[0], date, years, familyId = familyId, partnerId = partners[1])
+            }
+        }
+        upcoming.sortWith(compareBy<FeedEvent> { it.date }.thenBy { it.kind }.thenBy { it.personId })
         val groups = recent.groupBy { it.date }.toSortedMap(reverseOrder()).map { (date, events) ->
             date to events.sortedWith(
                 compareBy<FeedEvent> { it.kind }.thenByDescending { it.changedAt }.thenBy { it.personId }
@@ -74,22 +100,31 @@ object RecentEvents {
         return Feed(upcoming, groups)
     }
 
-    /**
-     * The birth date used for birthdays, as Notifier.findBirth: a living person (no death or burial fact)
-     * whose first birth with a date has a single date with day, month and year.
-     */
-    fun birthDate(person: Person): LocalDate? {
-        val facts = person.eventsFacts ?: return null
-        if (facts.any { it.tag == "DEAT" || it.tag == "BURI" }) return null
-        val birth = facts.firstOrNull { it.tag == "BIRT" && it.date != null } ?: return null
-        val converter = DateConverter(birth.date)
+    private fun isDead(person: Person) = person.eventsFacts.orEmpty().any { it.tag == "DEAT" || it.tag == "BURI" }
+
+    /** The date of the first [tag] fact with a date, if it is a single date with day, month and year (Notifier's rule). */
+    private fun exactDate(facts: List<EventFact>?, tag: String): LocalDate? {
+        val fact = facts.orEmpty().firstOrNull { it.tag == tag && it.date != null } ?: return null
+        val converter = DateConverter(fact.date)
         if (!converter.isSingleKind || converter.firstDate.format != Format.D_M_Y) return null
         val date = converter.firstDate.date ?: return null
         return LocalDate.of(date.year, date.monthOfYear, date.dayOfMonth)
     }
 
-    /** The birthday of [year]: February 29 falls on February 28 in the other years. */
-    fun birthday(birth: LocalDate, year: Int): LocalDate = birth.withYear(year)
+    /** The birth date used for birthdays, as Notifier.findBirth: a living person (no death or burial fact) with an exact birth date. */
+    fun birthDate(person: Person): LocalDate? = if (isDead(person)) null else exactDate(person.eventsFacts, "BIRT")
+
+    /** The exact death date, for memorial days. */
+    fun deathDate(person: Person): LocalDate? = exactDate(person.eventsFacts, "DEAT")
+
+    /** The exact marriage date of a family not divorced or annulled. */
+    fun marriageDate(family: Family): LocalDate? {
+        if (family.eventsFacts.orEmpty().any { it.tag == "DIV" || it.tag == "ANUL" }) return null
+        return exactDate(family.eventsFacts, "MARR")
+    }
+
+    /** The return of [origin] in [year]: February 29 falls on February 28 in the other years. */
+    fun anniversary(origin: LocalDate, year: Int): LocalDate = origin.withYear(year)
 
     /**
      * When the person's record was last changed (GEDCOM CHAN), in the zone stored with it or else [fallbackZone].
