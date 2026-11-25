@@ -130,7 +130,6 @@
     <string name="geni_home_tomorrow">Завтра</string>
     <string name="geni_home_birthday">День рождения</string>
     <string name="geni_home_profile_updated">Профиль обновлён</string>
-    <string name="geni_home_birthday_photos">Фото со дня рождения</string>
     <string name="geni_home_empty">Нет дней рождения в ближайшие 14 дней и нет дней рождения или изменений профилей за последние 90 дней</string>
     <plurals name="geni_home_turns">
         <item quantity="one">Исполнится %d год</item>

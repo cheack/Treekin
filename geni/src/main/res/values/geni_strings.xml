@@ -130,7 +130,6 @@
     <string name="geni_home_tomorrow">Tomorrow</string>
     <string name="geni_home_birthday">Birthday</string>
     <string name="geni_home_profile_updated">Profile updated</string>
-    <string name="geni_home_birthday_photos">Birthday photos</string>
     <string name="geni_home_empty">No birthdays in the next 14 days and no birthdays or profile changes in the last 90 days</string>
     <plurals name="geni_home_turns">
         <item quantity="one">Turns %d</item>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One event of the Home feed: photo, name, what happened, and the birthday photos action. -->
+<!-- One event of the Home feed: photo, name and what happened. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -20,8 +20,8 @@
 
         <ImageView
             android:id="@+id/geni_home_image"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
             android:layout_marginEnd="12dp"
             android:importantForAccessibility="no"
             android:scaleType="centerCrop"
@@ -50,16 +50,6 @@
                 android:textColor="?attr/geni_textGray"
                 android:textSize="14sp"
                 tools:text="Birthday · Turns 36" />
-
-            <Button
-                android:id="@+id/geni_home_photos"
-                style="?android:attr/borderlessButtonStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="-12dp"
-                android:minHeight="40dp"
-                android:text="@string/geni_home_birthday_photos"
-                android:textColor="?attr/geni_accent" />
         </LinearLayout>
     </LinearLayout>
 

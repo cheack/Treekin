@@ -19,10 +19,11 @@ import app.familygem.Global
 import app.familygem.Memory
 import app.familygem.R
 import app.familygem.U
-import app.familygem.constant.Extra
 import app.familygem.main.BaseFragment
 import app.familygem.profile.ProfileActivity
 import app.familygem.util.FileUtil
+import app.familygem.util.sex
+import com.bumptech.glide.Glide
 import org.folg.gedcom.model.Person
 import java.time.Instant
 import java.time.LocalDate
@@ -118,11 +119,20 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
         }
     }
 
-    private fun openProfile(person: Person, page: Int? = null) {
+    private fun openProfile(person: Person) {
         Memory.setLeader(person)
-        val intent = Intent(requireContext(), ProfileActivity::class.java)
-        page?.let { intent.putExtra(Extra.PAGE, it) }
-        startActivity(intent)
+        startActivity(Intent(requireContext(), ProfileActivity::class.java))
+    }
+
+    /** The person's main photo, or a silhouette by sex when there is none: every row has a picture. */
+    private fun showPhoto(image: ImageView, person: Person) {
+        Glide.with(image).clear(image) // A recycled row may still be loading another person's photo
+        image.setImageDrawable(null)
+        FileUtil.showMainMedia(person, image)
+        if (image.visibility != View.VISIBLE) {
+            image.visibility = View.VISIBLE
+            image.setImageResource(if (person.sex.isFemale()) R.drawable.geni_silhouette_female else R.drawable.geni_silhouette)
+        }
     }
 
     private inner class HomeAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -157,14 +167,8 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
                 parts += resources.getQuantityString(plural, event.age, event.age)
             } else parts += getString(GR.string.geni_home_profile_updated)
             view.findViewById<TextView>(R.id.geni_home_detail).text = parts.joinToString(" · ")
-            FileUtil.showMainMedia(person, view.findViewById<ImageView>(R.id.geni_home_image))
+            showPhoto(view.findViewById(R.id.geni_home_image), person)
             view.findViewById<View>(R.id.geni_home_person).setOnClickListener { openProfile(person) }
-            val photos = view.findViewById<View>(R.id.geni_home_photos)
-            // Today's and past birthdays: the person's media, where the photos of the day are kept
-            if (event.kind == FeedEvent.Kind.BIRTHDAY && !item.upcoming) {
-                photos.visibility = View.VISIBLE
-                photos.setOnClickListener { openProfile(person, 0) }
-            } else photos.visibility = View.GONE
         }
     }
 }
