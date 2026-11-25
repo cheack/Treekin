@@ -1,5 +1,6 @@
 package app.familygem.geni.home
 
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
@@ -57,7 +58,10 @@ object StartupTree {
     fun launch(activity: AppCompatActivity) {
         val load = pending ?: start(activity.applicationContext).also { pending = it }
         activity.lifecycleScope.launch {
-            activity.startActivity(if (load.await()) HomeFragment.intent(activity) else Intent(activity, TreesActivity::class.java))
+            val target = if (load.await()) HomeFragment.intent(activity) else Intent(activity, TreesActivity::class.java)
+            // A fade, not the sliding of a screen opened from another: the app appears as it opens
+            val fade = ActivityOptions.makeCustomAnimation(activity, android.R.anim.fade_in, android.R.anim.fade_out)
+            activity.startActivity(target, fade.toBundle())
         }
     }
 
