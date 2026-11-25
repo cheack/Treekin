@@ -301,20 +301,31 @@ class TreesActivity : AppCompatActivity() {
             autoLoadTree() // GENI-HOOK
     }
 
-    /** GENI-HOOK opens the startup tree on Home; the tree already in memory is reused, so unsaved edits survive. */
+    private var loadingStartupTree = false // GENI-HOOK a startup load in progress: a second launch intent does not start another
+
+    /**
+     * GENI-HOOK opens the startup tree on Home; the tree already in memory is reused, so unsaved edits survive.
+     * [autoOpenedTree] is set first, also when the launch is skipped or the load fails: a recreated list does not repeat it.
+     */
     private fun autoLoadTree() {
+        if (loadingStartupTree) return
+        autoOpenedTree = true
         if (app.familygem.geni.home.StartupTree.consumeSkip(this)) return // The previous run crashed
         val treeId = app.familygem.geni.home.StartupTree.pick(Global.settings.openTree, Global.settings.trees.map { it.id })
         if (treeId == 0) return
         progress.visibility = View.VISIBLE
         if (Global.gc != null && treeId == Global.settings.openTree) {
-            autoOpenedTree = true
             startActivity(app.familygem.geni.home.HomeFragment.intent(this))
-        } else lifecycleScope.launch(IO) {
-            if (TreeUtil.openGedcom(treeId, true)) {
-                autoOpenedTree = true
-                startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity))
-            } else withContext(Main) { progress.visibility = View.GONE }
+        } else {
+            loadingStartupTree = true
+            lifecycleScope.launch(IO) {
+                val opened = TreeUtil.openGedcom(treeId, true)
+                withContext(Main) {
+                    loadingStartupTree = false
+                    if (opened) startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity))
+                    else progress.visibility = View.GONE
+                }
+            }
         }
     }
 

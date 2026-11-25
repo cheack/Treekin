@@ -24,11 +24,11 @@ object StartupTree {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(SKIP_NEXT, true).commit()
     }
 
-    /** True once after a crash: this launch stays on the Trees list. */
+    /** True once after a crash: this launch stays on the Trees list. Cleared synchronously, so a quick second crash cannot keep it. */
     fun consumeSkip(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(SKIP_NEXT, false)) return false
-        prefs.edit().remove(SKIP_NEXT).apply()
+        prefs.edit().remove(SKIP_NEXT).commit()
         return true
     }
 }

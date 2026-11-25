@@ -15,7 +15,10 @@ class StartupTreeTest {
     }
 
     @Test
-    fun noChoiceAmongSeveralTrees() = assertEquals(0, StartupTree.pick(9, listOf(1, 2)))
+    fun noChoiceAmongSeveralTrees() {
+        assertEquals(0, StartupTree.pick(9, listOf(1, 2)))
+        assertEquals(0, StartupTree.pick(-1, listOf(1, 2)))
+    }
 
     @Test
     fun noTrees() = assertEquals(0, StartupTree.pick(3, emptyList()))
