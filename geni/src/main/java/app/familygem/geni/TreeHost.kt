@@ -28,6 +28,9 @@ interface TreeHost {
      */
     suspend fun savedPerson(treeId: Int, gedcomId: String): LocalPerson?
 
+    /** Title of the tree as the trees list shows it, null if unknown. Read it on the main thread. */
+    fun treeTitle(treeId: Int): String? = null
+
     /** True if the FamilyGem tree still exists (the user may have deleted it). */
     fun treeExists(treeId: Int): Boolean
 

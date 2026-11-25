@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -219,5 +220,36 @@ class RoomSyncStoreTest {
         store.savePhotoLink(photoLink("profile-1", "photo-1"))
         store.deleteTree(1)
         assertEquals(emptyList<PhotoLink>(), store.photoLinks(1))
+    }
+
+    /**
+     * One observer, started before the first write and kept open, as the backlog screen keeps it:
+     * each check waits (bounded) for the next matching emission of that same subscription.
+     */
+    @Test
+    fun observedJobsFollowInsertsStateChangesAndDeletes() = kotlinx.coroutines.runBlocking<Unit> {
+        val seen = kotlinx.coroutines.channels.Channel<List<UploadJob>>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val observer = launch(kotlinx.coroutines.Dispatchers.Default) { store.observeJobs().collect { seen.send(it) } }
+        suspend fun next(match: (List<UploadJob>) -> Boolean): List<UploadJob> = kotlinx.coroutines.withTimeout(5_000) {
+            var jobs = seen.receive()
+            while (!match(jobs)) jobs = seen.receive()
+            jobs
+        }
+        try {
+            assertEquals(emptyList<UploadJob>(), next { true })
+            val id = store.saveJob(job("profile:profile-1"))
+            assertEquals(listOf(id), next { it.size == 1 }.map { it.id })
+            store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "x", version = 1))
+            val failed = next { it.singleOrNull()?.state == JobState.FAILED }.single()
+            assertEquals(id to 1, failed.id to failed.version) // Same ID and version as stored
+            store.saveJob(job("profile:profile-2").copy(treeId = 2))
+            next { it.size == 2 }
+            store.deleteJob(id)
+            assertEquals(listOf(2), next { it.size == 1 }.map { it.treeId })
+            store.deleteTree(2)
+            next { it.isEmpty() }
+        } finally {
+            observer.cancel()
+        }
     }
 }

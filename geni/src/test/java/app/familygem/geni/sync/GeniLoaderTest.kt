@@ -362,4 +362,36 @@ class GeniLoaderTest {
         assertTrue(store.updateRoot(treeId, "profile-9", "profile-7").not())
         assertEquals(null, store.tree(treeId))
     }
+
+    @Test
+    fun loadIsListedWithItsPhotoAsAStageAndLeavesWhenDone() = runTest {
+        val treeId = geniTree()
+        val feed = DownloadFeed()
+        var during: List<DownloadTask> = emptyList()
+        val loader = GeniLoader(
+            GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }), store, host, now = { 5_000L },
+            photos = PhotoSync(store, host, feed = feed) { _, target ->
+                during = feed.tasks.value
+                target.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()))
+                "image/jpeg"
+            },
+            feed = feed
+        )
+        assertTrue(loader.load(treeId, "profile-36430") is LoadResult.Loaded)
+        val task = during.single() // The photo is a stage of the load, not a second row
+        assertEquals(DownloadKind.PERSON_REFRESH, task.kind)
+        assertEquals("profile-36430", task.geniId)
+        assertEquals(listOf(DownloadKind.PHOTO), task.stages.map { it.kind })
+        assertEquals(emptyList<DownloadTask>(), feed.tasks.value)
+    }
+
+    @Test
+    fun failedLoadLeavesNoTask() = runTest {
+        val treeId = geniTree()
+        batchCode = 500
+        val feed = DownloadFeed()
+        val loader = GeniLoader(GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }), store, host, feed = feed)
+        assertTrue(loader.load(treeId, "profile-36430") is LoadResult.Failed)
+        assertEquals(emptyList<DownloadTask>(), feed.tasks.value)
+    }
 }

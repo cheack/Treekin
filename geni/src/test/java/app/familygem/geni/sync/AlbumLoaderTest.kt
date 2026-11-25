@@ -157,4 +157,47 @@ class AlbumLoaderTest {
         assertEquals(0, album.removed)
         assertEquals(listOf("photo-1", "photo-2"), album.entries.map { it.photo.id })
     }
+
+    @Test
+    fun downloadAllIsOneTaskCountingItsPhotosAndCachedOnesTransferNothing() = runTest {
+        val feed = DownloadFeed()
+        val seen = mutableListOf<DownloadTask>()
+        val tracked = PhotoSync(store, host, feed = feed) { url, target ->
+            seen += feed.tasks.value.single()
+            if (failing.any { url.contains(it) }) throw IOException("cdn")
+            target.writeBytes(jpeg)
+            "image/jpeg"
+        }
+        val loader = AlbumLoader(
+            GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }, now = { 1_000L }), store, tracked, host::mediaDir, feed
+        )
+        tracked.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(1)) // Already on the device: no transfer in the batch
+        seen.clear()
+        failing += "/3/"
+        enqueueAlbum(1, 2, 3)
+        assertEquals(1, loader.downloadAll(treeId, "profile-1", "I1"))
+        assertEquals(2, seen.size) // Photos 2 and 3 only
+        seen.forEach {
+            assertEquals(DownloadKind.ALBUM_DOWNLOAD, it.kind)
+            assertEquals(2, it.total)
+            assertEquals(DownloadKind.PHOTO, it.stages.last().kind)
+        }
+        assertEquals(listOf(0, 1), seen.map { it.done })
+        assertEquals(emptyList<DownloadTask>(), feed.tasks.value) // Also after a failed photo
+    }
+
+    @Test
+    fun failedListingLeavesNoTask() = runTest {
+        val feed = DownloadFeed()
+        val loader = AlbumLoader(
+            GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }, now = { 1_000L }), store, sync, host::mediaDir, feed
+        )
+        server.enqueue(MockResponse.Builder().code(500).build())
+        try {
+            loader.list(treeId, "profile-1", "I1")
+            throw AssertionError("expected a failure")
+        } catch (e: app.familygem.geni.api.GeniApiException) {
+        }
+        assertEquals(emptyList<DownloadTask>(), feed.tasks.value)
+    }
 }

@@ -9,6 +9,7 @@ import android.util.Log
 import app.familygem.geni.sync.JobState
 import app.familygem.geni.sync.LocalTree
 import app.familygem.geni.sync.RunResult
+import app.familygem.geni.sync.TreeWait
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -33,6 +34,8 @@ object GeniSync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = mutableSetOf<Int>()
     private val again = mutableSetOf<Int>()
+    /** Number of the latest run of each tree, guarded by [running]: an older run never overwrites a newer run's wait. */
+    private val generations = mutableMapOf<Int, Long>()
     private val delays = mutableMapOf<Int, Long>()
     /** The one waiting retry of each tree; [resume] cancels it, so a tree never has two retry chains. */
     private val retries = mutableMapOf<Int, Job>()
@@ -55,15 +58,17 @@ object GeniSync {
     /** Runs the pending jobs of a tree, or asks the run in progress to look again when it ends. */
     fun kick(context: Context, treeId: Int) {
         val app = context.applicationContext
-        synchronized(running) {
+        val generation = synchronized(running) {
             if (treeId in running) {
                 again += treeId
                 return
             }
             running += treeId
+            (generations[treeId] ?: 0L).plus(1).also { generations[treeId] = it }
         }
         scope.launch {
             var result = RunResult.RETRY_LATER
+            Geni.uploadWaits.set(treeId, null) // Running again: no longer waiting for the back-off or a login
             try {
                 do {
                     synchronized(running) { again -= treeId }
@@ -80,9 +85,18 @@ object GeniSync {
                 }
                 if (rerun && result != RunResult.RETRY_LATER) kick(app, treeId)
             }
+            // Only the latest run of the tree publishes its wait: one started meanwhile (by the rerun above or another trigger)
+            // owns the state, even if it already ended
+            fun showWait(wait: TreeWait?) = synchronized(running) { if (generations[treeId] == generation) Geni.uploadWaits.set(treeId, wait) }
             when (result) {
-                RunResult.EMPTY -> synchronized(delays) { delays.remove(treeId) }
-                RunResult.NEEDS_LOGIN -> Log.d(TAG, "Tree $treeId waits for login")
+                RunResult.EMPTY -> {
+                    synchronized(delays) { delays.remove(treeId) }
+                    showWait(null)
+                }
+                RunResult.NEEDS_LOGIN -> {
+                    Log.d(TAG, "Tree $treeId waits for login")
+                    showWait(TreeWait.NeedsLogin)
+                }
                 RunResult.RETRY_LATER -> {
                     val wait = synchronized(delays) {
                         val next = delays[treeId]?.let { minOf(it * 2, MAX_DELAY) } ?: FIRST_DELAY
@@ -90,15 +104,21 @@ object GeniSync {
                         next
                     }
                     Log.d(TAG, "Tree $treeId retries in ${wait / 1000} s")
-                    val retry = scope.launch(start = CoroutineStart.LAZY) {
-                        delay(wait)
-                        // Only the registered retry runs: one replaced or cancelled meanwhile stops here
-                        val self = coroutineContext.job
-                        val current = synchronized(retries) { (retries[treeId] === self).also { if (it) retries.remove(treeId) } }
-                        if (current) kick(app, treeId)
+                    // One step under the lock: a stale run neither shows its deadline nor replaces the newer run's retry
+                    // (the newer run schedules whatever it still needs)
+                    synchronized(running) {
+                        if (generations[treeId] != generation) return@launch
+                        Geni.uploadWaits.set(treeId, TreeWait.Retry(System.currentTimeMillis() + wait))
+                        val retry = scope.launch(start = CoroutineStart.LAZY) {
+                            delay(wait)
+                            // Only the registered retry runs: one replaced or cancelled meanwhile stops here
+                            val self = coroutineContext.job
+                            val current = synchronized(retries) { (retries[treeId] === self).also { if (it) retries.remove(treeId) } }
+                            if (current) kick(app, treeId)
+                        }
+                        synchronized(retries) { retries.put(treeId, retry) }?.cancel()
+                        retry.start()
                     }
-                    synchronized(retries) { retries.put(treeId, retry) }?.cancel()
-                    retry.start()
                 }
             }
         }

@@ -1,6 +1,10 @@
 package app.familygem.geni.sync
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -20,8 +24,33 @@ enum class DeleteQueued {
     OTHER_ACCOUNT
 }
 
+/** The job an upload run is sending now, by ID and the version it read. */
+data class ActiveJob(val id: Long, val version: Int)
+
+/**
+ * What the queue knows only in memory, for the sync backlog.
+ * @param active The job each tree is sending now; a stored row with another version waits for its turn
+ * @param deferred Keys of the photo jobs each tree skips for the rest of its run, because their person could not be verified
+ * @param holdsChanged Increases whenever a crop hold starts or ends
+ */
+data class QueueStatus(
+    val active: Map<Int, ActiveJob> = emptyMap(),
+    val deferred: Map<Int, Set<String>> = emptyMap(),
+    val holdsChanged: Long = 0
+)
+
+/** Why a pending job is not sent now, as the queue decides it. */
+enum class JobWait {
+    /** A new photo while "Send new photos to Geni" is off. */
+    PHOTOS_OFF,
+    /** A new photo the user is still cropping. */
+    CROP_HOLD,
+    /** A new photo whose person could not be checked in this run; the next run tries again. */
+    VERIFYING
+}
+
 /** Message of an add that was being sent when the app stopped: Geni may or may not have created the profile (or photo). */
-private const val INTERRUPTED_ADD = "the app stopped while adding; check on Geni whether it was created, then retry or dismiss"
+internal const val INTERRUPTED_ADD = "the app stopped while adding; check on Geni whether it was created, then retry or dismiss"
 
 private const val DIFFERENT_VALUE = "sent, but Geni stored a different value; check the profile on Geni"
 
@@ -40,7 +69,29 @@ class SyncQueue(
 ) {
 
     /** Photos waiting for the user to crop them; a held photo job is not selected. After a release, kick the runner. */
-    val holds = PhotoHolds()
+    val holds = PhotoHolds().also { holds -> holds.onChange = { statusFlow.update { it.copy(holdsChanged = it.holdsChanged + 1) } } }
+
+    private val statusFlow = MutableStateFlow(QueueStatus())
+
+    /** Live, in-memory state of the runs, for the sync backlog; never read by the queue itself. */
+    val status: StateFlow<QueueStatus> = statusFlow.asStateFlow()
+
+    /** Why [job] waits, if the queue holds it back for a reason of its own; null when it simply waits its turn. */
+    fun waitReason(job: UploadJob): JobWait? = when {
+        job.state != JobState.PENDING -> null
+        job.kind == JobKind.ADD_PHOTO && !uploadPhotos() -> JobWait.PHOTOS_OFF
+        job.kind == JobKind.ADD_PHOTO && isHeld(job) -> JobWait.CROP_HOLD
+        job.key in status.value.deferred[job.treeId].orEmpty() -> JobWait.VERIFYING
+        else -> null
+    }
+
+    private fun setActive(treeId: Int, job: UploadJob?) = statusFlow.update {
+        it.copy(active = if (job == null) it.active - treeId else it.active + (treeId to ActiveJob(job.id, job.version)))
+    }
+
+    private fun setDeferred(treeId: Int, keys: Set<String>) = statusFlow.update {
+        it.copy(deferred = if (keys.isEmpty()) it.deferred - treeId else it.deferred + (treeId to keys.toSet()))
+    }
 
     private val locks = mutableMapOf<Int, Mutex>()
     /** Last saved state of each tree, to plan again after an upload changed links or snapshots. */
@@ -168,6 +219,14 @@ class SyncQueue(
         }
         val sent = mutableMapOf<String, List<Pair<String, String>>>() // Changes uploaded in this run, by key
         val deferred = mutableSetOf<String>() // Keys of photos whose target could not be verified: skipped for the rest of this run
+        try {
+            return runJobs(treeId, sent, deferred)
+        } finally {
+            setDeferred(treeId, emptySet())
+        }
+    }
+
+    private suspend fun runJobs(treeId: Int, sent: MutableMap<String, List<Pair<String, String>>>, deferred: MutableSet<String>): RunResult {
         while (true) {
             val job = lock(treeId).withLock {
                 var next = nextJob(store.jobs(treeId), deferred) ?: return@withLock null
@@ -177,54 +236,21 @@ class SyncQueue(
                     next = nextJob(store.jobs(treeId), deferred) ?: return@withLock null
                 }
                 synchronized(running) { running[treeId] = next.key }
-                if (next.isAdd()) next.copy(state = JobState.SENDING).also { store.saveJob(it) } else next
-            } ?: return RunResult.EMPTY
-            val outcome = try {
-                uploader.run(job)
-            } finally {
-                synchronized(running) { running.remove(treeId) }
-            }
-            onResult(job, outcome)
-            lock(treeId).withLock {
-                val current = store.jobs(treeId).firstOrNull { it.id == job.id }
-                val unchanged = current?.version == job.version
-                when (outcome) {
-                    Outcome.Done -> {
-                        sent[job.key] = job.params
-                        // An added person is linked now: newer details of it go as an update. A newer version
-                        // of an update planned during the upload stays pending and runs next
-                        if (!job.isAdd()) store.deleteJobIfVersion(job.id, job.version)
-                        // Links and snapshots changed. The saved tree was captured before the add tagged the person
-                        synchronized(lastLocal) { lastLocal[treeId] }?.let { local ->
-                            val current = if (job.isAdd()) withAddedTags(treeId, local, job).also { tagged ->
-                                synchronized(lastLocal) { lastLocal[treeId] = tagged }
-                            } else local
-                            plan(treeId, current)
-                        }
-                        // Only now, with an update of newer details stored: an add left by a stopped app finds its link and is not sent
-                        if (job.isAdd()) store.deleteJob(job.id)
-                    }
-                    // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
-                    is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))
-                        store.saveJob(current.copy(state = JobState.FAILED, error = outcome.message))
-                    // Waits for the user; a new change of the record plans it again
-                    is Outcome.Conflict -> if (current != null && unchanged)
-                        store.saveJob(current.copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: " +
-                                outcome.groups.joinToString(", ") { it.lowercase() }))
-                    // The check may have moved the snapshot after the new version was planned: plan it again against it
-                    Outcome.Superseded -> synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
-                    // Nothing was sent: back to waiting, and not selected again in this run
-                    Outcome.Deferred -> {
-                        deferred += job.key
-                        if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING))
-                    }
-                    is Outcome.Retry, Outcome.NeedsLogin ->
-                        if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
+                // Shown as sending before the row turns SENDING, so the backlog never sees a sending add as interrupted
+                setActive(treeId, next)
+                try {
+                    if (next.isAdd()) next.copy(state = JobState.SENDING).also { store.saveJob(it) } else next
+                } catch (e: Throwable) {
+                    synchronized(running) { running.remove(treeId) }
+                    setActive(treeId, null)
+                    throw e
                 }
-                // A tree the uploader reported, newer than any plan (its save may not be planned yet), whatever the outcome
-                synchronized(lastLocal) { lastLocal[treeId] }
-                    ?.takeIf { it.stamp > synchronized(planned) { planned[treeId] ?: Long.MIN_VALUE } }
-                    ?.let { plan(treeId, it) }
+            } ?: return RunResult.EMPTY
+            // Shown as sending until its outcome is stored: an add stays SENDING in the store until then
+            val outcome = try {
+                record(treeId, job, sent, deferred)
+            } finally {
+                setActive(treeId, null)
             }
             when (outcome) {
                 is Outcome.Retry -> return RunResult.RETRY_LATER
@@ -232,6 +258,59 @@ class SyncQueue(
                 else -> Unit
             }
         }
+    }
+
+    /** Uploads [job] and stores its outcome. */
+    private suspend fun record(treeId: Int, job: UploadJob, sent: MutableMap<String, List<Pair<String, String>>>, deferred: MutableSet<String>): Outcome {
+        val outcome = try {
+            uploader.run(job)
+        } finally {
+            synchronized(running) { running.remove(treeId) }
+        }
+        onResult(job, outcome)
+        lock(treeId).withLock {
+            val current = store.jobs(treeId).firstOrNull { it.id == job.id }
+            val unchanged = current?.version == job.version
+            when (outcome) {
+                Outcome.Done -> {
+                    sent[job.key] = job.params
+                    // An added person is linked now: newer details of it go as an update. A newer version
+                    // of an update planned during the upload stays pending and runs next
+                    if (!job.isAdd()) store.deleteJobIfVersion(job.id, job.version)
+                    // Links and snapshots changed. The saved tree was captured before the add tagged the person
+                    synchronized(lastLocal) { lastLocal[treeId] }?.let { local ->
+                        val current = if (job.isAdd()) withAddedTags(treeId, local, job).also { tagged ->
+                            synchronized(lastLocal) { lastLocal[treeId] = tagged }
+                        } else local
+                        plan(treeId, current)
+                    }
+                    // Only now, with an update of newer details stored: an add left by a stopped app finds its link and is not sent
+                    if (job.isAdd()) store.deleteJob(job.id)
+                }
+                // A failed add may exist on Geni: recorded whatever its version, so it is never sent again by itself
+                is Outcome.Failed -> if (current != null && (unchanged || job.isAdd()))
+                    store.saveJob(current.copy(state = JobState.FAILED, error = outcome.message))
+                // Waits for the user; a new change of the record plans it again
+                is Outcome.Conflict -> if (current != null && unchanged)
+                    store.saveJob(current.copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: " +
+                            outcome.groups.joinToString(", ") { it.lowercase() }))
+                // The check may have moved the snapshot after the new version was planned: plan it again against it
+                Outcome.Superseded -> synchronized(lastLocal) { lastLocal[treeId] }?.let { plan(treeId, it) }
+                // Nothing was sent: back to waiting, and not selected again in this run
+                Outcome.Deferred -> {
+                    deferred += job.key
+                    setDeferred(treeId, deferred)
+                    if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING))
+                }
+                is Outcome.Retry, Outcome.NeedsLogin ->
+                    if (current?.state == JobState.SENDING) store.saveJob(current.copy(state = JobState.PENDING)) // Not sent
+            }
+            // A tree the uploader reported, newer than any plan (its save may not be planned yet), whatever the outcome
+            synchronized(lastLocal) { lastLocal[treeId] }
+                ?.takeIf { it.stamp > synchronized(planned) { planned[treeId] ?: Long.MIN_VALUE } }
+                ?.let { plan(treeId, it) }
+        }
+        return outcome
     }
 
     /** The saved tree with the tags an add gave to its person and family, as the live tree has them now. */

@@ -1,5 +1,8 @@
 package app.familygem.geni.sync
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
 /** Sync store for tests. */
 open class InMemorySyncStore : SyncStore {
     val trees = mutableMapOf<Int, GeniTreeInfo>()
@@ -49,21 +52,30 @@ open class InMemorySyncStore : SyncStore {
         trees.remove(treeId)
         linkMap.keys.removeAll { it.first == treeId }
         jobMap.values.removeAll { it.treeId == treeId }
+        publishJobs()
     }
 
     val jobMap = sortedMapOf<Long, UploadJob>()
     private var lastJobId = 0L
     override suspend fun jobs(treeId: Int) = jobMap.values.filter { it.treeId == treeId }
     override suspend fun allJobs() = jobMap.values.toList()
+    private val jobFlow = MutableStateFlow<List<UploadJob>>(emptyList())
+    /** Emits after the store's own job writes; tests that change [jobMap] directly call [publishJobs]. */
+    override fun observeJobs(): StateFlow<List<UploadJob>> = jobFlow
+    fun publishJobs() {
+        jobFlow.value = jobMap.values.toList()
+    }
     override suspend fun saveJob(job: UploadJob): Long {
         check(job.id != 0L || jobMap.values.none { it.treeId == job.treeId && it.key == job.key }) { "Job ${job.key} already exists" }
         val id = if (job.id == 0L) ++lastJobId else job.id
         jobMap[id] = job.copy(id = id)
+        publishJobs()
         return id
     }
     override suspend fun deleteJob(id: Long) {
         jobMap.remove(id)
+        publishJobs()
     }
     override suspend fun deleteJobIfVersion(id: Long, version: Int): Boolean =
-        jobMap[id]?.takeIf { it.version == version }?.let { jobMap.remove(id); true } ?: false
+        jobMap[id]?.takeIf { it.version == version }?.let { jobMap.remove(id); publishJobs(); true } ?: false
 }

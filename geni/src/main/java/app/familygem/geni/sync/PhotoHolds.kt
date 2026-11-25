@@ -19,9 +19,16 @@ class PhotoHolds {
     private val held = mutableMapOf<Long, Pair<Int, String>>()
     private var last = 0L
 
+    /** Called after every hold or release, with the lock held: it must be quick and must not call back here. */
+    @Volatile
+    var onChange: () -> Unit = {}
+
     /** Holds the photo [file] of a tree; returns the session that releases it (never 0). */
     @Synchronized
-    fun acquire(treeId: Int, file: String): Long = (++last).also { held[it] = treeId to file }
+    fun acquire(treeId: Int, file: String): Long = (++last).also {
+        held[it] = treeId to file
+        onChange()
+    }
 
     @Synchronized
     fun isHeld(treeId: Int, file: String): Boolean = held.containsValue(treeId to file)
@@ -31,7 +38,7 @@ class PhotoHolds {
 
     /** Releases a session; returns its tree ID, or null if it was already released (idempotent). */
     @Synchronized
-    fun release(session: Long): Int? = held.remove(session)?.first
+    fun release(session: Long): Int? = held.remove(session)?.first?.also { onChange() }
 
     /**
      * Runs [block] (it replaces the file with the finished crop) only while the session is held, and releases
@@ -41,7 +48,10 @@ class PhotoHolds {
     fun commit(session: Long, block: () -> Boolean): CommitResult {
         val key = held[session] ?: return CommitResult(false, false, null)
         val ok = block()
-        if (ok) held.remove(session)
+        if (ok) {
+            held.remove(session)
+            onChange()
+        }
         return CommitResult(true, ok, key.first)
     }
 }

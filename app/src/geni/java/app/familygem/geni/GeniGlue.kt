@@ -424,7 +424,7 @@ object GeniGlue {
     }
 
     private fun startKeepOffline(activity: Activity, treeId: Int, geniId: String, depth: Int, photos: Boolean) {
-        GeniPrefetch.enqueue(activity, treeId, geniId, depth, photos)
+        GeniPrefetch.enqueue(activity, treeId, geniId, depth, photos, app.familygem.geni.sync.DownloadKind.KEEP_OFFLINE)
         Toast.makeText(activity, R.string.geni_keep_offline_started, Toast.LENGTH_SHORT).show()
     }
 }

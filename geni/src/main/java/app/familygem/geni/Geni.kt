@@ -7,6 +7,7 @@ import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.EncryptedTokenStore
 import app.familygem.geni.sync.AlbumLoader
 import app.familygem.geni.sync.ConflictResolver
+import app.familygem.geni.sync.DownloadFeed
 import app.familygem.geni.sync.GeniLoader
 import app.familygem.geni.sync.PhotoDeletionGuard
 import app.familygem.geni.sync.PhotoScaler
@@ -15,6 +16,7 @@ import app.familygem.geni.sync.RoomSyncStore
 import app.familygem.geni.sync.SyncQueue
 import app.familygem.geni.sync.SyncStore
 import app.familygem.geni.sync.Uploader
+import app.familygem.geni.sync.UploadWaits
 import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
@@ -32,6 +34,12 @@ object Geni {
 
     /** Photos Geni confirmed deleted, shared by the uploader and both loaders for the life of the process. */
     private val photoGuard = PhotoDeletionGuard()
+
+    /** Downloads running or queued now, for the sync backlog. */
+    val downloads = DownloadFeed()
+
+    /** Trees whose uploads stopped (back-off or login), set by the app's upload runner, for the sync backlog. */
+    val uploadWaits = UploadWaits()
 
     private var client: GeniClient? = null
     private var store: SyncStore? = null
@@ -71,10 +79,13 @@ object Geni {
     @Synchronized
     fun queue(context: Context): SyncQueue = queue ?: run {
         val uploader = Uploader(client(context), store(context), host ?: error("Geni tree host not installed"),
-            prepare = PhotoScaler::scaled, photos = PhotoSync(store(context), host ?: error("Geni tree host not installed"), photoGuard))
+            prepare = PhotoScaler::scaled, photos = PhotoSync(store(context), host ?: error("Geni tree host not installed"), photoGuard, feed = downloads))
         SyncQueue(store(context), uploader, { GeniSettings.uploadPhotos(context) }) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }
             .also { queue -> uploader.onTreeEdited = queue::setLocal }
     }.also { queue = it }
+
+    /** The upload queue if it can be made (the app glue installed the tree host), without making it fail. */
+    fun queueOrNull(context: Context): SyncQueue? = if (host == null) null else queue(context)
 
     fun resolver(context: Context): ConflictResolver =
         ConflictResolver(client(context), store(context), host ?: error("Geni tree host not installed"), queue(context))
@@ -84,13 +95,14 @@ object Geni {
         val store = store(context)
         return GeniLoader(
             client(context), store, treeHost,
-            photos = PhotoSync(store, treeHost, photoGuard),
-            onPhotoError = { profileId, e -> Log.w("GeniSync", "Photo of $profileId not synced", e) }
+            photos = PhotoSync(store, treeHost, photoGuard, feed = downloads),
+            onPhotoError = { profileId, e -> Log.w("GeniSync", "Photo of $profileId not synced", e) },
+            feed = downloads
         )
     }
 
     fun albumLoader(context: Context): AlbumLoader {
         val treeHost = host ?: error("Geni tree host not installed")
-        return AlbumLoader(client(context), store(context), PhotoSync(store(context), treeHost, photoGuard), treeHost::mediaDir)
+        return AlbumLoader(client(context), store(context), PhotoSync(store(context), treeHost, photoGuard, feed = downloads), treeHost::mediaDir, downloads)
     }
 }

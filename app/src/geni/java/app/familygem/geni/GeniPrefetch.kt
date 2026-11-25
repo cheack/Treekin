@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.util.Log
 import app.familygem.geni.sync.AlbumLoader
+import app.familygem.geni.sync.DownloadKind
+import app.familygem.geni.sync.DownloadProgress
 import app.familygem.geni.sync.LoadPolicy
 import app.familygem.geni.sync.LoadResult
 import app.familygem.geni.sync.SyncStore
@@ -31,20 +33,33 @@ object GeniPrefetch {
     /** Trees with a daily refresh queued or running. */
     private val dailyRunning = mutableSetOf<Int>()
 
-    /** Queues a prefetch after any other prefetch of the same tree. */
-    fun enqueue(context: Context, treeId: Int, startGeniId: String, depth: Int, includePhotos: Boolean = false) {
-        queue(context.applicationContext, treeId) { run(it, treeId, startGeniId, depth, unmeteredOnly = false, includePhotos = includePhotos) }
+    /**
+     * Queues a prefetch after any other prefetch of the same tree.
+     * @param kind How the sync backlog names it: the first pass after the tree was made, or "Keep offline"
+     */
+    fun enqueue(context: Context, treeId: Int, startGeniId: String, depth: Int, includePhotos: Boolean = false, kind: DownloadKind = DownloadKind.PREFETCH) {
+        queue(context.applicationContext, treeId, kind, startGeniId) { app, progress ->
+            run(app, treeId, startGeniId, depth, unmeteredOnly = false, includePhotos = includePhotos, progress = progress)
+        }
     }
 
-    private fun queue(app: Context, treeId: Int, block: suspend (Context) -> Unit) {
+    /** Runs [block] after the other passes of the tree; listed in the backlog as queued until it holds the tree's mutex. */
+    private fun queue(app: Context, treeId: Int, kind: DownloadKind, geniId: String?, block: suspend (Context, DownloadProgress) -> Unit) {
         val mutex = synchronized(mutexes) { mutexes.getOrPut(treeId) { Mutex() } }
         scope.launch {
-            mutex.withLock { block(app) }
+            val waiting = Geni.downloads.queue(treeId, kind, geniId)
+            try {
+                mutex.withLock { waiting.run { block(app, it) } }
+            } finally {
+                waiting.remove() // Also when cancelled while waiting for the mutex
+            }
         }
     }
 
     /** @return False if the pass stopped before visiting everyone */
-    private suspend fun run(context: Context, treeId: Int, start: String, depth: Int, unmeteredOnly: Boolean, includePhotos: Boolean = false): Boolean {
+    private suspend fun run(
+        context: Context, treeId: Int, start: String, depth: Int, unmeteredOnly: Boolean, includePhotos: Boolean = false, progress: DownloadProgress
+    ): Boolean {
         if (!withContext(Dispatchers.Main) { AppTreeHost.treeExists(treeId) }) return true
         val store = Geni.store(context)
         val loader = Geni.loader(context)
@@ -54,6 +69,7 @@ object GeniPrefetch {
             loader = { id ->
                 loader.load(treeId, id).also { result ->
                     if (album != null && result is LoadResult.Loaded) downloadAlbum(album, store, treeId, result.profileId ?: id)
+                    if (result is LoadResult.Loaded) progress.step() // People loaded; the total of a branch pass is not known
                 }
             },
             relatives = { RelativesIndex.relatives(store.unionLinks(treeId), it) },
@@ -112,10 +128,10 @@ object GeniPrefetch {
                     }
                     if (!admitted) continue
                     Log.d(TAG, "Daily refresh of tree ${tree.treeId}")
-                    queue(app, tree.treeId) {
+                    queue(app, tree.treeId, DownloadKind.DAILY_REFRESH, tree.rootGeniId) { context, progress ->
                         try {
-                            val info = Geni.store(it).tree(tree.treeId) ?: return@queue // The root may have moved meanwhile
-                            if (run(it, info.treeId, info.rootGeniId, info.prefetchDepth, unmeteredOnly = true)) {
+                            val info = Geni.store(context).tree(tree.treeId) ?: return@queue // The root may have moved meanwhile
+                            if (run(context, info.treeId, info.rootGeniId, info.prefetchDepth, unmeteredOnly = true, progress = progress)) {
                                 prefs.edit().putLong(key, System.currentTimeMillis()).apply()
                             }
                         } catch (e: CancellationException) {

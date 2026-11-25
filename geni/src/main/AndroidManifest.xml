@@ -18,6 +18,10 @@
                 <data android:scheme="${geniRedirectScheme}" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ui.GeniSyncBacklogActivity"
+            android:exported="false"
+            android:label="@string/geni_menu_sync_backlog" />
     </application>
 
 </manifest>

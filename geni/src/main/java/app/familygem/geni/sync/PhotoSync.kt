@@ -22,6 +22,8 @@ class PhotoSync(
     private val host: TreeHost,
     /** Share one guard between every [PhotoSync] of the process (see [PhotoDeletionGuard]). */
     val guard: PhotoDeletionGuard = PhotoDeletionGuard(),
+    /** Where file transfers show in the sync backlog; a photo already on the device shows nothing. */
+    private val feed: DownloadFeed = DownloadFeed(),
     private val download: suspend (String, File) -> String = PhotoDownloader()::download
 ) {
 
@@ -70,7 +72,7 @@ class PhotoSync(
         // Tracked here, outside the IO block, so a cancellation that discards the stage() result still finds the file
         val temps = mutableListOf<File>()
         try {
-            val staged = if (knownFile == null) stage(treeId, photo, temps) ?: return false else null
+            val staged = if (knownFile == null) stage(treeId, profileId, photo, temps) ?: return false else null
             return attach(treeId, profileId, personGedcomId, photo, staged, knownFile ?: staged!!.fileName, asMain)
         } finally {
             temps.forEach { it.delete() }
@@ -78,14 +80,14 @@ class PhotoSync(
     }
 
     /** Downloads the photo to a staging file in the tree's media folder, listed in [temps] for the caller to delete; null if it has no usable URL. Throws on a failed download. */
-    private suspend fun stage(treeId: Int, photo: GeniPhoto, temps: MutableList<File>): Staged? {
+    private suspend fun stage(treeId: Int, profileId: String, photo: GeniPhoto, temps: MutableList<File>): Staged? {
         val url = photo.urlFor(*SIZES) ?: return null
         val dir = host.mediaDir(treeId)
         // File work stays off the main thread; each call has its own staging file so quick double taps do not clash
         return withContext(Dispatchers.IO) {
             val temp = File.createTempFile("geni-${photo.id}-", ".download", dir)
             temps += temp
-            val type = download(url, temp)
+            val type = feed.track(treeId, DownloadKind.PHOTO, profileId) { download(url, temp) }
             if (!looksLikeImage(temp)) throw java.io.IOException("Downloaded file is not an image")
             Staged(temp, "geni-${photo.id}.${extension(type, url)}")
         }
