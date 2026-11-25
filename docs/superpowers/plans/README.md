@@ -295,6 +295,7 @@ A **Home** screen opens with the tree: upcoming birthdays (next 14 days) and rec
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-25: Every launch opens the saved tree on **Home** (the startup switch is gone; after a crash the list shows once); the diagram is called **Tree** in all shipped languages, with **Tree view settings**; the drawer has no Trees shortcut, Back from the tree leads to the trees list (PR [#32](https://github.com/cheack/Treekin/pull/32)).
 - 2026-11-25: **Home screen** opens with the tree: upcoming birthdays, wedding anniversaries and memorial days, and recent profile updates, profiles added on Geni and people removed, with photos and icons, all from data on the device (PR [#31](https://github.com/cheack/Treekin/pull/31)).
 - 2026-11-25: **Sync backlog** in the trees menu shows live what is sent to Geni, downloaded, waiting (with the reason) and what needs attention, also offline or signed out (PR [#30](https://github.com/cheack/Treekin/pull/30)).
 - 2026-11-24: Treekin keeps one tree: the first Geni login creates it, later logins of the same account reopen it (offline too), another account is refused until the tree is deleted, and there is no other way to make a tree (no Add tree, GEDCOM or share-link import, backup restore) (PR [#29](https://github.com/cheack/Treekin/pull/29)).
