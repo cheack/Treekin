@@ -297,8 +297,17 @@ class TreesActivity : AppCompatActivity() {
         }
 
         // Automatic load of last opened tree of previous session
-        if (!birthdayNotifyTapped(intent) && !autoOpenedTree && intent.getBooleanExtra(Extra.AUTO_LOAD_TREE, false))
-            app.familygem.geni.home.StartupTree.autoLoad(this) { autoOpenedTree = true } // GENI-HOOK opens the saved tree on Home
+        if ((!birthdayNotifyTapped(intent) && !autoOpenedTree && intent.getBooleanExtra(Extra.AUTO_LOAD_TREE, false))
+            && Global.settings.openTree > 0
+        ) {
+            progress.visibility = View.VISIBLE
+            lifecycleScope.launch(IO) {
+                if (TreeUtil.openGedcom(Global.settings.openTree, false)) {
+                    autoOpenedTree = true
+                    startActivity(Intent(this@TreesActivity, MainActivity::class.java))
+                } else withContext(Main) { progress.visibility = View.GONE }
+            }
+        }
     }
 
     /** Refreshes the list until API 23. */
@@ -447,7 +456,7 @@ class TreesActivity : AppCompatActivity() {
     // New intent coming from a tapped notification
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (!birthdayNotifyTapped(intent) && intent.getBooleanExtra(Extra.AUTO_LOAD_TREE, false)) app.familygem.geni.home.StartupTree.autoLoad(this) { autoOpenedTree = true } // GENI-HOOK a launch reaching the open list (singleTask) opens Home too
+        birthdayNotifyTapped(intent)
     }
 
     /**

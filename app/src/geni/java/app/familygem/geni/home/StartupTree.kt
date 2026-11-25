@@ -1,7 +1,9 @@
 package app.familygem.geni.home
 
+import android.app.ActivityOptions
 import android.content.Context
-import android.view.View
+import android.content.Intent
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import app.familygem.Global
 import app.familygem.TreesActivity
@@ -13,7 +15,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.lang.ref.WeakReference
 
 /**
  * The ordinary app launch opens a saved tree on Home. Replaces upstream's "Load last opened tree" switch:
@@ -26,9 +27,6 @@ object StartupTree {
 
     /** The startup load in progress (main thread only); it outlives a trees list recreated meanwhile. */
     private var pending: Deferred<Boolean>? = null
-
-    /** The trees list waiting for [pending]: a second launch intent to the same list does not wait twice. */
-    private var waiter = WeakReference<TreesActivity>(null)
 
     /** The tree to open: the last opened one if it is still saved, else the sole saved tree; 0 for none. */
     fun pick(lastOpened: Int, savedIds: List<Int>): Int = when {
@@ -52,21 +50,18 @@ object StartupTree {
     }
 
     /**
-     * Opens the startup tree on Home from the trees list; the tree already in memory is reused, so unsaved edits survive.
-     * [handled] runs once this launch is dealt with (opened, skipped after a crash, nothing to open or failed), so a recreated
-     * list does not repeat it; a list recreated while the tree is still loading waits for the same load.
+     * Called by [app.familygem.LauncherActivity] instead of starting the trees list: opens the saved tree straight on Home,
+     * so the list never shows at launch (Back from Home closes the app, see [TreeMenu.leaveTree]).
+     * Without a tree to open (none saved, skipped after a crash, unreadable) the trees list starts as before.
+     * A launcher recreated while the tree is loading waits for the same load.
      */
-    fun autoLoad(activity: TreesActivity, handled: () -> Unit) {
-        if (pending != null && waiter.get() === activity) return
-        waiter = WeakReference(activity)
+    fun launch(activity: AppCompatActivity) {
         val load = pending ?: start(activity.applicationContext).also { pending = it }
         activity.lifecycleScope.launch {
-            activity.progress.visibility = View.VISIBLE
-            val opened = load.await()
-            if (waiter.get() === activity) waiter.clear()
-            handled()
-            if (opened) activity.startActivity(HomeFragment.intent(activity))
-            else activity.progress.visibility = View.GONE
+            val target = if (load.await()) HomeFragment.intent(activity) else Intent(activity, TreesActivity::class.java)
+            // A fade, not the sliding of a screen opened from another: the app appears as it opens
+            val fade = ActivityOptions.makeCustomAnimation(activity, android.R.anim.fade_in, android.R.anim.fade_out)
+            activity.startActivity(target, fade.toBundle())
         }
     }
 

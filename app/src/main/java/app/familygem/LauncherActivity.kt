@@ -28,8 +28,7 @@ class LauncherActivity : AppCompatActivity() {
         }
 
         // GENI-HOOK no GEDCOM file or shared-tree link: Treekin has the one tree of the Geni account (the Geni OAuth redirect has its own screen)
-        // GENI-HOOK every launch opens the saved tree on Home, whatever the old 'loadTree' setting says
-        startActivity(Intent(this, TreesActivity::class.java).putExtra(Extra.AUTO_LOAD_TREE, true))
+        app.familygem.geni.home.StartupTree.launch(this) // GENI-HOOK every launch opens the saved tree straight on Home, whatever the old 'loadTree' setting says
 
         // Retrieves GeoNames username to store it in shared preferences
         lifecycleScope.launch(Dispatchers.IO) {
