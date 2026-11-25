@@ -48,7 +48,7 @@ class GeniApiException(val code: Int, message: String) : Exception(message)
  */
 /** Profile fields requested for mapping. */
 const val PROFILE_FIELDS = "id,guid,first_name,middle_name,last_name,maiden_name,suffix,display_name,name,gender,is_alive," +
-        "occupation,about_me,cause_of_death,nicknames,birth,death,baptism,burial,updated_at,deleted,merged_into,mugshot_urls"
+        "occupation,about_me,cause_of_death,nicknames,birth,death,baptism,burial,updated_at,created_at,deleted,merged_into,mugshot_urls"
 
 /** IDs per batch request. */
 private const val BATCH_SIZE = 50

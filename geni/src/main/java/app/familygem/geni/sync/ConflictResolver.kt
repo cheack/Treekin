@@ -95,12 +95,18 @@ class ConflictResolver(
      */
     private suspend fun resolveGone(job: UploadJob, link: GeniLink, keep: Boolean) {
         var emptied = emptyList<String>()
+        var name: String? = null
+        var removed = false
         host.edit(job.treeId) { gedcom ->
             val same = gedcom.people.orEmpty().filter { it.id == link.gedcomId }
             val person = same.firstOrNull()
             // The GEDCOM ID may have been given to another person meanwhile
             check(same.size <= 1 && (person == null || GeniMapper.getGeniId(person) == link.geniId)) { CHANGED }
-            if (!keep && person != null) emptied = GoneProfiles.remove(gedcom, link.gedcomId)
+            if (!keep && person != null) {
+                name = FeedRecords.displayName(person)
+                emptied = GoneProfiles.remove(gedcom, link.gedcomId)
+                removed = true
+            }
             queue.setLocal(job.treeId, LocalTree.capture(gedcom))
         }
         store.deleteLink(job.treeId, link.geniId)
@@ -109,6 +115,8 @@ class ConflictResolver(
             host.refreshScreens()
             queue.afterResolve(job.treeId, job.key)
         }
+        // Last: a cancellation here may skip only this optional history record, never the resolution above
+        if (removed) FeedRecords.removed(store, job.treeId, FeedRecordKind.GONE_ON_GENI, link.geniId, name, System.currentTimeMillis())
     }
 
     /** Throws before changing anything if the conflicts are not the [shown] ones (Geni changed again since the dialog). */

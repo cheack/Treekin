@@ -113,7 +113,7 @@ object AppTreeHost : TreeHost {
         // As the trees list does: files are read off the main thread
         val opened = alreadyOpen || withContext(Dispatchers.IO) { TreeUtil.openGedcom(treeId, true) }
         if (opened) withContext(Dispatchers.Main) {
-            activity.startActivity(android.content.Intent(activity, app.familygem.main.MainActivity::class.java))
+            activity.startActivity(app.familygem.geni.home.HomeFragment.intent(activity))
         }
         opened
     }

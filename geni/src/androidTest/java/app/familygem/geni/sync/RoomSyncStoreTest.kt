@@ -149,6 +149,27 @@ class RoomSyncStoreTest {
     }
 
     @Test
+    fun feedRecordsRoundTripPruneAndLeaveWithTheTree() = runTest {
+        store.saveFeedRecords(listOf(
+            FeedRecord(1, FeedRecordKind.ADDED, "profile-1", "I1", null, 1_000),
+            FeedRecord(1, FeedRecordKind.GONE_ON_GENI, "profile-2", null, "Ivan P", 2_000),
+            FeedRecord(2, FeedRecordKind.REMOVED_FROM_DEVICE, "profile-3", null, "Anna P", 3_000)
+        ), keepSinceMillis = 0)
+        // The last one of a tree, kind and profile wins
+        store.saveFeedRecords(listOf(FeedRecord(1, FeedRecordKind.ADDED, "profile-1", "I1", null, 1_500)), keepSinceMillis = 0)
+        assertEquals(
+            setOf(FeedRecord(1, FeedRecordKind.ADDED, "profile-1", "I1", null, 1_500), FeedRecord(1, FeedRecordKind.GONE_ON_GENI, "profile-2", null, "Ivan P", 2_000)),
+            store.feedRecords(1, 0).toSet()
+        )
+        assertEquals(listOf("profile-2"), store.feedRecords(1, 1_600).map { it.geniId }) // Only from the given time
+        store.saveFeedRecords(emptyList(), keepSinceMillis = 1_800) // Older records are dropped
+        assertEquals(listOf("profile-2"), store.feedRecords(1, 0).map { it.geniId })
+        store.deleteTree(1)
+        assertTrue(store.feedRecords(1, 0).isEmpty())
+        assertEquals(listOf("profile-3"), store.feedRecords(2, 0).map { it.geniId })
+    }
+
+    @Test
     fun conflictJobRoundTrips() = runTest {
         val id = store.saveJob(job("profile:profile-1", JobState.CONFLICT).copy(error = "changed on Geni meanwhile: occupation"))
         val saved = store.jobs(1).single()

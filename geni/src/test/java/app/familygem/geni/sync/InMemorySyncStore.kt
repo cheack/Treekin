@@ -47,7 +47,14 @@ open class InMemorySyncStore : SyncStore {
     override suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String) {
         photoLinkMap.remove(Triple(treeId, geniProfileId, geniPhotoId))
     }
+    val feedMap = linkedMapOf<Triple<Int, FeedRecordKind, String>, FeedRecord>()
+    override suspend fun saveFeedRecords(records: List<FeedRecord>, keepSinceMillis: Long) {
+        records.forEach { feedMap[Triple(it.treeId, it.kind, it.geniId)] = it }
+        feedMap.values.removeAll { it.atMillis < keepSinceMillis }
+    }
+    override suspend fun feedRecords(treeId: Int, sinceMillis: Long) = feedMap.values.filter { it.treeId == treeId && it.atMillis >= sinceMillis }
     override suspend fun deleteTree(treeId: Int) {
+        feedMap.keys.removeAll { it.first == treeId }
         photoLinkMap.keys.removeAll { it.first == treeId }
         trees.remove(treeId)
         linkMap.keys.removeAll { it.first == treeId }

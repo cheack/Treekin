@@ -63,6 +63,7 @@ class DeleteRulesTest {
         assertNull(store.link(1, "union-1"))
         assertEquals("union-2", store.link(1, "union-2")?.geniId)
         assertTrue(store.jobs(1).isEmpty())
+        assertEquals(listOf(FeedRecordKind.REMOVED_FROM_DEVICE to "profile-2"), store.feedMap.values.map { it.kind to it.geniId })
     }
 
     @Test

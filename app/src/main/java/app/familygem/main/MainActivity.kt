@@ -58,10 +58,12 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
     val frontFragment
         get() = _frontFragment ?: manager.findFragmentById(R.id.main_fragment) as BaseFragment
     private val menuIds: List<Int> = listOf(
+        R.id.menu_home, // GENI-HOOK
         R.id.menu_diagram, R.id.menu_persons, R.id.menu_families, R.id.menu_media, R.id.menu_notes,
         R.id.menu_sources, R.id.menu_repositories, R.id.menu_submitters, R.id.menu_settings
     )
     private val fragments = listOf<Class<*>>(
+        app.familygem.geni.home.HomeFragment::class.java, // GENI-HOOK
         DiagramFragment::class.java, PersonsFragment::class.java, FamiliesFragment::class.java,
         GalleryFragment::class.java, NotesFragment::class.java, SourcesFragment::class.java, RepositoriesFragment::class.java,
         SubmittersFragment::class.java, TreeSettingsFragment::class.java
@@ -90,6 +92,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             else if (intent.getBooleanExtra(Choice.NOTE, false)) NotesFragment()
             else if (intent.getBooleanExtra(Choice.SOURCE, false)) SourcesFragment()
             else if (intent.getBooleanExtra(Choice.REPOSITORY, false)) RepositoriesFragment()
+            else if (intent.getBooleanExtra(app.familygem.geni.home.HomeFragment.OPEN, false)) app.familygem.geni.home.HomeFragment() // GENI-HOOK
             else DiagramFragment() // Regular opening
             showFragment(fragment)
         }
@@ -260,7 +263,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     6 -> count = Global.gc.repositories.size
                     7 -> count = Global.gc.submitters.size
                 }
-                val countView = binding.mainMenu.menu.getItem(i).actionView!!.findViewById<TextView>(R.id.menu_item_text)
+                val countView = binding.mainMenu.menu.getItem(i + 1).actionView!!.findViewById<TextView>(R.id.menu_item_text) // GENI-HOOK Home is item 0
                 countView.text = if (count > 0) count.toString() else ""
             }
         }

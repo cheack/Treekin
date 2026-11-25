@@ -121,4 +121,42 @@
     <string name="geni_backlog_failed">Не отправлено</string>
     <string name="geni_backlog_failed_interrupted">Остановлено во время отправки: возможно, уже есть на Geni. Проверьте Geni перед повтором.</string>
     <string name="geni_backlog_conflict">Изменено на Geni за это время: выберите, какие значения оставить</string>
+    <!-- Home -->
+    <string name="geni_home">Главная</string>
+    <string name="geni_home_upcoming">Ближайшие события</string>
+    <string name="geni_home_recent">Недавние события</string>
+    <string name="geni_home_today">Сегодня</string>
+    <string name="geni_home_yesterday">Вчера</string>
+    <string name="geni_home_tomorrow">Завтра</string>
+    <string name="geni_home_birthday">День рождения</string>
+    <string name="geni_home_profile_updated">Профиль обновлён</string>
+    <string name="geni_home_empty">Ничего в ближайшие 14 дней и за последние 90 дней</string>
+    <plurals name="geni_home_turns">
+        <item quantity="one">Исполнится %d год</item>
+        <item quantity="few">Исполнится %d года</item>
+        <item quantity="many">Исполнится %d лет</item>
+        <item quantity="other">Исполнится %d года</item>
+    </plurals>
+    <plurals name="geni_home_turned">
+        <item quantity="one">Исполнился %d год</item>
+        <item quantity="few">Исполнилось %d года</item>
+        <item quantity="many">Исполнилось %d лет</item>
+        <item quantity="other">Исполнилось %d года</item>
+    </plurals>
+    <plurals name="geni_home_wedding_years">
+        <item quantity="one">Годовщина свадьбы · %d год</item>
+        <item quantity="few">Годовщина свадьбы · %d года</item>
+        <item quantity="many">Годовщина свадьбы · %d лет</item>
+        <item quantity="other">Годовщина свадьбы · %d года</item>
+    </plurals>
+    <plurals name="geni_home_memorial_years">
+        <item quantity="one">День памяти · %d год</item>
+        <item quantity="few">День памяти · %d года</item>
+        <item quantity="many">День памяти · %d лет</item>
+        <item quantity="other">День памяти · %d года</item>
+    </plurals>
+    <string name="geni_home_profile_added">Профиль добавлен</string>
+    <string name="geni_home_gone_on_geni">Удалён или объединён на Geni</string>
+    <string name="geni_home_deleted_on_geni">Удалён на Geni</string>
+    <string name="geni_home_removed_from_device">Удалён с этого устройства</string>
 </resources>

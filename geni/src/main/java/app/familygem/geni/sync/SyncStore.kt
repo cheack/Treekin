@@ -50,6 +50,26 @@ data class PhotoLink(
     val state: PhotoState
 )
 
+/** What a [FeedRecord] tells. */
+enum class FeedRecordKind {
+    /** The profile was created on Geni (its `created_at`, or the moment this app added it). */
+    ADDED,
+    /** The refresh found the profile deleted or merged on Geni, and the person left the tree. */
+    GONE_ON_GENI,
+    /** The user deleted the profile on Geni from this app. */
+    DELETED_ON_GENI,
+    /** The user removed the person from this device only. */
+    REMOVED_FROM_DEVICE
+}
+
+/**
+ * An event of the Home feed that the tree itself cannot tell: a profile created on Geni, or a person who left the tree.
+ * @param gedcomId The person in the tree (added profiles); after a removal it may belong to someone else
+ * @param name The person's name when it left the tree (removals), since the person is gone
+ * @param atMillis When it happened
+ */
+data class FeedRecord(val treeId: Int, val kind: FeedRecordKind, val geniId: String, val gedcomId: String?, val name: String?, val atMillis: Long)
+
 /** Geni metadata of the trees, kept apart from upstream settings. */
 interface SyncStore {
     suspend fun tree(treeId: Int): GeniTreeInfo?
@@ -77,7 +97,11 @@ interface SyncStore {
     suspend fun photoLinks(treeId: Int, geniProfileId: String): List<PhotoLink>
     suspend fun savePhotoLink(link: PhotoLink)
     suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String)
-    /** Deletes the tree with its links, photo links and jobs. */
+    /** Keeps feed records (one per tree, kind and profile, the last wins) and drops those older than [keepSinceMillis]. */
+    suspend fun saveFeedRecords(records: List<FeedRecord>, keepSinceMillis: Long)
+    /** Feed records of a tree at or after [sinceMillis]. */
+    suspend fun feedRecords(treeId: Int, sinceMillis: Long): List<FeedRecord>
+    /** Deletes the tree with its links, photo links, jobs and feed records. */
     suspend fun deleteTree(treeId: Int)
 
     /** Upload jobs of a tree in upload order. */

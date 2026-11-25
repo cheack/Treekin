@@ -159,6 +159,8 @@ class UploaderTest {
         assertEquals(0L, child.loadedAtMillis)
         assertTrue(child.snapshot!!.contains("1795000001"))
         assertTrue(store.link(1, "union-10106")!!.snapshot!!.contains("profile-50"))
+        // The Home feed tells that the profile was added
+        assertEquals(listOf(Triple(FeedRecordKind.ADDED, "profile-50", "I3")), store.feedMap.values.map { Triple(it.kind, it.geniId, it.gedcomId) })
     }
 
     @Test
@@ -535,6 +537,7 @@ class UploaderTest {
         assertEquals("Bearer abc", request.headers["Authorization"])
         assertNull(store.link(1, "profile-7"))
         assertEquals(listOf("I8"), host.trees.getValue(1).people.map { it.id }) // The person leaves the tree only now
+        assertEquals(listOf(FeedRecordKind.DELETED_ON_GENI to "profile-7"), store.feedMap.values.map { it.kind to it.geniId })
     }
 
     @Test

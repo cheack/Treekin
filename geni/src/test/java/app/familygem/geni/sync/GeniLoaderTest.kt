@@ -326,6 +326,24 @@ class GeniLoaderTest {
         assertEquals(LoadResult.Gone(removed = true), loader().load(treeId, "profile-9"))
         assertEquals(0, host.trees.getValue(treeId).people.orEmpty().size)
         assertEquals(null, store.link(treeId, "profile-9"))
+        // The person is gone from the tree, so the Home feed keeps the name
+        assertEquals(listOf(FeedRecord(treeId, FeedRecordKind.GONE_ON_GENI, "profile-9", null, "Gone", 5_000L)), store.feedMap.values.toList())
+    }
+
+    @Test
+    fun profileCreatedRecentlyOnGeniIsRecorded() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","created_at":"4"}"""))
+        assertTrue(loader().load(treeId, "profile-9") is LoadResult.Loaded)
+        assertEquals(listOf(FeedRecord(treeId, FeedRecordKind.ADDED, "profile-9", "I1", null, 4_000L)), store.feedMap.values.toList())
+    }
+
+    @Test
+    fun profileCreatedLongAgoIsNotRecorded() = runTest {
+        val treeId = goneTree(ninth.replace("}", ""","created_at":"4"}"""))
+        val later = GeniLoader(GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime }), store, host,
+            now = { 4_000L + FeedRecords.KEEP_MILLIS + 1 })
+        assertTrue(later.load(treeId, "profile-9") is LoadResult.Loaded)
+        assertTrue(store.feedMap.isEmpty())
     }
 
     @Test
@@ -334,6 +352,7 @@ class GeniLoaderTest {
         host.trees.getValue(treeId).people.single().addNote(org.folg.gedcom.model.Note().apply { value = "Mine" })
         assertEquals(LoadResult.Gone(removed = false), loader().load(treeId, "profile-9"))
         assertEquals(1, host.trees.getValue(treeId).people.size)
+        assertTrue(store.feedMap.isEmpty())
     }
 
     @Test

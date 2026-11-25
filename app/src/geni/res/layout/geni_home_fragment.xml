@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Treekin Home: upcoming birthdays and recent events of the local tree.
+     Opaque and clickable: MainActivity stacks fragments with add(), so the diagram may lie underneath. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/geni_background"
+    android:clickable="true"
+    android:focusable="false">
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/geni_home_list"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingHorizontal="8dp"
+        android:scrollbars="vertical" />
+
+    <TextView
+        android:id="@+id/geni_home_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:padding="32dp"
+        android:text="@string/geni_home_empty"
+        android:textColor="?attr/geni_textGray"
+        android:textSize="16sp"
+        android:visibility="gone" />
+</FrameLayout>
