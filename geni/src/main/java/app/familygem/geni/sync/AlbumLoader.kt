@@ -16,14 +16,19 @@ class AlbumLoader(
     private val client: GeniClient,
     private val store: SyncStore,
     private val photos: PhotoSync,
-    private val mediaDir: (Int) -> File
+    private val mediaDir: (Int) -> File,
+    /** Where listings and batches show in the sync backlog; single photos show from [PhotoSync] when a file is fetched. */
+    private val feed: DownloadFeed = DownloadFeed()
 ) {
 
     /**
      * The album as Geni lists it now, each photo marked with its local state; needs the network.
      * Photos deleted on Geni are removed from the person first (see [PhotoSync.reconcileAlbum]).
      */
-    suspend fun list(treeId: Int, geniProfileId: String, personGedcomId: String): Album {
+    suspend fun list(treeId: Int, geniProfileId: String, personGedcomId: String): Album =
+        feed.track(treeId, DownloadKind.ALBUM_LIST, geniProfileId) { listNow(treeId, geniProfileId, personGedcomId) }
+
+    private suspend fun listNow(treeId: Int, geniProfileId: String, personGedcomId: String): Album {
         val photos = client.photos(geniProfileId)
         val removed = this.photos.reconcileAlbum(treeId, geniProfileId, personGedcomId, photos)
         val links = store.photoLinks(treeId, geniProfileId).associateBy { it.geniPhotoId }
@@ -51,10 +56,13 @@ class AlbumLoader(
      * Photos deleted on Geni are removed from the device first.
      * @return how many photos were added
      */
-    suspend fun downloadAll(treeId: Int, geniProfileId: String, personGedcomId: String, onError: (GeniPhoto, Exception) -> Unit = { _, _ -> }): Int {
+    suspend fun downloadAll(
+        treeId: Int, geniProfileId: String, personGedcomId: String, onError: (GeniPhoto, Exception) -> Unit = { _, _ -> }
+    ): Int = feed.track(treeId, DownloadKind.ALBUM_DOWNLOAD, geniProfileId) { progress ->
         var added = 0
-        for (entry in list(treeId, geniProfileId, personGedcomId).entries) {
-            if (entry.downloaded) continue
+        val missing = list(treeId, geniProfileId, personGedcomId).entries.filter { !it.downloaded }
+        progress.total(missing.size)
+        for (entry in missing) {
             try {
                 if (download(treeId, geniProfileId, personGedcomId, entry.photo)) added++
             } catch (e: CancellationException) {
@@ -62,7 +70,8 @@ class AlbumLoader(
             } catch (e: Exception) {
                 onError(entry.photo, e)
             }
+            progress.step()
         }
-        return added
+        added
     }
 }

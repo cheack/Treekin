@@ -16,6 +16,8 @@ import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 @Entity(tableName = "tree", primaryKeys = ["treeId"])
 data class GeniTreeEntity(val treeId: Int, val rootGeniId: String, val prefetchDepth: Int, @ColumnInfo(defaultValue = "''") val ownerGeniId: String)
@@ -117,6 +119,9 @@ interface SyncDao {
 
     @Query("SELECT * FROM job ORDER BY id")
     suspend fun allJobs(): List<UploadJobEntity>
+
+    @Query("SELECT * FROM job ORDER BY id")
+    fun observeJobs(): Flow<List<UploadJobEntity>>
 
     @Upsert
     suspend fun saveJob(job: UploadJobEntity): Long
@@ -261,6 +266,8 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun jobs(treeId: Int) = dao.jobs(treeId).map { it.toJob() }
 
     override suspend fun allJobs() = dao.allJobs().map { it.toJob() }
+
+    override fun observeJobs(): Flow<List<UploadJob>> = dao.observeJobs().map { list -> list.map { it.toJob() } }
 
     override suspend fun saveJob(job: UploadJob): Long {
         val rowId = dao.saveJob(job.toEntity())

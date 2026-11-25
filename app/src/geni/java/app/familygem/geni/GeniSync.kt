@@ -9,6 +9,7 @@ import android.util.Log
 import app.familygem.geni.sync.JobState
 import app.familygem.geni.sync.LocalTree
 import app.familygem.geni.sync.RunResult
+import app.familygem.geni.sync.TreeWait
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -64,6 +65,7 @@ object GeniSync {
         }
         scope.launch {
             var result = RunResult.RETRY_LATER
+            Geni.uploadWaits.set(treeId, null) // Running again: no longer waiting for the back-off or a login
             try {
                 do {
                     synchronized(running) { again -= treeId }
@@ -80,9 +82,17 @@ object GeniSync {
                 }
                 if (rerun && result != RunResult.RETRY_LATER) kick(app, treeId)
             }
+            // A run started meanwhile (by the rerun above or another trigger) owns the tree's wait state
+            fun showWait(wait: TreeWait?) = synchronized(running) { if (treeId !in running) Geni.uploadWaits.set(treeId, wait) }
             when (result) {
-                RunResult.EMPTY -> synchronized(delays) { delays.remove(treeId) }
-                RunResult.NEEDS_LOGIN -> Log.d(TAG, "Tree $treeId waits for login")
+                RunResult.EMPTY -> {
+                    synchronized(delays) { delays.remove(treeId) }
+                    showWait(null)
+                }
+                RunResult.NEEDS_LOGIN -> {
+                    Log.d(TAG, "Tree $treeId waits for login")
+                    showWait(TreeWait.NeedsLogin)
+                }
                 RunResult.RETRY_LATER -> {
                     val wait = synchronized(delays) {
                         val next = delays[treeId]?.let { minOf(it * 2, MAX_DELAY) } ?: FIRST_DELAY
@@ -90,6 +100,7 @@ object GeniSync {
                         next
                     }
                     Log.d(TAG, "Tree $treeId retries in ${wait / 1000} s")
+                    showWait(TreeWait.Retry(System.currentTimeMillis() + wait))
                     val retry = scope.launch(start = CoroutineStart.LAZY) {
                         delay(wait)
                         // Only the registered retry runs: one replaced or cancelled meanwhile stops here

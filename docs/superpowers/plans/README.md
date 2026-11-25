@@ -216,6 +216,25 @@ Plan: `docs/superpowers/plans/2026-11-20-geni-onboarding.md`. Decision (2026-11-
 - [x] Hide the upstream new-tree entries: Add tree screen, GEDCOM and share-link intents, shared-tree banner and install referrer, backup Recover tab are gone; the empty trees list offers the Geni account button
 - [ ] The "Tap to add a family tree" bubble does not show after Back from the login on a fresh install (the first-start branch waits for the Play install referrer, which Treekin does not use)
 
+## 8. Sync backlog
+
+One live screen, **Sync backlog** in the trees menu, for every Geni tree: what is being sent, downloaded, held back and what needs the user. Retry, dismiss and conflict choices stay in **Geni account**.
+
+- [x] Menu item and `GeniSyncBacklogActivity` (non-exported, toolbar and Up like the account screen); opening it reads local state only, no sync and no network
+- [x] `SyncStore.observeJobs()` (Room `Flow` on the `job` table); `SyncQueue.status` exposes the exact job and version in flight, so a newer version planned meanwhile shows as waiting, and a stored SENDING row with no live attempt shows as interrupted until the recovery marks it failed
+- [x] Waiting reasons from the code that decides them: back-off time and login stop from `GeniSync` (`Geni.uploadWaits`), photos setting off, crop hold and deferred person check from `SyncQueue.waitReason`; otherwise "Queued"
+- [x] Process-local `DownloadFeed` (`Geni.downloads`): initial prefetch, Keep offline and daily refresh queued until they get the tree's mutex; person refresh and root load in `GeniLoader`; album listing and Download all in `AlbumLoader`; actual file transfers in `PhotoSync`. Nested work is a stage of its parent, and a task leaves when its coroutine ends, fails or is cancelled
+- [x] Sections In progress / Waiting / Needs attention, operation, tree, target and status; indeterminate progress when the total is unknown; empty, loading and unreadable states; no params, tokens or photo URLs shown
+- [x] Checked on the emulator (sandbox): empty state; Keep offline active with its stage and a second pass queued; rotation during the pass shows the same single task (one pass ran); rows clear when work ends; offline profile edit waits with the retry time and leaves the list after reconnecting
+
+### Not checked by hand for the sync backlog
+
+- [ ] Crop hold and photo upload rows (the emulator's file picker crashes; needs the phone)
+- [ ] Interrupted photo add after stopping the process, then retry with the duplicate warning from Geni account
+- [ ] Failed and conflicting jobs under Needs attention, dismiss or resolve them in Geni account and watch the backlog update
+- [ ] Deleting the tree removes its rows; reopening signed out
+- [ ] Direct person refresh, daily refresh, album listing, a single photo and Download all one by one on a device (unit tests cover the loader side)
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)

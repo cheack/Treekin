@@ -4,14 +4,19 @@ import android.app.Activity
 import android.content.Intent
 import android.view.Menu
 import app.familygem.geni.ui.GeniLoginActivity
+import app.familygem.geni.ui.GeniSyncBacklogActivity
 
 /** Functions called by one-line GENI-HOOK calls in upstream code. */
 object GeniHooks {
 
-    /** Adds the Geni account item to the menu of the trees list. */
+    /** Adds the Geni account and sync backlog items to the menu of the trees list. */
     fun addTreesMenu(activity: Activity, menu: Menu) {
         menu.add(R.string.geni_menu_account).setOnMenuItemClickListener {
             activity.startActivity(Intent(activity, GeniLoginActivity::class.java))
+            true
+        }
+        menu.add(R.string.geni_menu_sync_backlog).setOnMenuItemClickListener {
+            activity.startActivity(Intent(activity, GeniSyncBacklogActivity::class.java))
             true
         }
     }

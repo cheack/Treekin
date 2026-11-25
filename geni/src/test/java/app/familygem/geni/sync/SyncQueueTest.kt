@@ -803,4 +803,87 @@ class SyncQueueTest {
         // The child is not held back by the photo of its parent
         assertEquals(listOf("add:I6", "photo:I1:me.jpg"), uploader.ran.map { it.key })
     }
+
+    @Test
+    fun statusShowsTheExactJobAndVersionInFlight() = runTest {
+        linkBoth()
+        queue.onSaved(1, tree(driver))
+        val planned = store.jobs(1).single()
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        uploader.answer = { job ->
+            if (uploader.ran.size == 1) {
+                started.complete(Unit)
+                release.await()
+            }
+            uploader.geniApplies(job)
+        }
+        val run = async { queue.runPending(1) }
+        started.await()
+        assertEquals(ActiveJob(planned.id, planned.version), queue.status.value.active[1])
+        queue.onSaved(1, tree(pilot)) // A newer version is planned while the first one is sent
+        val newer = store.jobs(1).single()
+        assertEquals(planned.version + 1, newer.version)
+        // The stored row is the newer version: it waits, the one in flight is the older one
+        val rows = app.familygem.geni.backlog.SyncBacklog.build(store.allJobs(), queue.status.value, emptyMap(), emptyList(), queue::waitReason)
+        assertEquals(app.familygem.geni.backlog.BacklogStatus.Queued, rows.single().status)
+        release.complete(Unit)
+        assertEquals(RunResult.EMPTY, run.await())
+        assertNull(queue.status.value.active[1])
+    }
+
+    @Test
+    fun addStaysActiveUntilItsOutcomeIsStored() = runTest {
+        linkBoth()
+        store.saveJob(photoJob())
+        var seen: ActiveJob? = null
+        var stateDuring: JobState? = null
+        uploader.answer = { job ->
+            seen = queue.status.value.active[1]
+            stateDuring = store.jobs(1).single().state
+            Outcome.Failed("refused")
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        val job = store.jobs(1).single()
+        assertEquals(ActiveJob(job.id, job.version), seen)
+        assertEquals(JobState.SENDING, stateDuring)
+        assertNull(queue.status.value.active[1])
+        assertEquals(JobState.FAILED, job.state)
+    }
+
+    @Test
+    fun deferredPhotoIsReportedOnlyDuringItsRun() = runTest {
+        linkBoth()
+        store.saveJob(photoJob())
+        store.saveJob(updateJob)
+        var reasonDuringRun: JobWait? = null
+        uploader.answer = {
+            if (it.kind == JobKind.ADD_PHOTO) Outcome.Deferred
+            else {
+                reasonDuringRun = queue.waitReason(store.jobs(1).first { j -> j.kind == JobKind.ADD_PHOTO })
+                uploader.geniApplies(it)
+            }
+        }
+        assertEquals(RunResult.EMPTY, queue.runPending(1))
+        assertEquals(JobWait.VERIFYING, reasonDuringRun)
+        assertNull(queue.waitReason(store.jobs(1).single())) // The next run tries again
+    }
+
+    @Test
+    fun heldAndDisabledPhotosGiveTheirReason() = runTest {
+        linkBoth()
+        store.saveJob(photoJob())
+        val photo = store.jobs(1).single()
+        assertNull(queue.waitReason(photo))
+        val before = queue.status.value.holdsChanged
+        val session = queue.holds.acquire(1, "me.jpg")
+        assertTrue(queue.status.value.holdsChanged > before)
+        assertEquals(JobWait.CROP_HOLD, queue.waitReason(photo))
+        photosOn = false
+        assertEquals(JobWait.PHOTOS_OFF, queue.waitReason(photo))
+        photosOn = true
+        queue.holds.release(session)
+        assertNull(queue.waitReason(photo))
+        assertNull(queue.waitReason(photo.copy(state = JobState.FAILED)))
+    }
 }

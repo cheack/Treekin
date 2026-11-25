@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -219,5 +220,26 @@ class RoomSyncStoreTest {
         store.savePhotoLink(photoLink("profile-1", "photo-1"))
         store.deleteTree(1)
         assertEquals(emptyList<PhotoLink>(), store.photoLinks(1))
+    }
+
+    /** Room tells observers from its own threads: waits (bounded) for the emission that matches. */
+    private fun awaitJobs(match: (List<UploadJob>) -> Boolean) = kotlinx.coroutines.runBlocking {
+        kotlinx.coroutines.withTimeout(5_000) { store.observeJobs().first(match) }
+    }
+
+    @Test
+    fun observedJobsFollowInsertsStateChangesAndDeletes() {
+        assertEquals(emptyList<UploadJob>(), awaitJobs { true })
+        val id = kotlinx.coroutines.runBlocking { store.saveJob(job("profile:profile-1")) }
+        assertEquals(listOf(id), awaitJobs { it.size == 1 }.map { it.id })
+        kotlinx.coroutines.runBlocking { store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "x", version = 1)) }
+        val failed = awaitJobs { it.singleOrNull()?.state == JobState.FAILED }.single()
+        assertEquals(id to 1, failed.id to failed.version) // Same ID and version as stored
+        kotlinx.coroutines.runBlocking { store.saveJob(job("profile:profile-2").copy(treeId = 2)) }
+        awaitJobs { it.size == 2 }
+        kotlinx.coroutines.runBlocking { store.deleteJob(id) }
+        assertEquals(listOf(2), awaitJobs { it.size == 1 }.map { it.treeId })
+        kotlinx.coroutines.runBlocking { store.deleteTree(2) }
+        awaitJobs { it.isEmpty() }
     }
 }

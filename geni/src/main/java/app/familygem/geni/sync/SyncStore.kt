@@ -1,5 +1,7 @@
 package app.familygem.geni.sync
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * A FamilyGem tree that mirrors part of Geni.
  * @param rootGeniId The profile the tree starts from; it moves when Geni merges that profile into another
@@ -81,6 +83,8 @@ interface SyncStore {
     /** Upload jobs of a tree in upload order. */
     suspend fun jobs(treeId: Int): List<UploadJob>
     suspend fun allJobs(): List<UploadJob>
+    /** Every job of every tree in upload order, emitted again after each insert, change or delete. */
+    fun observeJobs(): Flow<List<UploadJob>>
     /** Inserts a job with ID 0, else replaces the job with that ID; returns the ID. */
     suspend fun saveJob(job: UploadJob): Long
     suspend fun deleteJob(id: Long)

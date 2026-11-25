@@ -33,15 +33,23 @@ class GeniLoader(
     private val host: TreeHost,
     private val now: () -> Long = System::currentTimeMillis,
     private val photos: PhotoSync? = null,
-    private val onPhotoError: (String, Exception) -> Unit = { _, _ -> }
+    private val onPhotoError: (String, Exception) -> Unit = { _, _ -> },
+    /** Where the load shows in the sync backlog; inside a branch pass it is a stage of that pass. */
+    private val feed: DownloadFeed = DownloadFeed()
 ) {
 
     /**
      * Fetches the immediate family of a profile (3 requests) and merges it into the tree.
      * Nothing changes if any request fails.
      */
-    suspend fun load(treeId: Int, geniProfileId: String): LoadResult {
+    suspend fun load(treeId: Int, geniProfileId: String): LoadResult = load(treeId, geniProfileId, DownloadKind.PERSON_REFRESH)
+
+    private suspend fun load(treeId: Int, geniProfileId: String, kind: DownloadKind): LoadResult {
         if (!host.treeExists(treeId)) return LoadResult.NotAGeniTree
+        return feed.track(treeId, kind, geniProfileId) { fetch(treeId, geniProfileId) }
+    }
+
+    private suspend fun fetch(treeId: Int, geniProfileId: String): LoadResult {
         return try {
             store.tree(treeId) ?: return LoadResult.NotAGeniTree
             val family = client.immediateFamily(geniProfileId)
@@ -162,7 +170,7 @@ class GeniLoader(
 
     /** Loads the root's family, makes the root person the diagram's start and plans the prefetch. A failed load is thrown, so a retry runs this again. */
     private suspend fun finishSetup(treeId: Int, rootGeniId: String) {
-        when (val result = load(treeId, rootGeniId)) {
+        when (val result = load(treeId, rootGeniId, DownloadKind.ROOT_LOAD)) {
             is LoadResult.Loaded -> Unit
             LoadResult.NeedsLogin -> throw GeniAuthRequiredException()
             is LoadResult.Failed -> throw result.cause ?: IllegalStateException(result.message)

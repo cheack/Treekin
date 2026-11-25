@@ -84,6 +84,8 @@ object AppTreeHost : TreeHost {
         gedcom.people.orEmpty().firstOrNull { it.id == gedcomId }?.let { LocalTree.capturePerson(it) }
     }
 
+    override fun treeTitle(treeId: Int): String? = Global.settings.getTree(treeId)?.title
+
     override fun treeExists(treeId: Int) = Global.settings.getTree(treeId) != null
 
     override fun rootOf(treeId: Int): String? = Global.settings.getTree(treeId)?.root
