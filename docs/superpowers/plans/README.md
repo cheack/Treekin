@@ -247,13 +247,12 @@ A **Home** screen opens with the tree: upcoming birthdays (next 14 days) and rec
 - [x] Profile added and removed from the sync's `feed_event` table (Room v7, rows older than 100 days pruned): **Profile added** from Geni's `created_at` (now requested with every profile) on each load, or the moment this app creates the profile, shown only while the person is in the tree under that profile; **Deleted or merged on Geni** (refresh, or the conflict choice not to keep), **Deleted on Geni** (by the user, after Geni confirms) and **Removed from this device**, with the name kept since the person is gone; removal rows open nothing
 - [x] Profile changes from each person's `CHAN` (its stored zone, else the device one), one per person, merged into the day groups; malformed and future timestamps skipped. No Geni request, no tree write
 - [x] Rows show the person's main photo, or a silhouette by sex, a cake or pencil icon by event kind, and open the profile; refreshed on every return; empty state; English and Russian strings with age plurals (a **Birthday photos** link to the Media tab was tried and dropped)
-- [x] Checked on the emulator: tree tap and offline auto-load open Home; edit → back shows the change once under Today; rotation; Home → Diagram → Back; Russian dates and plurals; simulated notification tap opens Diagram on the person; Link existing person opens the Persons picker; `SingleTreeTest` passes
+- [x] Checked on the emulator: **Profile added** rows from the sandbox's `created_at` after a signed-in load; tree tap and offline auto-load open Home; edit → back shows the change once under Today; rotation; Home → Diagram → Back; Russian dates and plurals; simulated notification tap opens Diagram on the person; Link existing person opens the Persons picker; `SingleTreeTest` passes
 
 ### Not checked by hand for Home
 
 - [ ] Fresh install → Geni onboarding → setup opens one Home screen (needs a sandbox login; `GeniLoginViewModelTest` passes)
 - [ ] A missing or unreadable tree file leaves the user at the tree list (routing changed only the started intent, not the failure path)
-- [ ] **Profile added** on the device: needs a sandbox login (the emulator was signed out); unit tests cover the loader and uploader
 - [ ] **Deleted or merged on Geni** and **Deleted on Geni** rows on the device (unit tests only); **Removed from this device** was checked
 - [ ] Geni `updated_at` of cached profiles as a second source of "Profile updated" (it would show edits made on Geni by others)
 

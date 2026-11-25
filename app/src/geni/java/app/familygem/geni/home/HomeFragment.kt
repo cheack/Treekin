@@ -81,6 +81,10 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
     }
 
     override fun onDestroyView() {
+        // Nothing may keep the destroyed views: the insets callback captures the list, the adapter is shared with the next view
+        interfacer = null
+        loading?.cancel()
+        list?.adapter = null
         list = null
         empty = null
         super.onDestroyView()
