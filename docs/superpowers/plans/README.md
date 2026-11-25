@@ -244,7 +244,7 @@ A **Home** screen opens with the tree: upcoming birthdays (next 14 days) and rec
 - [x] Ordinary opens go to Home: startup auto-load, a tap on the tree, and `AppTreeHost.openTree` after the account flow (`HomeFragment.OPEN` extra). Birthday notification taps, `Choice.*` pickers and every other MainActivity start keep the diagram or their screen
 - [x] `RecentEvents` feed builder (date and zone as inputs): Notifier's birthday rule (alive, single D M Y date), the tree's lifespan per occurrence, February 29 on February 28, year rollover; the day of birth itself is not a birthday
 - [x] Profile changes from each person's `CHAN` (its stored zone, else the device one), one per person, merged into the day groups; malformed and future timestamps skipped. No Geni request, no tree write
-- [x] Rows show the person's main photo, or a silhouette by sex, and open the profile; refreshed on every return; empty state; English and Russian strings with age plurals (a **Birthday photos** link to the Media tab was tried and dropped)
+- [x] Rows show the person's main photo, or a silhouette by sex, a cake or pencil icon by event kind, and open the profile; refreshed on every return; empty state; English and Russian strings with age plurals (a **Birthday photos** link to the Media tab was tried and dropped)
 - [x] Checked on the emulator: tree tap and offline auto-load open Home; edit → back shows the change once under Today; rotation; Home → Diagram → Back; Russian dates and plurals; simulated notification tap opens Diagram on the person; Link existing person opens the Persons picker; `SingleTreeTest` passes
 
 ### Not checked by hand for Home

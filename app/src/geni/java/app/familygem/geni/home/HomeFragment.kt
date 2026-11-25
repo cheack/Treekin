@@ -166,7 +166,11 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
                 val plural = if (item.upcoming) GR.plurals.geni_home_turns else GR.plurals.geni_home_turned
                 parts += resources.getQuantityString(plural, event.age, event.age)
             } else parts += getString(GR.string.geni_home_profile_updated)
-            view.findViewById<TextView>(R.id.geni_home_detail).text = parts.joinToString(" · ")
+            view.findViewById<TextView>(R.id.geni_home_detail).apply {
+                text = parts.joinToString(" · ")
+                val icon = if (event.kind == FeedEvent.Kind.BIRTHDAY) GR.drawable.geni_cake else GR.drawable.geni_edit
+                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+            }
             showPhoto(view.findViewById(R.id.geni_home_image), person)
             view.findViewById<View>(R.id.geni_home_person).setOnClickListener { openProfile(person) }
         }

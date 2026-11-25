@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- One event of the Home feed: photo, name and what happened. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -47,6 +48,9 @@
                 android:id="@+id/geni_home_detail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:drawablePadding="6dp"
+                android:gravity="center_vertical"
+                app:drawableTint="?attr/geni_accent"
                 android:textColor="?attr/geni_textGray"
                 android:textSize="14sp"
                 tools:text="Birthday · Turns 36" />
