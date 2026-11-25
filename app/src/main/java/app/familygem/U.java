@@ -753,7 +753,7 @@ public class U {
                 }
                 ((MainActivity)context).showFragment(diagram);
             } else { // From ProfileActivity or from FamilyActivity
-                Intent intent = new Intent(context, MainActivity.class);
+                Intent intent = app.familygem.geni.home.HomeFragment.treeIntent(context); // GENI-HOOK MainActivity opens on Home otherwise
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK); // Creates a clear new back stack
                 context.startActivity(intent);
             }

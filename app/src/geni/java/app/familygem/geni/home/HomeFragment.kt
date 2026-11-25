@@ -45,12 +45,15 @@ import app.familygem.geni.R as GR
 class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
 
     companion object {
-        /** MainActivity extra: an ordinary tree opening, shown on Home instead of the diagram. */
-        const val OPEN = "${app.familygem.BuildConfig.APPLICATION_ID}.openHome"
+        /** MainActivity extra: open on Tree (DiagramFragment) showing [app.familygem.Global.indi], instead of Home. */
+        const val OPEN_TREE = "${app.familygem.BuildConfig.APPLICATION_ID}.openTree"
 
-        /** The MainActivity intent of an ordinary tree opening. */
-        fun intent(context: android.content.Context): Intent =
-            Intent(context, app.familygem.main.MainActivity::class.java).putExtra(OPEN, true)
+        /** The MainActivity intent of an ordinary tree opening: Home is MainActivity's default. */
+        fun intent(context: android.content.Context): Intent = Intent(context, app.familygem.main.MainActivity::class.java)
+
+        /** The MainActivity intent that shows a particular person in Tree. */
+        @JvmStatic
+        fun treeIntent(context: android.content.Context): Intent = intent(context).putExtra(OPEN_TREE, true)
     }
 
     private sealed class Item {

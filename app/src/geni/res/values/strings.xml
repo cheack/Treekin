@@ -6,5 +6,8 @@
     <string name="family_gem_example">Treekin example</string>
     <string name="family_gem_premium" translatable="false">Treekin Premium</string>
     <string name="unlock_function">This feature can be unlocked with Treekin Premium.</string>
+    <string name="diagram">Tree</string>
+    <string name="diagram_settings">Tree view settings</string>
+    <string name="generations_display_diagram">Set how many generations display in the tree:</string>
     <!-- GENERATED:END -->
 </resources>

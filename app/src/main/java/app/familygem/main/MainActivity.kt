@@ -26,7 +26,6 @@ import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import app.familygem.Global
 import app.familygem.R
-import app.familygem.TreesActivity
 import app.familygem.U
 import app.familygem.constant.Choice
 import app.familygem.constant.Extra
@@ -92,13 +91,9 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             else if (intent.getBooleanExtra(Choice.NOTE, false)) NotesFragment()
             else if (intent.getBooleanExtra(Choice.SOURCE, false)) SourcesFragment()
             else if (intent.getBooleanExtra(Choice.REPOSITORY, false)) RepositoriesFragment()
-            else if (intent.getBooleanExtra(app.familygem.geni.home.HomeFragment.OPEN, false)) app.familygem.geni.home.HomeFragment() // GENI-HOOK
-            else DiagramFragment() // Regular opening
+            else if (intent.getBooleanExtra(app.familygem.geni.home.HomeFragment.OPEN_TREE, false)) DiagramFragment() // GENI-HOOK
+            else app.familygem.geni.home.HomeFragment() // GENI-HOOK regular opening
             showFragment(fragment)
-        }
-        binding.mainMenu.getHeaderView(0).findViewById<View>(R.id.menuHeader_trees).setOnClickListener {
-            binding.mainLayout.closeDrawer(GravityCompat.START)
-            startActivity(Intent(this@MainActivity, TreesActivity::class.java))
         }
 
         // Hides some menu items for non-expert users

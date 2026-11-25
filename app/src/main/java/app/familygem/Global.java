@@ -154,10 +154,7 @@ public class Global extends Application {
      */
     private final Thread.UncaughtExceptionHandler exceptionHandler = (thread, exception) -> {
         // Disables auto-load of last opened tree
-        if (Global.settings.loadTree) {
-            Global.settings.loadTree = false;
-            Global.settings.save();
-        }
+        app.familygem.geni.home.StartupTree.skipNextLoad(this); // GENI-HOOK the next launch stays on the Trees list
         defaultExceptionHandler.uncaughtException(thread, exception);
     };
 
