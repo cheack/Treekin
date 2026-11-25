@@ -114,9 +114,10 @@ object RecentEvents {
             if (date.isBefore(recentStart)) continue
             recent += when (record.kind) {
                 FeedRecordKind.ADDED -> {
-                    // Only while the person is still in the tree under that profile (its GEDCOM ID may have been reused)
-                    val person = record.gedcomId?.let { byId[it] } ?: continue
-                    if (GeniMapper.getGeniId(person) != record.geniId) continue
+                    // Only while the person is still in the tree under that profile: the recorded GEDCOM ID if it still has
+                    // that Geni tag, else the only person with it (the ID was edited; a reused ID belongs to another profile)
+                    val person = record.gedcomId?.let { byId[it] }?.takeIf { GeniMapper.getGeniId(it) == record.geniId }
+                        ?: people.filter { GeniMapper.getGeniId(it) == record.geniId }.singleOrNull() ?: continue
                     FeedEvent(FeedEvent.Kind.PROFILE_ADDED, person.id, date, changedAt = at)
                 }
                 FeedRecordKind.GONE_ON_GENI -> FeedEvent(FeedEvent.Kind.GONE_ON_GENI, record.geniId, date, changedAt = at, name = record.name)

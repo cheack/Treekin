@@ -240,11 +240,6 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                 treeNumView.visibility = ImageView.VISIBLE
             }
             // Puts count of existing records in menu items
-            // GENI-HOOK items found by ID: the Home item shifted their positions
-            val countedIds = listOf(
-                R.id.menu_persons, R.id.menu_families, R.id.menu_media, R.id.menu_notes,
-                R.id.menu_sources, R.id.menu_repositories, R.id.menu_submitters
-            )
             for (i in 1..7) {
                 var count = 0
                 when (i) {
@@ -268,7 +263,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     6 -> count = Global.gc.repositories.size
                     7 -> count = Global.gc.submitters.size
                 }
-                val countView = binding.mainMenu.menu.findItem(countedIds[i - 1]).actionView!!.findViewById<TextView>(R.id.menu_item_text)
+                val countView = binding.mainMenu.menu.getItem(i + 1).actionView!!.findViewById<TextView>(R.id.menu_item_text) // GENI-HOOK Home is item 0
                 countView.text = if (count > 0) count.toString() else ""
             }
         }

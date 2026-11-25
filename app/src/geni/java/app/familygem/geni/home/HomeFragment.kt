@@ -175,7 +175,10 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
 
     /** The person's main photo, or a silhouette by sex when there is none (or the person is gone): every row has a picture. */
     private fun showPhoto(image: ImageView, person: Person?) {
-        Glide.with(image).clear(image) // A recycled row may still be loading another person's photo
+        // A recycled row may still be loading another person's photo, or running the fallback of a failed load
+        (image.getTag(R.id.tag_job) as? Job)?.cancel()
+        image.setTag(R.id.tag_job, null)
+        Glide.with(image).clear(image)
         image.setImageDrawable(null)
         if (person == null) {
             image.visibility = View.VISIBLE

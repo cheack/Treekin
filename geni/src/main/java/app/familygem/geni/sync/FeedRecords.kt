@@ -32,8 +32,8 @@ object FeedRecords {
     suspend fun removed(store: SyncStore, treeId: Int, kind: FeedRecordKind, geniId: String, name: String?, nowMillis: Long) =
         save(store, listOf(FeedRecord(treeId, kind, geniId, null, name, nowMillis)), nowMillis)
 
+    /** Also with no records: the store still drops the expired ones. */
     private suspend fun save(store: SyncStore, records: List<FeedRecord>, nowMillis: Long) {
-        if (records.isEmpty()) return
         try {
             store.saveFeedRecords(records, nowMillis - KEEP_MILLIS)
         } catch (e: CancellationException) {

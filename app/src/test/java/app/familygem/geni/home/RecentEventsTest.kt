@@ -218,15 +218,18 @@ class RecentEventsTest {
     @Test
     fun `profile added only while the person is in the tree under that profile`() {
         val feed = build(
-            geniPerson("I1", "profile-1"), geniPerson("I2", "profile-other"),
+            geniPerson("I1", "profile-1"), geniPerson("I2", "profile-other"), geniPerson("I9", "profile-4"),
             records = listOf(
+                record(FeedRecordKind.ADDED, "profile-4", at("2026-11-23"), gedcomId = "I4"), // Its GEDCOM ID was edited to I9
                 record(FeedRecordKind.ADDED, "profile-1", at("2026-11-24", "09:00"), gedcomId = "I1"),
                 record(FeedRecordKind.ADDED, "profile-2", at("2026-11-24"), gedcomId = "I2"), // ID reused by another profile
                 record(FeedRecordKind.ADDED, "profile-3", at("2026-11-24"), gedcomId = "I3") // No longer in the tree
             )
         )
-        assertEquals(listOf(FeedEvent(FeedEvent.Kind.PROFILE_ADDED, "I1", LocalDate.of(2026, 11, 24), changedAt = at("2026-11-24", "09:00"))),
-            feed.recent.flatMap { it.second })
+        assertEquals(listOf(
+            FeedEvent(FeedEvent.Kind.PROFILE_ADDED, "I1", LocalDate.of(2026, 11, 24), changedAt = at("2026-11-24", "09:00")),
+            FeedEvent(FeedEvent.Kind.PROFILE_ADDED, "I9", LocalDate.of(2026, 11, 23), changedAt = at("2026-11-23"))
+        ), feed.recent.flatMap { it.second })
     }
 
     @Test
