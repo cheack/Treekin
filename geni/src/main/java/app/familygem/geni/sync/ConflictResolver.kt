@@ -111,11 +111,12 @@ class ConflictResolver(
         }
         store.deleteLink(job.treeId, link.geniId)
         emptied.forEach { family -> store.linkByGedcomId(job.treeId, family)?.let { store.deleteLink(job.treeId, it.geniId) } }
-        if (removed) FeedRecords.removed(store, job.treeId, FeedRecordKind.GONE_ON_GENI, link.geniId, name, System.currentTimeMillis())
         withContext(NonCancellable) {
             host.refreshScreens()
             queue.afterResolve(job.treeId, job.key)
         }
+        // Last: a cancellation here may skip only this optional history record, never the resolution above
+        if (removed) FeedRecords.removed(store, job.treeId, FeedRecordKind.GONE_ON_GENI, link.geniId, name, System.currentTimeMillis())
     }
 
     /** Throws before changing anything if the conflicts are not the [shown] ones (Geni changed again since the dialog). */

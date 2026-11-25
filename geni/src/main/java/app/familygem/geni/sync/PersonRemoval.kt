@@ -30,8 +30,8 @@ class PersonRemoval(private val store: SyncStore, private val host: TreeHost, pr
         store.deleteLink(treeId, geniId)
         families.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }
         store.jobs(treeId).filter { it.key == "profile:$geniId" || it.key == "delete:$geniId" }.forEach { store.deleteJob(it.id) }
-        FeedRecords.removed(store, treeId, why, geniId, name, now())
         host.refreshScreens()
+        FeedRecords.removed(store, treeId, why, geniId, name, now()) // Last: only an optional history record
         return true
     }
 
