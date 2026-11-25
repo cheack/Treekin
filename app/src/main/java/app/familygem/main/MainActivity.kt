@@ -103,6 +103,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
             menu.findItem(R.id.menu_repositories).isVisible = false
             menu.findItem(R.id.menu_submitters).isVisible = false
         }
+        app.familygem.geni.home.TreeMenu.addDrawerItems(this, binding.mainLayout, binding.mainMenu.menu) // GENI-HOOK what the hidden trees list offered
 
         addMenuProvider(object : MenuProvider {
             override fun onCreateMenu(menu: Menu, inflater: MenuInflater) {
@@ -111,6 +112,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     post { // Because sometimes onCreateMenu() is called before the fragment creation
                         menu.clear()
                         if (Global.gc != null) frontFragment.updateToolbar(supportActionBar!!, menu, inflater)
+                        if (Global.gc != null) app.familygem.geni.home.TreeMenu.addToolbarItems(this@MainActivity, frontFragment, menu) // GENI-HOOK
                     }
                 }
             }
@@ -127,7 +129,7 @@ class MainActivity : AppCompatActivity(), NavigationView.OnNavigationItemSelecte
                     binding.mainLayout.closeDrawer(GravityCompat.START)
                 } else {
                     if (manager.fragments.size <= 1) {
-                        finish() // Goes back to TreesActivity
+                        if (!app.familygem.geni.home.TreeMenu.leaveTree(this@MainActivity)) finish() // Goes back to TreesActivity GENI-HOOK closes the app instead
                     } else {
                         // Removes the last visible fragment from the backstack (and TreeSettingsFragment also)
                         var last = true

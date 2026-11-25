@@ -50,16 +50,14 @@ object StartupTree {
 
     /**
      * Called by [app.familygem.LauncherActivity] instead of starting the trees list: opens the saved tree straight on Home,
-     * with the trees list below it in the back stack (built only when Back reaches it), so the list never flashes at launch.
+     * so the list never shows at launch (Back from Home closes the app, see [TreeMenu.leaveTree]).
      * Without a tree to open (none saved, skipped after a crash, unreadable) the trees list starts as before.
      * A launcher recreated while the tree is loading waits for the same load.
      */
     fun launch(activity: AppCompatActivity) {
         val load = pending ?: start(activity.applicationContext).also { pending = it }
         activity.lifecycleScope.launch {
-            val trees = Intent(activity, TreesActivity::class.java)
-            if (load.await()) activity.startActivities(arrayOf(trees, HomeFragment.intent(activity)))
-            else activity.startActivity(trees)
+            activity.startActivity(if (load.await()) HomeFragment.intent(activity) else Intent(activity, TreesActivity::class.java))
         }
     }
 

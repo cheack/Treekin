@@ -6,10 +6,10 @@ Treekin is a fork of [Family Gem](https://github.com/michelesalvador/FamilyGem) 
 ## How it works
 - **Geni first.** A fresh installation has no tree. You sign in with Geni and Treekin creates one tree rooted at your own profile. Other relatives load from Geni as you open them.
 - **One tree.** Treekin keeps a single tree, the one of the Geni account that created it. While it exists only that account can sign in; another account is refused and nothing is uploaded under it.
-  To start over with another account, delete the tree in the trees list (**Delete tree**, confirmed), then sign in.
+  To start over with another account, delete the tree in **Tree settings** (menu → **Delete tree**, confirmed), then sign in.
 - **Offline.** The tree and its photos are stored on the device, so you can open and edit it without a connection. Logging out keeps the tree and the edits waiting to be uploaded; they go to Geni after you sign in again.
 - **No other way to make a tree.** There is no blank tree, example tree, GEDCOM import, shared-tree link or backup restore: opening a `.ged` file or a Family Gem share link does nothing.
-- **Home first.** Launching the app opens the saved tree on **Home** (upcoming birthdays and recent events). The graphical view of the tree is called **Tree** in the menu; Back from the tree leads to the trees list, where the Geni account, the sync backlog and the tree itself are managed.
+- **Home first.** Launching the app opens the saved tree on **Home** (upcoming birthdays and recent events). The graphical view of the tree is called **Tree** in the menu. There is no trees list to go back to: Back from the tree closes the app, the drawer has **Geni account**, **Sync backlog** and **Settings**, and the tree's own actions (info, export, backup, delete) are in the **Tree settings** menu.
 - **Export.** You can still export the tree as GEDCOM (also zipped with its media), save a ZIP backup of it, and export the Tree view as PDF or PNG.
 
 ---
