@@ -155,4 +155,8 @@
         <item quantity="many">День памяти · %d лет</item>
         <item quantity="other">День памяти · %d года</item>
     </plurals>
+    <string name="geni_home_profile_added">Профиль добавлен</string>
+    <string name="geni_home_gone_on_geni">Удалён или объединён на Geni</string>
+    <string name="geni_home_deleted_on_geni">Удалён на Geni</string>
+    <string name="geni_home_removed_from_device">Удалён с этого устройства</string>
 </resources>

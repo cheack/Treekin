@@ -95,16 +95,21 @@ class ConflictResolver(
      */
     private suspend fun resolveGone(job: UploadJob, link: GeniLink, keep: Boolean) {
         var emptied = emptyList<String>()
+        var name: String? = null
         host.edit(job.treeId) { gedcom ->
             val same = gedcom.people.orEmpty().filter { it.id == link.gedcomId }
             val person = same.firstOrNull()
             // The GEDCOM ID may have been given to another person meanwhile
             check(same.size <= 1 && (person == null || GeniMapper.getGeniId(person) == link.geniId)) { CHANGED }
-            if (!keep && person != null) emptied = GoneProfiles.remove(gedcom, link.gedcomId)
+            if (!keep && person != null) {
+                name = FeedRecords.displayName(person)
+                emptied = GoneProfiles.remove(gedcom, link.gedcomId)
+            }
             queue.setLocal(job.treeId, LocalTree.capture(gedcom))
         }
         store.deleteLink(job.treeId, link.geniId)
         emptied.forEach { family -> store.linkByGedcomId(job.treeId, family)?.let { store.deleteLink(job.treeId, it.geniId) } }
+        if (!keep && name != null) FeedRecords.removed(store, job.treeId, FeedRecordKind.GONE_ON_GENI, link.geniId, name, System.currentTimeMillis())
         withContext(NonCancellable) {
             host.refreshScreens()
             queue.afterResolve(job.treeId, job.key)

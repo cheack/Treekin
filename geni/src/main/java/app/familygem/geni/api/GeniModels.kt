@@ -38,6 +38,8 @@ data class GeniProfile(
     val death: GeniEvent? = null,
     val burial: GeniEvent? = null,
     @SerializedName("updated_at") val updatedAt: String? = null,
+    /** When the profile was created on Geni, in Unix seconds. */
+    @SerializedName("created_at") val createdAt: String? = null,
     val deleted: Boolean? = null,
     @SerializedName("merged_into") val mergedInto: String? = null,
     @SerializedName("mugshot_urls") val mugshotUrls: Map<String, String>? = null

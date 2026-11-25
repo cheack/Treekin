@@ -6,25 +6,31 @@ import org.folg.gedcom.model.Gedcom
 import org.folg.gedcom.model.Person
 
 /** Takes a person out of a Geni tree on this device only; nothing is sent to Geni. */
-class PersonRemoval(private val store: SyncStore, private val host: TreeHost) {
+class PersonRemoval(private val store: SyncStore, private val host: TreeHost, private val now: () -> Long = System::currentTimeMillis) {
 
     /**
      * Removes the person of [geniId], and the families this leaves empty, from the tree and drops their links
      * and waiting jobs (an edit, or a queued delete on Geni: the user chose this device only). The root is never removed.
+     * @param why What the Home feed tells: removed from this device, or deleted on Geni by the user
      * @return false if the tree has no such person, or it is the root
      */
-    suspend fun removeFromTree(treeId: Int, geniId: String): Boolean {
+    suspend fun removeFromTree(treeId: Int, geniId: String, why: FeedRecordKind = FeedRecordKind.REMOVED_FROM_DEVICE): Boolean {
         if (store.tree(treeId)?.rootGeniId == geniId) return false
         val link = store.link(treeId, geniId) ?: return false
         var emptied: List<String>? = null
+        var name: String? = null
         host.edit(treeId) { gedcom ->
             val person = find(gedcom, link.gedcomId, geniId)
-            if (person != null) emptied = GoneProfiles.remove(gedcom, person.id)
+            if (person != null) {
+                name = FeedRecords.displayName(person)
+                emptied = GoneProfiles.remove(gedcom, person.id)
+            }
         }
         val families = emptied ?: return false
         store.deleteLink(treeId, geniId)
         families.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }
         store.jobs(treeId).filter { it.key == "profile:$geniId" || it.key == "delete:$geniId" }.forEach { store.deleteJob(it.id) }
+        FeedRecords.removed(store, treeId, why, geniId, name, now())
         host.refreshScreens()
         return true
     }

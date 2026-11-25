@@ -67,6 +67,9 @@ data class PhotoLinkEntity(
     val state: String
 )
 
+@Entity(tableName = "feed_event", primaryKeys = ["treeId", "kind", "geniId"])
+data class FeedRecordEntity(val treeId: Int, val kind: String, val geniId: String, val gedcomId: String?, val name: String?, val atMillis: Long)
+
 @Dao
 interface SyncDao {
     @Query("SELECT * FROM tree WHERE treeId = :treeId")
@@ -149,9 +152,21 @@ interface SyncDao {
 
     @Query("DELETE FROM photo_link WHERE treeId = :treeId")
     suspend fun deletePhotoLinks(treeId: Int)
+
+    @Upsert
+    suspend fun saveFeedRecords(records: List<FeedRecordEntity>)
+
+    @Query("DELETE FROM feed_event WHERE atMillis < :sinceMillis")
+    suspend fun pruneFeedRecords(sinceMillis: Long)
+
+    @Query("SELECT * FROM feed_event WHERE treeId = :treeId AND atMillis >= :sinceMillis")
+    suspend fun feedRecords(treeId: Int, sinceMillis: Long): List<FeedRecordEntity>
+
+    @Query("DELETE FROM feed_event WHERE treeId = :treeId")
+    suspend fun deleteFeedRecords(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class], version = 6, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class, FeedRecordEntity::class], version = 7, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -203,8 +218,18 @@ abstract class SyncDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 7: events of the Home feed that the tree cannot tell (profiles created on Geni, people who left the tree). */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `feed_event` (`treeId` INTEGER NOT NULL, `kind` TEXT NOT NULL, `geniId` TEXT NOT NULL, " +
+                            "`gedcomId` TEXT, `name` TEXT, `atMillis` INTEGER NOT NULL, PRIMARY KEY(`treeId`, `kind`, `geniId`))"
+                )
+            }
+        }
+
         /** Every migration, in order: the app and the tests open the database with this same list. */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
     }
 }
 
@@ -256,7 +281,18 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     override suspend fun deletePhotoLink(treeId: Int, geniProfileId: String, geniPhotoId: String) =
         dao.deletePhotoLink(treeId, geniProfileId, geniPhotoId)
 
+    override suspend fun saveFeedRecords(records: List<FeedRecord>, keepSinceMillis: Long) {
+        dao.saveFeedRecords(records.map { FeedRecordEntity(it.treeId, it.kind.name, it.geniId, it.gedcomId, it.name, it.atMillis) })
+        dao.pruneFeedRecords(keepSinceMillis)
+    }
+
+    override suspend fun feedRecords(treeId: Int, sinceMillis: Long) = dao.feedRecords(treeId, sinceMillis).mapNotNull { row ->
+        // A kind written by a newer build is skipped, not a crash
+        FeedRecordKind.entries.firstOrNull { it.name == row.kind }?.let { FeedRecord(row.treeId, it, row.geniId, row.gedcomId, row.name, row.atMillis) }
+    }
+
     override suspend fun deleteTree(treeId: Int) {
+        dao.deleteFeedRecords(treeId)
         dao.deletePhotoLinks(treeId)
         dao.deleteJobs(treeId)
         dao.deleteLinks(treeId)

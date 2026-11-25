@@ -137,7 +137,7 @@ open class Uploader(
             return Outcome.Retry("the Geni login changed; the account is checked again")
         }
         // Geni has deleted it: a failure here must not make the job post the delete again
-        bestEffort { PersonRemoval(store, host).removeFromTree(job.treeId, geniId) }
+        bestEffort { PersonRemoval(store, host).removeFromTree(job.treeId, geniId, FeedRecordKind.DELETED_ON_GENI) }
         bestEffort { store.deleteLink(job.treeId, geniId) }
         return Outcome.Done
     }
@@ -240,6 +240,7 @@ open class Uploader(
             }
             host.refreshScreens()
         }
+        FeedRecords.addedHere(store, treeId, profileId, personId, now())
         bestEffort {
             refreshSnapshot(treeId, profileId)
             (unionId ?: familyLink?.geniId)?.let { refreshSnapshot(treeId, it) }

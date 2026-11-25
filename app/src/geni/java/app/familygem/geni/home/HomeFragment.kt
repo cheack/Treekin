@@ -1,6 +1,7 @@
 package app.familygem.geni.home
 
 import android.content.Intent
+import android.util.Log
 import android.os.Bundle
 import android.text.format.DateUtils
 import android.view.LayoutInflater
@@ -13,6 +14,7 @@ import android.widget.TextView
 import androidx.appcompat.app.ActionBar
 import androidx.core.view.ViewCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.familygem.Global
@@ -22,13 +24,21 @@ import app.familygem.U
 import app.familygem.detail.FamilyActivity
 import app.familygem.main.BaseFragment
 import app.familygem.profile.ProfileActivity
+import app.familygem.geni.Geni
+import app.familygem.geni.sync.FeedRecord
 import app.familygem.util.FileUtil
 import app.familygem.util.sex
 import com.bumptech.glide.Glide
 import org.folg.gedcom.model.Person
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import app.familygem.geni.R as GR
 
 /** Treekin's first screen of a tree: upcoming birthdays and recent events of the people on this device. */
@@ -45,8 +55,8 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
 
     private sealed class Item {
         data class Header(val text: String) : Item()
-        /** [partner] is the second partner of a wedding anniversary. */
-        data class Row(val event: FeedEvent, val person: Person, val partner: Person?, val upcoming: Boolean) : Item()
+        /** [person] is null for a removal (the person left the tree); [partner] is the second partner of a wedding anniversary. */
+        data class Row(val event: FeedEvent, val person: Person?, val partner: Person?, val upcoming: Boolean) : Item()
     }
 
     private val items = mutableListOf<Item>()
@@ -86,11 +96,34 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
         super.onResume()
     }
 
+    private var loading: Job? = null
+
+    /** Reads the sync's records off the main thread, then builds the feed from them and the tree. */
     override fun showContent() {
+        val treeId = Global.settings.openTree
+        val context = requireContext().applicationContext
+        loading?.cancel()
+        loading = viewLifecycleOwner.lifecycleScope.launch {
+            val since = Instant.now().minus(RecentEvents.RECENT_DAYS + 1, ChronoUnit.DAYS).toEpochMilli()
+            val records = try {
+                withContext(Dispatchers.IO) { Geni.store(context).feedRecords(treeId, since) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("GeniHome", "Feed records not read", e)
+                emptyList()
+            }
+            if (Global.settings.openTree == treeId) render(records)
+        }
+    }
+
+    private fun render(records: List<FeedRecord>) {
         val gedcom = Global.gc ?: return
         val zone = ZoneId.systemDefault()
         val now = Instant.now()
-        val feed = RecentEvents.build(gedcom.people.orEmpty(), gedcom.families.orEmpty(), Global.settings.currentTree.settings.lifeSpan, now, zone)
+        val feed = RecentEvents.build(
+            gedcom.people.orEmpty(), gedcom.families.orEmpty(), Global.settings.currentTree.settings.lifeSpan, now, zone, records
+        )
         val today = now.atZone(zone).toLocalDate()
         items.clear()
         if (feed.upcoming.isNotEmpty()) {
@@ -110,6 +143,7 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
     }
 
     private fun row(gedcom: org.folg.gedcom.model.Gedcom, event: FeedEvent, upcoming: Boolean): Item.Row? {
+        if (event.kind.isRemoval) return Item.Row(event, null, null, upcoming)
         val person = gedcom.getPerson(event.personId) ?: return null
         val partner = event.partnerId?.let { gedcom.getPerson(it) ?: return null }
         return Item.Row(event, person, partner, upcoming)
@@ -139,10 +173,15 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
         startActivity(Intent(requireContext(), FamilyActivity::class.java))
     }
 
-    /** The person's main photo, or a silhouette by sex when there is none: every row has a picture. */
-    private fun showPhoto(image: ImageView, person: Person) {
+    /** The person's main photo, or a silhouette by sex when there is none (or the person is gone): every row has a picture. */
+    private fun showPhoto(image: ImageView, person: Person?) {
         Glide.with(image).clear(image) // A recycled row may still be loading another person's photo
         image.setImageDrawable(null)
+        if (person == null) {
+            image.visibility = View.VISIBLE
+            image.setImageResource(R.drawable.geni_silhouette)
+            return
+        }
         FileUtil.showMainMedia(person, image)
         if (image.visibility != View.VISIBLE) {
             image.visibility = View.VISIBLE
@@ -172,7 +211,7 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
         private fun bindRow(view: View, item: Item.Row) {
             val event = item.event
             val person = item.person
-            val name = U.properName(person)
+            val name = person?.let { U.properName(it) } ?: event.name ?: event.personId
             view.findViewById<TextView>(R.id.geni_home_name).text = item.partner?.let { "$name & ${U.properName(it)}" } ?: name
             val parts = mutableListOf<String>()
             if (item.upcoming) parts += dayText(event.date, LocalDate.now(), ZoneId.systemDefault(), short = true)
@@ -185,7 +224,11 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
                 }
                 FeedEvent.Kind.WEDDING_ANNIVERSARY -> parts += resources.getQuantityString(GR.plurals.geni_home_wedding_years, years, years)
                 FeedEvent.Kind.MEMORIAL -> parts += resources.getQuantityString(GR.plurals.geni_home_memorial_years, years, years)
+                FeedEvent.Kind.PROFILE_ADDED -> parts += getString(GR.string.geni_home_profile_added)
                 FeedEvent.Kind.PROFILE_UPDATED -> parts += getString(GR.string.geni_home_profile_updated)
+                FeedEvent.Kind.GONE_ON_GENI -> parts += getString(GR.string.geni_home_gone_on_geni)
+                FeedEvent.Kind.DELETED_ON_GENI -> parts += getString(GR.string.geni_home_deleted_on_geni)
+                FeedEvent.Kind.REMOVED_FROM_DEVICE -> parts += getString(GR.string.geni_home_removed_from_device)
             }
             view.findViewById<TextView>(R.id.geni_home_detail).apply {
                 text = parts.joinToString(" · ")
@@ -193,12 +236,18 @@ class HomeFragment : BaseFragment(R.layout.geni_home_fragment) {
                     FeedEvent.Kind.BIRTHDAY -> GR.drawable.geni_cake
                     FeedEvent.Kind.WEDDING_ANNIVERSARY -> GR.drawable.geni_heart
                     FeedEvent.Kind.MEMORIAL -> GR.drawable.geni_flower
+                    FeedEvent.Kind.PROFILE_ADDED -> GR.drawable.geni_person_add
                     FeedEvent.Kind.PROFILE_UPDATED -> GR.drawable.geni_edit
+                    FeedEvent.Kind.GONE_ON_GENI, FeedEvent.Kind.DELETED_ON_GENI, FeedEvent.Kind.REMOVED_FROM_DEVICE -> GR.drawable.geni_person_remove
                 }
                 setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
             }
             showPhoto(view.findViewById(R.id.geni_home_image), person)
-            view.findViewById<View>(R.id.geni_home_person).setOnClickListener {
+            val target = view.findViewById<View>(R.id.geni_home_person)
+            if (person == null) { // Nothing to open: the person left the tree
+                target.setOnClickListener(null)
+                target.isClickable = false
+            } else target.setOnClickListener {
                 // A wedding anniversary opens the couple's family, the other events the person
                 event.familyId?.let { openFamily(it) } ?: openProfile(person)
             }

@@ -2,6 +2,9 @@ package app.familygem.geni.home
 
 import app.familygem.DateConverter
 import app.familygem.constant.Format
+import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.sync.FeedRecord
+import app.familygem.geni.sync.FeedRecordKind
 import org.folg.gedcom.model.EventFact
 import org.folg.gedcom.model.Family
 import org.folg.gedcom.model.Person
@@ -17,7 +20,7 @@ import java.time.ZonedDateTime
  */
 data class FeedEvent(
     val kind: Kind,
-    /** The person of the event; for a wedding anniversary the first partner. */
+    /** The person of the event; for a wedding anniversary the first partner; for a removal the Geni profile, since the person is gone. */
     val personId: String,
     val date: LocalDate,
     val years: Int = 0,
@@ -25,10 +28,17 @@ data class FeedEvent(
     val changedAt: Instant? = null,
     /** Wedding anniversaries only: the family and the second partner. */
     val familyId: String? = null,
-    val partnerId: String? = null
+    val partnerId: String? = null,
+    /** Removals only: the name the person had when it left the tree. */
+    val name: String? = null
 ) {
     /** In the order they are listed within one day. */
-    enum class Kind { BIRTHDAY, WEDDING_ANNIVERSARY, MEMORIAL, PROFILE_UPDATED }
+    enum class Kind {
+        BIRTHDAY, WEDDING_ANNIVERSARY, MEMORIAL, PROFILE_ADDED, PROFILE_UPDATED, GONE_ON_GENI, DELETED_ON_GENI, REMOVED_FROM_DEVICE;
+
+        /** The person has left the tree: the row has only a name. */
+        val isRemoval get() = this == GONE_ON_GENI || this == DELETED_ON_GENI || this == REMOVED_FROM_DEVICE
+    }
 }
 
 /** Upcoming yearly events (soonest first) and the recent events grouped by day (newest day first, today included). */
@@ -50,7 +60,12 @@ object RecentEvents {
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
-    fun build(people: List<Person>, families: List<Family>, lifeSpan: Int, now: Instant, zone: ZoneId): Feed {
+    /**
+     * @param records What the sync recorded and the tree cannot tell: profiles created on Geni, people who left the tree
+     */
+    fun build(
+        people: List<Person>, families: List<Family>, lifeSpan: Int, now: Instant, zone: ZoneId, records: List<FeedRecord> = emptyList()
+    ): Feed {
         val today = now.atZone(zone).toLocalDate()
         val upcomingEnd = today.plusDays(UPCOMING_DAYS)
         val recentStart = today.minusDays(RECENT_DAYS)
@@ -89,6 +104,25 @@ object RecentEvents {
             if (partners.size != 2 || partners.any { it !in living }) continue
             yearly(marriage) { date, years ->
                 FeedEvent(FeedEvent.Kind.WEDDING_ANNIVERSARY, partners[0], date, years, familyId = familyId, partnerId = partners[1])
+            }
+        }
+        val byId = people.associateBy { it.id }
+        for (record in records) {
+            val at = Instant.ofEpochMilli(record.atMillis)
+            if (at.isAfter(now)) continue
+            val date = at.atZone(zone).toLocalDate()
+            if (date.isBefore(recentStart)) continue
+            recent += when (record.kind) {
+                FeedRecordKind.ADDED -> {
+                    // Only while the person is still in the tree under that profile (its GEDCOM ID may have been reused)
+                    val person = record.gedcomId?.let { byId[it] } ?: continue
+                    if (GeniMapper.getGeniId(person) != record.geniId) continue
+                    FeedEvent(FeedEvent.Kind.PROFILE_ADDED, person.id, date, changedAt = at)
+                }
+                FeedRecordKind.GONE_ON_GENI -> FeedEvent(FeedEvent.Kind.GONE_ON_GENI, record.geniId, date, changedAt = at, name = record.name)
+                FeedRecordKind.DELETED_ON_GENI -> FeedEvent(FeedEvent.Kind.DELETED_ON_GENI, record.geniId, date, changedAt = at, name = record.name)
+                FeedRecordKind.REMOVED_FROM_DEVICE ->
+                    FeedEvent(FeedEvent.Kind.REMOVED_FROM_DEVICE, record.geniId, date, changedAt = at, name = record.name)
             }
         }
         upcoming.sortWith(compareBy<FeedEvent> { it.date }.thenBy { it.kind }.thenBy { it.personId })

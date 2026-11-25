@@ -66,6 +66,7 @@ class GeniLoader(
                 )
             }
             store.saveLinks(links)
+            FeedRecords.added(store, treeId, profiles.values.map { it.first }, links.associate { it.geniId to it.gedcomId }, now())
             host.refreshScreens() // Before the photos: a download must not delay the card
             if (syncPhotos(treeId, profiles.values.map { it.first }, links)) host.refreshScreens()
             LoadResult.Loaded(newPeople = links.count { it.geniId.startsWith("profile-") && it.geniId !in existing }, profileId = geniProfileId)
@@ -107,13 +108,17 @@ class GeniLoader(
         val link = store.link(treeId, profile.id) ?: return LoadResult.Gone(removed = false)
         val survivor = profile.mergedInto?.let { geniId(it) }?.takeIf { store.link(treeId, it) == null }
         var emptied = emptyList<String>()
+        var name: String? = null
         val action = host.edit(treeId) { gedcom ->
             val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId && GeniMapper.getGeniId(it) == profile.id }
             when {
                 person == null -> GoneAction.MISSING
                 GoneProfiles.hasLocalWork(person, link) -> GoneAction.KEPT
                 survivor != null -> GoneAction.MOVED.also { GeniMapper.setGeniId(person, survivor) }
-                else -> GoneAction.REMOVED.also { emptied = GoneProfiles.remove(gedcom, person.id) }
+                else -> GoneAction.REMOVED.also {
+                    name = FeedRecords.displayName(person)
+                    emptied = GoneProfiles.remove(gedcom, person.id)
+                }
             }
         }
         if (action == GoneAction.KEPT) return LoadResult.Gone(removed = false)
@@ -124,6 +129,7 @@ class GeniLoader(
             return load(treeId, survivor)
         }
         emptied.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }
+        if (action == GoneAction.REMOVED) FeedRecords.removed(store, treeId, FeedRecordKind.GONE_ON_GENI, profile.id, name, now())
         host.refreshScreens()
         return LoadResult.Gone(removed = true)
     }

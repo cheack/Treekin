@@ -2,6 +2,9 @@ package app.familygem.geni.home
 
 import app.familygem.geni.home.FeedEvent.Kind.BIRTHDAY
 import app.familygem.geni.home.FeedEvent.Kind.PROFILE_UPDATED
+import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.sync.FeedRecord
+import app.familygem.geni.sync.FeedRecordKind
 import org.folg.gedcom.model.Change
 import org.folg.gedcom.model.DateTime
 import org.folg.gedcom.model.EventFact
@@ -37,8 +40,10 @@ class RecentEventsTest {
             }
         }
 
-    private fun build(vararg people: Person, now: Instant = at("2026-11-25"), lifeSpan: Int = 120, families: List<Family> = emptyList()) =
-        RecentEvents.build(people.toList(), families, lifeSpan, now, zone)
+    private fun build(
+        vararg people: Person, now: Instant = at("2026-11-25"), lifeSpan: Int = 120, families: List<Family> = emptyList(),
+        records: List<FeedRecord> = emptyList()
+    ) = RecentEvents.build(people.toList(), families, lifeSpan, now, zone, records)
 
     private fun family(id: String, vararg partners: String, marriage: String? = null, divorced: Boolean = false) = Family().apply {
         this.id = id
@@ -203,5 +208,42 @@ class RecentEventsTest {
         )
         assertEquals(listOf(FeedEvent.Kind.BIRTHDAY, FeedEvent.Kind.WEDDING_ANNIVERSARY, FeedEvent.Kind.MEMORIAL, FeedEvent.Kind.PROFILE_UPDATED),
             feed.recent.single().second.map { it.kind })
+    }
+
+    private fun record(kind: FeedRecordKind, geniId: String, at: Instant, gedcomId: String? = null, name: String? = null) =
+        FeedRecord(1, kind, geniId, gedcomId, name, at.toEpochMilli())
+
+    private fun geniPerson(id: String, geniId: String) = person(id).also { GeniMapper.setGeniId(it, geniId) }
+
+    @Test
+    fun `profile added only while the person is in the tree under that profile`() {
+        val feed = build(
+            geniPerson("I1", "profile-1"), geniPerson("I2", "profile-other"),
+            records = listOf(
+                record(FeedRecordKind.ADDED, "profile-1", at("2026-11-24", "09:00"), gedcomId = "I1"),
+                record(FeedRecordKind.ADDED, "profile-2", at("2026-11-24"), gedcomId = "I2"), // ID reused by another profile
+                record(FeedRecordKind.ADDED, "profile-3", at("2026-11-24"), gedcomId = "I3") // No longer in the tree
+            )
+        )
+        assertEquals(listOf(FeedEvent(FeedEvent.Kind.PROFILE_ADDED, "I1", LocalDate.of(2026, 11, 24), changedAt = at("2026-11-24", "09:00"))),
+            feed.recent.flatMap { it.second })
+    }
+
+    @Test
+    fun `removals keep the name and skip old and future records`() {
+        val feed = build(
+            records = listOf(
+                record(FeedRecordKind.GONE_ON_GENI, "profile-1", at("2026-11-20"), name = "Ivan P"),
+                record(FeedRecordKind.DELETED_ON_GENI, "profile-2", at("2026-11-20", "08:00"), name = "Anna P"),
+                record(FeedRecordKind.REMOVED_FROM_DEVICE, "profile-3", at("2026-11-20", "07:00"), name = "Petr P"),
+                record(FeedRecordKind.REMOVED_FROM_DEVICE, "profile-4", at("2026-08-26"), name = "Old"),
+                record(FeedRecordKind.REMOVED_FROM_DEVICE, "profile-5", at("2026-11-25", "13:00"), name = "Future")
+            )
+        )
+        assertEquals(listOf(
+            Triple(FeedEvent.Kind.GONE_ON_GENI, "profile-1", "Ivan P"),
+            Triple(FeedEvent.Kind.DELETED_ON_GENI, "profile-2", "Anna P"),
+            Triple(FeedEvent.Kind.REMOVED_FROM_DEVICE, "profile-3", "Petr P")
+        ), feed.recent.single().second.map { Triple(it.kind, it.personId, it.name) })
     }
 }
