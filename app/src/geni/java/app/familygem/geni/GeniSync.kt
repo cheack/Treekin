@@ -34,6 +34,8 @@ object GeniSync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val running = mutableSetOf<Int>()
     private val again = mutableSetOf<Int>()
+    /** Number of the latest run of each tree, guarded by [running]: an older run never overwrites a newer run's wait. */
+    private val generations = mutableMapOf<Int, Long>()
     private val delays = mutableMapOf<Int, Long>()
     /** The one waiting retry of each tree; [resume] cancels it, so a tree never has two retry chains. */
     private val retries = mutableMapOf<Int, Job>()
@@ -56,12 +58,13 @@ object GeniSync {
     /** Runs the pending jobs of a tree, or asks the run in progress to look again when it ends. */
     fun kick(context: Context, treeId: Int) {
         val app = context.applicationContext
-        synchronized(running) {
+        val generation = synchronized(running) {
             if (treeId in running) {
                 again += treeId
                 return
             }
             running += treeId
+            (generations[treeId] ?: 0L).plus(1).also { generations[treeId] = it }
         }
         scope.launch {
             var result = RunResult.RETRY_LATER
@@ -82,8 +85,9 @@ object GeniSync {
                 }
                 if (rerun && result != RunResult.RETRY_LATER) kick(app, treeId)
             }
-            // A run started meanwhile (by the rerun above or another trigger) owns the tree's wait state
-            fun showWait(wait: TreeWait?) = synchronized(running) { if (treeId !in running) Geni.uploadWaits.set(treeId, wait) }
+            // Only the latest run of the tree publishes its wait: one started meanwhile (by the rerun above or another trigger)
+            // owns the state, even if it already ended
+            fun showWait(wait: TreeWait?) = synchronized(running) { if (generations[treeId] == generation) Geni.uploadWaits.set(treeId, wait) }
             when (result) {
                 RunResult.EMPTY -> {
                     synchronized(delays) { delays.remove(treeId) }

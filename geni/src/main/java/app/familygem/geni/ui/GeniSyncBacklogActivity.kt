@@ -123,13 +123,39 @@ class GeniSyncBacklogActivity : AppCompatActivity() {
         if (items.isEmpty()) return showMessage(getString(R.string.geni_backlog_empty))
         message.visibility = View.GONE
         scroll.visibility = View.VISIBLE
-        list.removeAllViews()
+        val focusedKey = focusedRowKey()
+        // Views are kept by key and filled again in place: a progress update leaves the list and the focus as they are
+        val wanted = mutableListOf<View>()
         for (section in BacklogSection.entries) {
             val rows = items.filter { it.section == section }
             if (rows.isEmpty()) continue
-            list.addView(header(section))
-            for (item in rows) list.addView(row(item, state.names, host?.treeTitle(item.treeId)))
+            wanted += headers.getOrPut(section) { header(section) }
+            for (item in rows) wanted += rowFor(item.key).also { it.bind(item, state.names, host?.treeTitle(item.treeId)) }.view
         }
+        val keys = items.map { it.key }.toSet()
+        rowViews.keys.retainAll(keys) // Finished work leaves
+        val unchanged = list.childCount == wanted.size && wanted.indices.all { list.getChildAt(it) === wanted[it] }
+        if (!unchanged) {
+            list.removeAllViews()
+            wanted.forEach { list.addView(it) }
+            // A row that moved to another section was detached: the keyboard focus goes back to it
+            focusedKey?.let { key -> rowViews[key]?.view?.takeIf { it.isFocusable && !it.hasFocus() }?.requestFocus() }
+        }
+    }
+
+    private val headers = mutableMapOf<BacklogSection, View>()
+    private val rowViews = mutableMapOf<String, Row>()
+
+    private fun rowFor(key: String) = rowViews.getOrPut(key) { Row(key) }
+
+    /** Key of the row holding the keyboard focus, if any. */
+    private fun focusedRowKey(): String? {
+        var view: View? = list.findFocus()
+        while (view != null && view !== list) {
+            (view.tag as? String)?.let { return it }
+            view = view.parent as? View
+        }
+        return null
     }
 
     private fun showMessage(text: String) {
@@ -164,48 +190,60 @@ class GeniSyncBacklogActivity : AppCompatActivity() {
         if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
     }
 
-    private fun row(item: BacklogItem, names: Map<Pair<Int, String>, String>, treeTitle: String?): View {
-        val target = item.target ?: item.targetGeniId?.let { names[item.treeId to it] }
-        val layout = LinearLayout(this).apply {
+    /** The views of one backlog row, kept while its key stays in the list. */
+    private inner class Row(key: String) {
+        private val operation = TextView(this@GeniSyncBacklogActivity).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f) }
+        private val where = TextView(this@GeniSyncBacklogActivity).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f) }
+        private val status = TextView(this@GeniSyncBacklogActivity).apply {
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            alpha = 0.7f
+        }
+        private val progress = ProgressBar(this@GeniSyncBacklogActivity, null, android.R.attr.progressBarStyleHorizontal)
+        val view = LinearLayout(this@GeniSyncBacklogActivity).apply {
+            tag = key
             orientation = LinearLayout.VERTICAL
             setPadding((16 * dp).toInt(), (8 * dp).toInt(), (16 * dp).toInt(), (8 * dp).toInt())
-            addView(TextView(context).apply {
-                text = getString(operationLabel(item.operation))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            })
-            listOfNotNull(treeTitle, target).joinToString(" · ").takeIf { it.isNotEmpty() }?.let { line ->
-                addView(TextView(context).apply {
-                    text = line
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                })
-            }
-            addView(TextView(context).apply {
-                text = statusText(item, names)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                alpha = 0.7f
-            })
+            addView(operation)
+            addView(where)
+            addView(status)
+            addView(progress, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
         }
-        if (item.section == BacklogSection.IN_PROGRESS) {
-            val total = item.total
-            layout.addView(ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+
+        fun bind(item: BacklogItem, names: Map<Pair<Int, String>, String>, treeTitle: String?) {
+            val target = item.target ?: item.targetGeniId?.let { names[item.treeId to it] }
+            operation.text = getString(operationLabel(item.operation))
+            val line = listOfNotNull(treeTitle, target).joinToString(" · ")
+            where.text = line
+            where.visibility = if (line.isEmpty()) View.GONE else View.VISIBLE
+            status.text = statusText(item, names)
+            if (item.section == BacklogSection.IN_PROGRESS) {
+                progress.visibility = View.VISIBLE
+                val total = item.total
                 // A branch pass, a listing or a single file has no known size
-                isIndeterminate = total == null || total == 0
-                if (total != null && total > 0) {
-                    max = total
-                    progress = item.done ?: 0
+                val known = total != null && total > 0
+                if (progress.isIndeterminate != !known) progress.isIndeterminate = !known
+                if (known) {
+                    progress.max = total!!
+                    progress.progress = item.done ?: 0
                 }
-            }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-        }
-        if (item.section == BacklogSection.NEEDS_ATTENTION) {
+            } else progress.visibility = View.GONE
             // Retry, dismiss and conflict choices stay in the account screen, with the warning before a retried add
-            layout.isClickable = true
-            layout.isFocusable = true
-            val outValue = TypedValue()
-            theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
-            layout.setBackgroundResource(outValue.resourceId)
-            layout.setOnClickListener { startActivity(Intent(this, GeniLoginActivity::class.java)) }
+            val attention = item.section == BacklogSection.NEEDS_ATTENTION
+            if (view.isClickable != attention) {
+                view.isClickable = attention
+                view.isFocusable = attention
+                if (attention) {
+                    val outValue = TypedValue()
+                    theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+                    view.setBackgroundResource(outValue.resourceId)
+                    view.setOnClickListener { startActivity(Intent(this@GeniSyncBacklogActivity, GeniLoginActivity::class.java)) }
+                } else {
+                    view.background = null
+                    view.setOnClickListener(null)
+                    view.isClickable = false // setOnClickListener(null) leaves it clickable
+                }
+            }
         }
-        return layout
     }
 
     private fun statusText(item: BacklogItem, names: Map<Pair<Int, String>, String>): String = when (val status = item.status) {
