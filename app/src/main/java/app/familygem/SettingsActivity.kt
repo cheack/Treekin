@@ -50,13 +50,7 @@ class SettingsActivity : BaseActivity(R.string.settings) {
             Global.settings.save()
         }
 
-        // Load tree at startup
-        val loadSwitch = binding.settingsLoadTree
-        loadSwitch.isChecked = Global.settings.loadTree
-        loadSwitch.setOnCheckedChangeListener { _, checked ->
-            Global.settings.loadTree = checked
-            Global.settings.save()
-        }
+        // GENI-HOOK no "Load tree at startup" switch: every launch opens the saved tree on Home
 
         // Expert mode
         val expertSwitch = binding.settingsExpert

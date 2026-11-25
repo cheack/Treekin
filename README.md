@@ -9,7 +9,8 @@ Treekin is a fork of [Family Gem](https://github.com/michelesalvador/FamilyGem) 
   To start over with another account, delete the tree in the trees list (**Delete tree**, confirmed), then sign in.
 - **Offline.** The tree and its photos are stored on the device, so you can open and edit it without a connection. Logging out keeps the tree and the edits waiting to be uploaded; they go to Geni after you sign in again.
 - **No other way to make a tree.** There is no blank tree, example tree, GEDCOM import, shared-tree link or backup restore: opening a `.ged` file or a Family Gem share link does nothing.
-- **Export.** You can still export the tree as GEDCOM (also zipped with its media), save a ZIP backup of it, and export the diagram as PDF or PNG.
+- **Home first.** Launching the app opens the saved tree on **Home** (upcoming birthdays and recent events). The graphical view of the tree is called **Tree** in the menu; Back from the tree leads to the trees list, where the Geni account, the sync backlog and the tree itself are managed.
+- **Export.** You can still export the tree as GEDCOM (also zipped with its media), save a ZIP backup of it, and export the Tree view as PDF or PNG.
 
 ---
 

@@ -297,16 +297,24 @@ class TreesActivity : AppCompatActivity() {
         }
 
         // Automatic load of last opened tree of previous session
-        if ((!birthdayNotifyTapped(intent) && !autoOpenedTree && intent.getBooleanExtra(Extra.AUTO_LOAD_TREE, false))
-            && Global.settings.openTree > 0
-        ) {
-            progress.visibility = View.VISIBLE
-            lifecycleScope.launch(IO) {
-                if (TreeUtil.openGedcom(Global.settings.openTree, false)) {
-                    autoOpenedTree = true
-                    startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity)) // GENI-HOOK opens on Home
-                } else withContext(Main) { progress.visibility = View.GONE }
-            }
+        if (!birthdayNotifyTapped(intent) && !autoOpenedTree && intent.getBooleanExtra(Extra.AUTO_LOAD_TREE, false))
+            autoLoadTree() // GENI-HOOK
+    }
+
+    /** GENI-HOOK opens the startup tree on Home; the tree already in memory is reused, so unsaved edits survive. */
+    private fun autoLoadTree() {
+        if (app.familygem.geni.home.StartupTree.consumeSkip(this)) return // The previous run crashed
+        val treeId = app.familygem.geni.home.StartupTree.pick(Global.settings.openTree, Global.settings.trees.map { it.id })
+        if (treeId == 0) return
+        progress.visibility = View.VISIBLE
+        if (Global.gc != null && treeId == Global.settings.openTree) {
+            autoOpenedTree = true
+            startActivity(app.familygem.geni.home.HomeFragment.intent(this))
+        } else lifecycleScope.launch(IO) {
+            if (TreeUtil.openGedcom(treeId, true)) {
+                autoOpenedTree = true
+                startActivity(app.familygem.geni.home.HomeFragment.intent(this@TreesActivity))
+            } else withContext(Main) { progress.visibility = View.GONE }
         }
     }
 
@@ -456,7 +464,11 @@ class TreesActivity : AppCompatActivity() {
     // New intent coming from a tapped notification
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        birthdayNotifyTapped(intent)
+        // GENI-HOOK a launch reaching the list already open (singleTask) opens Home too
+        if (!birthdayNotifyTapped(intent) && intent.getBooleanExtra(Extra.AUTO_LOAD_TREE, false)) {
+            setIntent(intent)
+            autoLoadTree()
+        }
     }
 
     /**
@@ -469,7 +481,7 @@ class TreesActivity : AppCompatActivity() {
             lifecycleScope.launch(IO) {
                 if (TreeUtil.openGedcom(treeId, true)) {
                     Global.indi = intent.getStringExtra(Notifier.PERSON_ID_KEY)
-                    startActivity(Intent(this@TreesActivity, MainActivity::class.java))
+                    startActivity(app.familygem.geni.home.HomeFragment.treeIntent(this@TreesActivity)) // GENI-HOOK shows the person in Tree
                     Notifier(this@TreesActivity, Global.gc, treeId, Notifier.What.DEFAULT) // Actually deletes present notification
                 } else withContext(Main) { progress.visibility = View.GONE }
             }

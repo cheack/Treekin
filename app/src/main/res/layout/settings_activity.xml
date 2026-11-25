@@ -16,12 +16,7 @@
         android:layout_height="wrap_content"
         android:text="@string/auto_save" />
 
-    <androidx.appcompat.widget.SwitchCompat
-        android:id="@+id/settings_loadTree"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="@string/load_tree_startup" />
+    <!-- GENI-HOOK no "Load tree at startup" switch -->
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/settings_expert"
