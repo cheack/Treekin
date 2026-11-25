@@ -234,6 +234,7 @@ One live screen, **Sync backlog** in the trees menu, for every Geni tree: what i
 - [ ] Failed and conflicting jobs under Needs attention, dismiss or resolve them in Geni account and watch the backlog update
 - [ ] Deleting the tree removes its rows; reopening signed out
 - [ ] Direct person refresh, daily refresh, album listing, a single photo and Download all one by one on a device (unit tests cover the loader side)
+- [ ] A download still queued or running when its tree is deleted can show under a new tree that reuses the ID; bind rows to a tree incarnation, not the numeric ID (CodeRabbit security summary, PR #30)
 
 ## Other tasks
 
@@ -265,6 +266,7 @@ One live screen, **Sync backlog** in the trees menu, for every Geni tree: what i
 
 One line per merged PR or finished stage, newest first: what now works for the user, and the PR.
 
+- 2026-11-25: **Sync backlog** in the trees menu shows live what is sent to Geni, downloaded, waiting (with the reason) and what needs attention, also offline or signed out (PR [#30](https://github.com/cheack/Treekin/pull/30)).
 - 2026-11-24: Treekin keeps one tree: the first Geni login creates it, later logins of the same account reopen it (offline too), another account is refused until the tree is deleted, and there is no other way to make a tree (no Add tree, GEDCOM or share-link import, backup restore) (PR [#29](https://github.com/cheack/Treekin/pull/29)).
 - 2026-11-24: Settings → Appearance with Original, Geni Light (the default) and Geni Dark: the whole app and the family tree diagram change at once, and the choice survives a restart; Geni cards have gradients, framed photos or silhouettes, and a mourning band (PR [#28](https://github.com/cheack/Treekin/pull/28)).
 - 2026-11-24: After a photo is deleted on Geni, an older profile response or a download already running no longer brings it back or replaces the new main photo, in the profile loader and the album download alike; this holds until the app restarts (PR [#27](https://github.com/cheack/Treekin/pull/27)).
