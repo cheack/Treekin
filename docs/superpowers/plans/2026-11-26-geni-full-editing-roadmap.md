@@ -108,4 +108,6 @@ What the user gets: a duplicate found in the app can be merged on Geni (or a mer
 
 1 → 2 → 3 change the profile projection, `GeniParams` and the snapshot overlay, so they go one after another. 4 needs no writes and can go any time. 5 depends on how the relatives sync builds family links. 6 → 7 share the media pattern. 8 is independent.
 
+This roadmap goes before the modern UI roadmap ([2026-11-26-modern-ui-roadmap.md](2026-11-26-modern-ui-roadmap.md)). The new fields are built in today's screens (`GeniProfileEditor`, the Facts and media tabs), and the UI rebuild takes them over with their tests.
+
 Each stage gets its own detailed plan (tasks, tests, sandbox checks) before work starts, like [2026-11-26-geni-profile-edit-fields.md](2026-11-26-geni-profile-edit-fields.md).

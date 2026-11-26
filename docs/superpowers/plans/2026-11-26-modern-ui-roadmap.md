@@ -72,7 +72,7 @@ Replaces `PersonEditorActivity` and the event screen for synced facts.
 
 - Sections from the mockup (Names, Life events, About, Privacy), editing in place or in sheets; date entry reuses upstream's date parser and a new picker UI.
 - Same rules as PR #34's `GeniProfileEditor` (only changed fields, validation, legacy records), which move from View binding to a ViewModel and keep their tests.
-- New fields from the full-editing roadmap (date ranges, privacy, other languages) are built here, not in the old form. So this stage comes before full-editing stage 2.
+- The fields added by the full-editing roadmap (built first, in the old form) move here with their tests.
 
 ### 5. Family and adding relatives
 
@@ -108,6 +108,8 @@ Replaces the persons list.
 
 ## Order with the full-editing roadmap
 
-UI 0 → UI 1 → full-editing 1 (dates and places, data layer only) → UI 2 → UI 3 → UI 4 (with full-editing 2–3 in the new editor) → full-editing 4–5 with UI 5 → UI 6, 7 → full-editing 6–8 → UI 8.
+Decided 2026-11-26: the full-editing roadmap goes first, all of it, in the current screens. Then UI 0 → 8. The design must cover every field and screen the app will have (date ranges, privacy, other languages, read-only Geni data, adoption, photo tags, documents, videos, merge), and designing before those exist would mean redesigning.
+
+The first exploration from 2026-11-26 stays as input to stage 0: the [Treekin UI directions](https://claude.ai/artifact/8aAr3fXFUMUbN1oikZEuGv) canvas, with direction A "Expressive" (Material 3 Expressive) and B "Quiet" (minimal), each with Home, Profile and Edit profile. No direction was chosen yet.
 
 Each stage gets its own detailed plan (tasks, tests, emulator checks) before work starts.
