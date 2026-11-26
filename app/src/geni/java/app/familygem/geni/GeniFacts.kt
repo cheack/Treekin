@@ -77,6 +77,13 @@ object GeniFacts {
         return true
     }
 
+    /** In a Geni tree the main name is edited in the Modify form, with first, middle and display names. True if opened. */
+    fun editName(activity: Activity, person: Person?, name: Any?): Boolean {
+        if (person == null || !isGeniTree() || name !== person.names.orEmpty().firstOrNull { it.type != "birth" }) return false
+        activity.startActivity(Intent(activity, PersonEditorActivity::class.java).putExtra(Extra.PERSON_ID, person.id))
+        return true
+    }
+
     /** Sexes offered in a Geni tree: Geni writes only male and female. Any other tree keeps all choices. */
     fun sexChoices(sexes: Map<String, String>): Map<String, String> =
         if (isGeniTree()) sexes.filterKeys { it == "M" || it == "F" } else sexes

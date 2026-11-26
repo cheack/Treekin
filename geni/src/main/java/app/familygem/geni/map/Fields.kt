@@ -17,6 +17,19 @@ import org.folg.gedcom.model.Person
 /** Date and place of an event; the date is canonical when Geni can store it, else the trimmed text. */
 data class EventFields(val date: String?, val place: String?)
 
+/** First and middle names as Geni keeps them apart; joined with a space they make the given name of the GEDCOM name. */
+data class GivenNameParts(val first: String?, val middle: String?) {
+    val joined: String? get() = clean(listOfNotNull(first, middle).joinToString(" "))
+
+    fun normalized() = GivenNameParts(clean(first), clean(middle))
+
+    companion object {
+        /** Split at the first space: how a given name typed as one text is sent to Geni. */
+        fun split(given: String?): GivenNameParts? =
+            clean(given)?.let { GivenNameParts(it.substringBefore(' '), it.substringAfter(' ', "").ifEmpty { null }) }
+    }
+}
+
 data class ProfileFields(
     val given: String?,
     val surname: String?,
@@ -31,8 +44,21 @@ data class ProfileFields(
     val dead: Boolean,
     val causeOfDeath: String?,
     val occupation: String?,
-    val about: String?
+    val about: String?,
+    /** First and middle names stored apart; null for a record without them (or whose given name changed elsewhere since). */
+    val givenParts: GivenNameParts? = null,
+    /** Geni's display name override: null when the record does not know it, empty for none. */
+    val displayName: String? = null
 ) {
+    /**
+     * The fields with what a legacy record does not store taken from [baseline] (the last Geni version):
+     * the name parts when the given name is still the same (else the first-space split), and the display name.
+     */
+    fun resolvedAgainst(baseline: ProfileFields): ProfileFields = copy(
+        givenParts = givenParts ?: baseline.givenParts?.takeIf { given == baseline.given } ?: GivenNameParts.split(given),
+        displayName = displayName ?: baseline.displayName
+    )
+
     companion object {
         val EMPTY = ProfileFields(null, null, null, null, null, null, null, null, null, null, false, null, null, null)
 
@@ -59,7 +85,10 @@ data class ProfileFields(
                 dead = death != null,
                 causeOfDeath = clean(death?.cause),
                 occupation = clean(first("OCCU")?.value),
-                about = GeniMapper.getTag(person, GeniMapper.ABOUT_TAG)?.replace("\r\n", "\n")?.trim()?.takeIf { it.isNotEmpty() } // Keeps line breaks
+                about = GeniMapper.getTag(person, GeniMapper.ABOUT_TAG)?.replace("\r\n", "\n")?.trim()?.takeIf { it.isNotEmpty() }, // Keeps line breaks
+                // Parts that no longer make the given name were left by an edit elsewhere: ignored
+                givenParts = GeniMapper.getGivenNameParts(person)?.normalized()?.takeIf { it.joined == given },
+                displayName = GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)?.let { clean(it) ?: "" }
             )
         }
 

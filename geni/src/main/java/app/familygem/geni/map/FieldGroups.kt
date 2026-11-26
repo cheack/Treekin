@@ -6,12 +6,13 @@ package app.familygem.geni.map
  * who changed what, and where both changed the same thing differently.
  */
 
-enum class ProfileGroup { NAMES, SEX, BIRTH, BAPTISM, DEATH, BURIAL, OCCUPATION, ABOUT }
+enum class ProfileGroup { NAMES, DISPLAY_NAME, SEX, BIRTH, BAPTISM, DEATH, BURIAL, OCCUPATION, ABOUT }
 
 enum class UnionGroup { MARRIAGE, DIVORCE }
 
 fun ProfileFields.value(group: ProfileGroup): Any? = when (group) {
-    ProfileGroup.NAMES -> listOf(given, surname, maiden, suffix, nicknames)
+    ProfileGroup.NAMES -> listOf(given, surname, maiden, suffix, nicknames, givenParts)
+    ProfileGroup.DISPLAY_NAME -> displayName
     ProfileGroup.SEX -> sex
     ProfileGroup.BIRTH -> birth
     ProfileGroup.BAPTISM -> baptism
@@ -43,8 +44,9 @@ private fun <G, F> threeWay(groups: Array<G>, snapshot: F, local: F, geni: F, va
     return ThreeWay(localChanged, geniChanged, conflicts)
 }
 
+/** A legacy local record takes the name parts and display name it lacks from the snapshot (see [ProfileFields.resolvedAgainst]). */
 fun threeWay(snapshot: ProfileFields, local: ProfileFields, geni: ProfileFields): ThreeWay<ProfileGroup> =
-    threeWay(ProfileGroup.values(), snapshot, local, geni) { value(it) }
+    threeWay(ProfileGroup.values(), snapshot.resolvedAgainst(snapshot), local.resolvedAgainst(snapshot), geni.resolvedAgainst(geni)) { value(it) }
 
 fun threeWay(snapshot: UnionFields, local: UnionFields, geni: UnionFields): ThreeWay<UnionGroup> =
     threeWay(UnionGroup.values(), snapshot, local, geni) { value(it) }

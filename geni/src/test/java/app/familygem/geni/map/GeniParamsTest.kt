@@ -154,4 +154,58 @@ class GeniParamsTest {
             listOf("occupation" to "", "about_me" to ""), params.filter { it.first != "is_alive" })
         assertTrue(params.none { it.first.startsWith("birth") || it.first.startsWith("death") || it.first.endsWith("_name") || it.first == "gender" })
     }
+
+    private val mary = ivan.copy(given = "Mary Ann Louise", givenParts = GivenNameParts("Mary Ann", "Louise"))
+
+    @Test
+    fun keepsMultiwordFirstNameWhenMiddleNameChanges() = assertEquals(
+        listOf("middle_name" to "Rose"),
+        GeniParams.profile(mary, mary.copy(given = "Mary Ann Rose", givenParts = GivenNameParts("Mary Ann", "Rose")))
+    )
+
+    @Test
+    fun changedSplitSendsBothParts() = assertEquals(
+        listOf("first_name" to "Mary", "middle_name" to "Ann Louise"),
+        GeniParams.profile(mary, mary.copy(givenParts = GivenNameParts("Mary", "Ann Louise")))
+    )
+
+    @Test
+    fun changedLegacyGivenFallsBackToFirstSpace() = assertEquals(
+        listOf("first_name" to "Maria", "middle_name" to "Louise"),
+        GeniParams.profile(mary, mary.copy(given = "Maria Louise", givenParts = null))
+    )
+
+    /** Shape read back from the sandbox on 2026-11-26: `display_name` is present only while an override is set. */
+    private val maryJson = """{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise","last_name":"Example","display_name":"M. A. Example","name":"M. A. Example","is_alive":true}"""
+
+    @Test
+    fun displayNameSetAndClearRoundTrip() {
+        val person = org.folg.gedcom.model.Person()
+        GeniMapper.applyProfile(org.folg.gedcom.model.Gedcom(), person, com.google.gson.Gson().fromJson(maryJson, app.familygem.geni.api.GeniProfile::class.java))
+        assertEquals("M. A. Example", GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG))
+        val snapshot = ProfileFields.ofSnapshot(maryJson)!!
+        assertEquals("M. A. Example", snapshot.displayName)
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(snapshot, ProfileFields.of(person)))
+        // Cleared in the editor: an empty tag is an explicit "no display name"
+        GeniMapper.setTag(person, GeniMapper.DISPLAY_NAME_TAG, "")
+        val params = GeniParams.profile(snapshot, ProfileFields.of(person))
+        assertEquals(listOf("display_name" to ""), params)
+        assertEquals("", ProfileFields.ofSnapshot(SnapshotOverlay.apply(maryJson, params, "profile-1"))!!.displayName)
+        // Set again
+        GeniMapper.setTag(person, GeniMapper.DISPLAY_NAME_TAG, "Mary Example")
+        assertEquals(listOf("display_name" to "Mary Example"), GeniParams.profile(snapshot, ProfileFields.of(person)))
+    }
+
+    @Test
+    fun legacyRecordWithoutDisplayNameSendsNoClear() {
+        // Saved before display names were stored: no extension, the combined given name, no name parts
+        val legacy = org.folg.gedcom.model.Person().apply {
+            addName(org.folg.gedcom.model.Name().apply { value = "Mary Ann Louise /Example/" })
+            addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "OCCU"; value = "Driver" })
+        }
+        val fields = ProfileFields.of(legacy)
+        assertNull(fields.displayName)
+        assertNull(fields.givenParts)
+        assertEquals(listOf("occupation" to "Driver"), GeniParams.profile(ProfileFields.ofSnapshot(maryJson)!!, fields))
+    }
 }

@@ -220,4 +220,37 @@ class GeniMapperTest {
         assertEquals("1950", person.fact("OCCU").date)
         assertEquals("Donetsk", person.fact("OCCU").place)
     }
+
+    @Test
+    fun importStoresNameParts() {
+        val person = Person()
+        val mary = com.google.gson.Gson().fromJson("""{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise","last_name":"Example"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, mary)
+        assertEquals("Mary Ann Louise /Example/", person.names.single().value)
+        assertEquals(GivenNameParts("Mary Ann", "Louise"), GeniMapper.getGivenNameParts(person))
+        assertEquals("", GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)) // Explicitly none
+        assertEquals(GivenNameParts("Mary Ann", "Louise"), ProfileFields.of(person).givenParts)
+        // Edited elsewhere (the name screen): the stale parts are ignored
+        person.names.single().value = "Maria /Example/"
+        assertNull(ProfileFields.of(person).givenParts)
+    }
+
+    @Test
+    fun splitChangeOnGeniUpdatesParts() {
+        val person = Person()
+        val mary = com.google.gson.Gson().fromJson("""{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, mary)
+        GeniMapper.applyProfile(Gedcom(), person, mary.copy(firstName = "Mary", middleName = "Ann Louise"), mary)
+        assertEquals(GivenNameParts("Mary", "Ann Louise"), GeniMapper.getGivenNameParts(person))
+    }
+
+    @Test
+    fun prefillsPartsFromSnapshotWhenGivenMatches() {
+        val snapshot = """{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise","last_name":"Example"}"""
+        val legacy = Person().apply { addName(org.folg.gedcom.model.Name().apply { value = "Mary Ann Louise /Example/" }) }
+        assertEquals(GivenNameParts("Mary Ann", "Louise"), GeniMapper.givenNamePartsFor(legacy, snapshot))
+        legacy.names.single().value = "Maria Louise /Example/"
+        assertEquals(GivenNameParts("Maria", "Louise"), GeniMapper.givenNamePartsFor(legacy, snapshot))
+        assertEquals(GivenNameParts("Maria", "Louise"), GeniMapper.givenNamePartsFor(legacy, null))
+    }
 }

@@ -28,7 +28,7 @@ object GoneProfiles {
         if (localData) return true
         val local = ProfileFields.of(person)
         val snapshot = link.snapshot?.let { ProfileFields.ofSnapshot(it) }
-        return if (snapshot != null) snapshot != local else link.verifiedHash != null && link.verifiedHash != local.hashCode()
+        return if (snapshot != null) snapshot.resolvedAgainst(snapshot) != local.resolvedAgainst(snapshot) else link.verifiedHash != null && link.verifiedHash != local.hashCode()
     }
 
     /**

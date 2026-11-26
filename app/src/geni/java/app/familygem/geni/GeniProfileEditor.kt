@@ -10,6 +10,7 @@ import app.familygem.DateEditorLayout
 import app.familygem.PersonEditorActivity
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.GeniParams
+import app.familygem.geni.map.GivenNameParts
 import com.google.android.material.textfield.TextInputLayout
 import org.folg.gedcom.model.EventFact
 import org.folg.gedcom.model.Name
@@ -32,6 +33,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     private var enabled = false
     private var bound = false
+    private var isNew = false
 
     /** Text of each field when the form was filled, to tell the fields the user changed. */
     private val initial = mutableMapOf<Int, String>()
@@ -58,6 +60,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         bound = true
         val inflater = activity.layoutInflater
         mapOf(
+            AppR.id.editor_geniMiddle to AppR.layout.geni_editor_middle,
             AppR.id.editor_geniNames to AppR.layout.geni_editor_names,
             AppR.id.editor_geniBaptism to AppR.layout.geni_editor_baptism,
             AppR.id.editor_geniCause to AppR.layout.geni_editor_cause,
@@ -67,6 +70,18 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
             inflater.inflate(layout, container, true)
             container.visibility = View.VISIBLE
         }
+
+        view<TextInputLayout>(AppR.id.editor_nameLabel).hint = activity.getString(R.string.geni_first_name)
+        view<TextInputLayout>(AppR.id.editor_surnameLabel).hint = activity.getString(R.string.geni_last_name)
+        view<EditText>(AppR.id.editor_middleName).filters = view<EditText>(AppR.id.editor_name).filters // No "/" in names
+
+        // First and middle name: the stored parts, or for a record from before them Geni's last version, or the first-space split
+        isNew = person.id == null
+        val snapshot = if (isNew) null else cachedSnapshot(person.id)
+        val parts = if (person.names.isNullOrEmpty()) null else GeniMapper.givenNamePartsFor(person, snapshot)
+        if (parts != null) set(AppR.id.editor_name, parts.first) else initial[AppR.id.editor_name] = text(AppR.id.editor_name)
+        set(AppR.id.editor_middleName, parts?.middle)
+        set(AppR.id.editor_displayName, GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG))
 
         val names = person.names.orEmpty()
         val main = names.firstOrNull { it.type != "birth" }
@@ -89,6 +104,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         view<DateEditorLayout>(AppR.id.editor_burialDateEditor).initialize(view(AppR.id.editor_burialDate), view<ImageView>(AppR.id.editor_burialAlert))
 
         // Focus goes through the new name fields
+        view<EditText>(AppR.id.editor_name).nextFocusForwardId = AppR.id.editor_middleName
+        view<EditText>(AppR.id.editor_middleName).nextFocusForwardId = AppR.id.editor_surname
         view<EditText>(AppR.id.editor_surname).nextFocusForwardId = AppR.id.editor_birthSurname
         view<EditText>(AppR.id.editor_birthSurname).nextFocusForwardId = AppR.id.editor_suffix
         view<EditText>(AppR.id.editor_suffix).nextFocusForwardId = AppR.id.editor_nicknames
@@ -103,6 +120,16 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         }
 
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
+    }
+
+    /** Geni's last version of the person, read before the form accepts input; null if none or unreadable. */
+    private fun cachedSnapshot(personId: String): String? = try {
+        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+            Geni.store(activity).linkByGedcomId(app.familygem.Global.settings.openTree, personId)?.snapshot
+        }
+    } catch (e: Exception) {
+        android.util.Log.w("GeniSync", "Snapshot of $personId not read", e)
+        null
     }
 
     private fun set(id: Int, value: String?) {
@@ -139,6 +166,15 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     /** Writes the changed Geni fields to the person, after the upstream form wrote names, sex, birth and death. */
     fun saveTo(person: Person) {
         if (!enabled) return
+        // The upstream form wrote the first name alone as the given name: the middle name joins it
+        val first = text(AppR.id.editor_name).replace("/", "")
+        val middle = text(AppR.id.editor_middleName).replace("/", "")
+        if (middle.isNotEmpty()) joinGiven(person, first, "$first $middle")
+        // Parts are stored for a new person and when edited: an untouched record from before keeps inheriting Geni's
+        if (isNew || changed(AppR.id.editor_name) || changed(AppR.id.editor_middleName))
+            GeniMapper.setGivenNameParts(person, GivenNameParts(first, middle))
+        // An empty override is kept as an empty tag: it tells Geni to remove the display name
+        if (changed(AppR.id.editor_displayName)) GeniMapper.setTag(person, GeniMapper.DISPLAY_NAME_TAG, text(AppR.id.editor_displayName))
         val names = person.names.orEmpty()
         if (changed(AppR.id.editor_birthSurname)) setBirthSurname(person, text(AppR.id.editor_birthSurname))
         if (changed(AppR.id.editor_suffix) || changed(AppR.id.editor_nicknames)) {
@@ -153,6 +189,18 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         if (changed(AppR.id.editor_occupation)) setOccupation(person, text(AppR.id.editor_occupation))
         if (changed(AppR.id.editor_about))
             GeniMapper.setTag(person, GeniMapper.ABOUT_TAG, view<EditText>(AppR.id.editor_about).text.toString().trim().ifEmpty { null })
+    }
+
+    /** Puts the whole given name [given] where the upstream form put the first name [first], in the name it edited. */
+    private fun joinGiven(person: Person, first: String, given: String) {
+        val name = person.names.orEmpty().firstOrNull() ?: return
+        fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
+        val value = name.value
+        if (value != null) name.value = when {
+            value.startsWith(first) -> join(given, value.substring(first.length))
+            value.endsWith(first) -> join(value.dropLast(first.length), given)
+            else -> value
+        } else if (name.given == first) name.given = given.trim()
     }
 
     private fun setBirthSurname(person: Person, surname: String) {

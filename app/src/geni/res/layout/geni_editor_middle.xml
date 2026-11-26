@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Middle name in the person editor for a Geni tree, bound by GeniProfileEditor -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_middleNameLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_middle_name">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_middleName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:imeOptions="actionNext"
+            android:inputType="textCapWords|textPersonName" />
+    </com.google.android.material.textfield.TextInputLayout>
+</merge>

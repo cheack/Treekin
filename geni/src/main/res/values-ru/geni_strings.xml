@@ -170,4 +170,9 @@
     <string name="geni_cause_of_death">Причина смерти</string>
     <string name="geni_about_me">О себе</string>
     <string name="geni_date_not_supported">Geni не может сохранить такую дату</string>
+    <string name="geni_first_name">Имя</string>
+    <string name="geni_middle_name">Второе имя</string>
+    <string name="geni_last_name">Фамилия</string>
+    <string name="geni_display_name">Отображаемое имя</string>
+    <string name="geni_group_DISPLAY_NAME">Отображаемое имя</string>
 </resources>

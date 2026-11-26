@@ -61,4 +61,28 @@ class FieldGroupsTest {
     fun filledGroupsSkipEmptyValues() {
         assertEquals(setOf(ProfileGroup.NAMES, ProfileGroup.BIRTH, ProfileGroup.OCCUPATION), base.filled())
     }
+
+    private val mary = base.copy(given = "Mary Ann Louise", givenParts = GivenNameParts("Mary Ann", "Louise"))
+
+    @Test
+    fun concurrentNameEditsConflict() {
+        val result = threeWay(mary, mary.copy(given = "Mary Ann Rose", givenParts = GivenNameParts("Mary Ann", "Rose")),
+            mary.copy(given = "Mary Ann Grace", givenParts = GivenNameParts("Mary Ann", "Grace")))
+        assertEquals(setOf(ProfileGroup.NAMES), result.conflicts)
+    }
+
+    @Test
+    fun changedSplitIsANameChange() {
+        val result = threeWay(mary, mary.copy(givenParts = GivenNameParts("Mary", "Ann Louise")), mary)
+        assertEquals(setOf(ProfileGroup.NAMES), result.local)
+    }
+
+    @Test
+    fun legacyLocalNameInheritsTheSnapshot() {
+        val result = threeWay(mary.copy(displayName = "M. A."), mary.copy(givenParts = null, displayName = null),
+            mary.copy(given = "Mary Ann Grace", givenParts = GivenNameParts("Mary Ann", "Grace"), displayName = ""))
+        assertEquals(emptySet<ProfileGroup>(), result.local)
+        assertEquals(setOf(ProfileGroup.NAMES, ProfileGroup.DISPLAY_NAME), result.geni)
+        assertEquals(emptySet<ProfileGroup>(), result.conflicts)
+    }
 }

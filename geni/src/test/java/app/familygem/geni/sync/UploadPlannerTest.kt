@@ -367,4 +367,19 @@ class UploadPlannerTest {
         val upserts = photoPlan(listOf(me, me.copy(title = "Again"))).upserts.filter { it.kind == JobKind.ADD_PHOTO }
         assertEquals(listOf("photo:I1:me.jpg"), upserts.map { it.key })
     }
+
+    @Test
+    fun legacyCombinedNameDoesNotQueueANameWrite() {
+        val maryJson = """{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise","last_name":"User","gender":"female",
+            "is_alive":true,"occupation":"Engineer","display_name":"M. A. User"}"""
+        // Saved before name parts and display names were stored
+        val legacy = org.folg.gedcom.model.Person().apply {
+            addName(org.folg.gedcom.model.Name().apply { value = "Mary Ann Louise /User/" })
+            addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "SEX"; value = "F" })
+            addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "OCCU"; value = "Driver" })
+        }
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(snapshot = maryJson) else it }
+        val job = plan(couple(ivanFields = ProfileFields.of(legacy)), links).upserts.single()
+        assertEquals(listOf("occupation" to "Driver"), job.params)
+    }
 }

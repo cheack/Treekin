@@ -27,6 +27,14 @@ object GeniMapper {
 
     const val GENI_ID_TAG = "_GENI_ID"
     const val ABOUT_TAG = "_GENI_ABOUT"
+    const val FIRST_NAME_TAG = "_GENI_FIRST_NAME"
+    const val MIDDLE_NAME_TAG = "_GENI_MIDDLE_NAME"
+
+    /** Geni's display name override; an empty value means none (a missing tag: not known, a record from before). */
+    const val DISPLAY_NAME_TAG = "_GENI_DISPLAY_NAME"
+
+    /** Tags kept for the sync and edited in the person editor, not as facts. */
+    val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG)
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
@@ -54,8 +62,11 @@ object GeniMapper {
      */
     fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null, keep: Set<ProfileGroup> = emptySet()) {
         fun changed(group: ProfileGroup, field: (GeniProfile) -> Any?) = group !in keep && (previous == null || field(previous) != field(profile))
-        if (changed(ProfileGroup.NAMES) { listOf(it.firstName, it.middleName, it.lastName, it.maidenName, it.suffix, it.nicknames) })
+        if (changed(ProfileGroup.NAMES) { listOf(clean(it.firstName), clean(it.middleName), it.lastName, it.maidenName, it.suffix, it.nicknames) }) {
             updateNames(person, profile)
+            setGivenNameParts(person, GivenNameParts(profile.firstName, profile.middleName))
+        }
+        if (changed(ProfileGroup.DISPLAY_NAME) { clean(it.displayName) }) setTag(person, DISPLAY_NAME_TAG, clean(profile.displayName) ?: "")
         if (profile.gender != null && changed(ProfileGroup.SEX) { it.gender })
             setFact(person, "SEX", value = if (profile.gender == "male") "M" else if (profile.gender == "female") "F" else "U")
         else if (person.eventsFacts.orEmpty().none { it.tag == "SEX" })
@@ -198,6 +209,28 @@ object GeniMapper {
             else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y")
             else removeFacts(family, "DIV")
         }
+    }
+
+    /** First and middle names stored apart, or null for a person without them. */
+    fun getGivenNameParts(person: Person): GivenNameParts? {
+        val first = getTag(person, FIRST_NAME_TAG)
+        val middle = getTag(person, MIDDLE_NAME_TAG)
+        return if (first == null && middle == null) null else GivenNameParts(first, middle)
+    }
+
+    fun setGivenNameParts(person: Person, parts: GivenNameParts) {
+        val normalized = parts.normalized()
+        setTag(person, FIRST_NAME_TAG, normalized.first)
+        setTag(person, MIDDLE_NAME_TAG, normalized.middle)
+    }
+
+    /**
+     * Name parts to show for a person: the stored ones, or for a record from before they were stored the ones of
+     * Geni's last version [snapshot] if the given name is still the same, else the first-space split.
+     */
+    fun givenNamePartsFor(person: Person, snapshot: String?): GivenNameParts? {
+        val local = ProfileFields.of(person)
+        return local.resolvedAgainst(snapshot?.let { ProfileFields.ofSnapshot(it) } ?: local).givenParts
     }
 
     fun getGeniId(container: ExtensionContainer): String? = getTag(container, GENI_ID_TAG)

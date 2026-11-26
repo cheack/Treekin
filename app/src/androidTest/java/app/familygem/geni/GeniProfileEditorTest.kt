@@ -295,4 +295,58 @@ class GeniProfileEditorTest {
         assertFalse(Global.shouldSave)
         assertFalse(Global.edited)
     }
+
+    private fun namedPerson(value: String, parts: Pair<String, String>? = null, displayName: String? = null) = useTree(Person().apply {
+        id = "I1"
+        addName(Name().apply { this.value = value })
+        addEventFact(fact("SEX", value = "F"))
+        parts?.let { GeniMapper.setGivenNameParts(this, app.familygem.geni.map.GivenNameParts(it.first, it.second)) }
+        displayName?.let { GeniMapper.setTag(this, GeniMapper.DISPLAY_NAME_TAG, it) }
+    })
+
+    @Test
+    fun editsMiddleNameAndClearsDisplayName() {
+        GeniTrees.add(treeId)
+        val person = namedPerson("Mary Ann Louise /Test/", "Mary Ann" to "Louise", "M. A. Example")
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_name).check(matches(withText("Mary Ann")))
+            field(R.id.editor_middleName).check(matches(withText("Louise")))
+            field(R.id.editor_displayName).check(matches(withText("M. A. Example")))
+            field(R.id.editor_middleName).perform(replaceText("Rose"))
+            field(R.id.editor_displayName).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText(""))
+            saveAndParams(person, before)
+        }
+        assertEquals("Mary Ann Rose /Test/", person.names.single().value)
+        assertEquals(app.familygem.geni.map.GivenNameParts("Mary Ann", "Rose"), GeniMapper.getGivenNameParts(person))
+        assertEquals("", GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG))
+        assertEquals(listOf("middle_name" to "Rose", "display_name" to ""), params)
+    }
+
+    @Test
+    fun legacyNameIsSplitForEditingAndSavedUnchanged() {
+        GeniTrees.add(treeId)
+        val person = namedPerson("Mary Ann Louise /Test/")
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_name).check(matches(withText("Mary")))
+            field(R.id.editor_middleName).check(matches(withText("Ann Louise")))
+            saveAndParams(person, before)
+        }
+        assertEquals("Mary Ann Louise /Test/", person.names.single().value)
+        assertNull(GeniMapper.getGivenNameParts(person)) // Not edited: no parts stored
+        assertEquals(emptyList<Pair<String, String>>(), params)
+    }
+
+    @Test
+    fun primaryNameRowOpensModifyAndInternalTagsAreHidden() {
+        GeniTrees.add(treeId)
+        val person = namedPerson("Mary Ann Louise /Test/", "Mary Ann" to "Louise", "")
+        openProfile(person).use {
+            onView(withText(GeniMapper.FIRST_NAME_TAG)).check(doesNotExist())
+            onView(withText(GeniMapper.DISPLAY_NAME_TAG)).check(doesNotExist())
+            onView(withText("Mary Ann Louise Test")).perform(click())
+            field(R.id.editor_middleName).check(matches(withText("Louise")))
+        }
+    }
 }

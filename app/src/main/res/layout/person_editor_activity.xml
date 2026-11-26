@@ -26,6 +26,17 @@
             android:nextFocusForward="@+id/editor_surname" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- GENI-HOOK: middle name of a Geni tree, filled by GeniProfileEditor -->
+    <LinearLayout
+        android:id="@+id/editor_geniMiddle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editor_nameLabel" />
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/editor_surnameLabel"
         android:layout_width="0dp"
@@ -33,7 +44,7 @@
         android:hint="@string/surname"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editor_nameLabel">
+        app:layout_constraintTop_toBottomOf="@+id/editor_geniMiddle">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/editor_surname"

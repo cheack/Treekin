@@ -162,4 +162,9 @@
     <string name="geni_cause_of_death">Cause of death</string>
     <string name="geni_about_me">About me</string>
     <string name="geni_date_not_supported">Geni cannot store this date</string>
+    <string name="geni_first_name">First name</string>
+    <string name="geni_middle_name">Middle name</string>
+    <string name="geni_last_name">Last name</string>
+    <string name="geni_display_name">Display name</string>
+    <string name="geni_group_DISPLAY_NAME">Display name</string>
 </resources>

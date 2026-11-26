@@ -42,7 +42,8 @@ class FactsFragment : BaseFragment() {
         if (prepareContent()) {
             person.names.forEach { placeEvent(layout, it.writeTitle(), U.firstAndLastName(it, " "), it) }
             person.eventsFacts.forEach { placeEvent(layout, it.writeTitle(), it.writeContent(), it) }
-            U.findExtensions(person).forEach { placeEvent(layout, it.name, it.text, it.gedcomTag) }
+            U.findExtensions(person).filterNot { app.familygem.geni.GeniGlue.isInternalTag(it.gedcomTag) } // GENI-HOOK
+                .forEach { placeEvent(layout, it.name, it.text, it.gedcomTag) }
             NoteUtil.placeNotes(layout, person)
             SourceCitationUtil.placeSourceCitations(layout, person)
             placeChangeDate(layout, person.change)
@@ -75,6 +76,7 @@ class FactsFragment : BaseFragment() {
         if (obj is Name) {
             MediaUtil.placeMedia(otherLayout, obj as MediaContainer, false)
             eventView.setOnClickListener {
+                if (app.familygem.geni.GeniFacts.editName(requireActivity(), person, obj)) return@setOnClickListener // GENI-HOOK
                 // If it is a complex name, suggests expert mode
                 if (!Global.settings.expert && isNameComplex(obj)) {
                     AlertDialog.Builder(requireContext()).setMessage(R.string.complex_tree_advanced_tools)

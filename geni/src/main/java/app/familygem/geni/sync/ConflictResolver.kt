@@ -151,6 +151,8 @@ class ConflictResolver(
         null -> "—"
         is EventFields -> listOfNotNull(value.date, value.place).joinToString(", ").ifEmpty { "—" }
         is Boolean -> if (value) "deceased" else ""
+        is app.familygem.geni.map.GivenNameParts -> "" // The given name already shows them
+        "" -> "—"
         is List<*> -> value.map { show(it) }.filter { it.isNotEmpty() && it != "—" }.joinToString(if (name) " " else "; ").ifEmpty { "—" }
         else -> value.toString()
     }

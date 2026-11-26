@@ -130,6 +130,7 @@ class ProfileActivity : AppCompatActivity() {
                 setCollapsedTitleTextAppearance(R.style.AppTheme_CollapsedAppBar)
                 setOnClickListener { // Not only the name view but all the expanded toolbar
                     if (person!!.names.isNotEmpty()) {
+                        if (app.familygem.geni.GeniFacts.editName(this@ProfileActivity, person, person!!.names[0])) return@setOnClickListener // GENI-HOOK
                         Memory.add(person!!.names[0])
                         startActivity(Intent(this@ProfileActivity, NameActivity::class.java))
                     }
