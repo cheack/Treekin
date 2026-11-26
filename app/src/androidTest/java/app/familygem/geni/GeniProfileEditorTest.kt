@@ -349,4 +349,22 @@ class GeniProfileEditorTest {
             field(R.id.editor_middleName).check(matches(withText("Louise")))
         }
     }
+
+    @Test
+    fun nameTitleIsEditedApartFromGedcomTitle() {
+        GeniTrees.add(treeId)
+        val person = namedPerson("Ivan /Test/", "Ivan" to "", "").apply {
+            addEventFact(fact("TITL", value = "Professor"))
+            GeniMapper.setTag(this, GeniMapper.NAME_TITLE_TAG, "Dr.")
+        }
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_nameTitle).check(matches(withText("Dr.")))
+            field(R.id.editor_nameTitle).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("Prof."))
+            saveAndParams(person, before)
+        }
+        assertEquals("Prof.", GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG))
+        assertEquals("Professor", person.eventsFacts.single { it.tag == "TITL" }.value)
+        assertEquals(listOf("title" to "Prof."), params)
+    }
 }

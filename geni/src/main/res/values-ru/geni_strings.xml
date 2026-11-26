@@ -175,4 +175,6 @@
     <string name="geni_last_name">Фамилия</string>
     <string name="geni_display_name">Отображаемое имя</string>
     <string name="geni_group_DISPLAY_NAME">Отображаемое имя</string>
+    <string name="geni_name_title">Титул</string>
+    <string name="geni_group_TITLE">Титул</string>
 </resources>

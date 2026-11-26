@@ -82,6 +82,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         if (parts != null) set(AppR.id.editor_name, parts.first) else initial[AppR.id.editor_name] = text(AppR.id.editor_name)
         set(AppR.id.editor_middleName, parts?.middle)
         set(AppR.id.editor_displayName, GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG))
+        set(AppR.id.editor_nameTitle, GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG))
 
         val names = person.names.orEmpty()
         val main = names.firstOrNull { it.type != "birth" }
@@ -175,6 +176,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
             GeniMapper.setGivenNameParts(person, GivenNameParts(first, middle))
         // An empty override is kept as an empty tag: it tells Geni to remove the display name
         if (changed(AppR.id.editor_displayName)) GeniMapper.setTag(person, GeniMapper.DISPLAY_NAME_TAG, text(AppR.id.editor_displayName))
+        if (changed(AppR.id.editor_nameTitle)) GeniMapper.setTag(person, GeniMapper.NAME_TITLE_TAG, text(AppR.id.editor_nameTitle))
         val names = person.names.orEmpty()
         if (changed(AppR.id.editor_birthSurname)) setBirthSurname(person, text(AppR.id.editor_birthSurname))
         if (changed(AppR.id.editor_suffix) || changed(AppR.id.editor_nicknames)) {

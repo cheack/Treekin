@@ -43,6 +43,7 @@ object GeniParams {
         if (new.suffix != old.suffix) params += "suffix" to (new.suffix ?: "")
         if (new.nicknames != old.nicknames) params += "nicknames" to (new.nicknames ?: "")
         if (new.displayName.orEmpty() != old.displayName.orEmpty()) params += "display_name" to new.displayName.orEmpty()
+        if (new.title.orEmpty() != old.title.orEmpty()) params += "title" to new.title.orEmpty()
         if (new.sex != null && new.sex != old.sex) params += "gender" to if (new.sex == "M") "male" else "female"
         event(params, "birth", old.birth, new.birth)
         event(params, "baptism", old.baptism, new.baptism)

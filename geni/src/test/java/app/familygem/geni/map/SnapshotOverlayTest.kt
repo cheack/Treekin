@@ -25,8 +25,8 @@ class SnapshotOverlayTest {
         assertEquals(after.asGeni(), ProfileFields.ofSnapshot(SnapshotOverlay.apply(before, GeniParams.profile(olga, after), "profile-5")))
     }
 
-    /** As Geni's version projects: name parts split at the first space, no display name. */
-    private fun ProfileFields.asGeni() = copy(givenParts = GivenNameParts.split(given), displayName = "")
+    /** As Geni's version projects: name parts split at the first space, no display name, no title. */
+    private fun ProfileFields.asGeni() = copy(givenParts = GivenNameParts.split(given), displayName = "", title = "")
 
     @Test
     fun unionParams() {

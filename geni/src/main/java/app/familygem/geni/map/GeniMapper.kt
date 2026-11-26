@@ -33,8 +33,11 @@ object GeniMapper {
     /** Geni's display name override; an empty value means none (a missing tag: not known, a record from before). */
     const val DISPLAY_NAME_TAG = "_GENI_DISPLAY_NAME"
 
+    /** Geni's name title, like the display name; the GEDCOM title fact (TITL) stays local. */
+    const val NAME_TITLE_TAG = "_GENI_NAME_TITLE"
+
     /** Tags kept for the sync and edited in the person editor, not as facts. */
-    val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG)
+    val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG, NAME_TITLE_TAG)
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
@@ -67,6 +70,7 @@ object GeniMapper {
             setGivenNameParts(person, GivenNameParts(profile.firstName, profile.middleName))
         }
         if (changed(ProfileGroup.DISPLAY_NAME) { clean(it.displayName) }) setTag(person, DISPLAY_NAME_TAG, clean(profile.displayName) ?: "")
+        if (changed(ProfileGroup.TITLE) { clean(it.title) }) setTag(person, NAME_TITLE_TAG, clean(profile.title) ?: "")
         if (profile.gender != null && changed(ProfileGroup.SEX) { it.gender })
             setFact(person, "SEX", value = if (profile.gender == "male") "M" else if (profile.gender == "female") "F" else "U")
         else if (person.eventsFacts.orEmpty().none { it.tag == "SEX" })

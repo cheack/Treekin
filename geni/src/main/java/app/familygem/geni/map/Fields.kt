@@ -48,7 +48,9 @@ data class ProfileFields(
     /** First and middle names stored apart; null for a record without them (or whose given name changed elsewhere since). */
     val givenParts: GivenNameParts? = null,
     /** Geni's display name override: null when the record does not know it, empty for none. */
-    val displayName: String? = null
+    val displayName: String? = null,
+    /** Geni's name title (not the GEDCOM title fact): null when the record does not know it, empty for none. */
+    val title: String? = null
 ) {
     /**
      * The fields with what a legacy record does not store taken from [baseline] (the last Geni version):
@@ -56,7 +58,8 @@ data class ProfileFields(
      */
     fun resolvedAgainst(baseline: ProfileFields): ProfileFields = copy(
         givenParts = givenParts ?: baseline.givenParts?.takeIf { given == baseline.given } ?: GivenNameParts.split(given),
-        displayName = displayName ?: baseline.displayName
+        displayName = displayName ?: baseline.displayName,
+        title = title ?: baseline.title
     )
 
     companion object {
@@ -88,7 +91,8 @@ data class ProfileFields(
                 about = GeniMapper.getTag(person, GeniMapper.ABOUT_TAG)?.replace("\r\n", "\n")?.trim()?.takeIf { it.isNotEmpty() }, // Keeps line breaks
                 // Parts that no longer make the given name were left by an edit elsewhere: ignored
                 givenParts = GeniMapper.getGivenNameParts(person)?.normalized()?.takeIf { it.joined == given },
-                displayName = GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)?.let { clean(it) ?: "" }
+                displayName = GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)?.let { clean(it) ?: "" },
+                title = GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG)?.let { clean(it) ?: "" }
             )
         }
 

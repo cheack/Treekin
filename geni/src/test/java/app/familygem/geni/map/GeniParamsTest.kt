@@ -208,4 +208,28 @@ class GeniParamsTest {
         assertNull(fields.givenParts)
         assertEquals(listOf("occupation" to "Driver"), GeniParams.profile(ProfileFields.ofSnapshot(maryJson)!!, fields))
     }
+
+    /** Shape read back from the sandbox on 2026-11-26: a top-level `title`, present only while set. */
+    private val doctorJson = """{"id":"profile-1","first_name":"Ivan","last_name":"User","title":"Dr.","name":"Ivan User"}"""
+
+    @Test
+    fun nameTitleRoundTripsIndependentlyOfGedcomTitle() {
+        val person = org.folg.gedcom.model.Person()
+        GeniMapper.applyProfile(org.folg.gedcom.model.Gedcom(), person, com.google.gson.Gson().fromJson(doctorJson, app.familygem.geni.api.GeniProfile::class.java))
+        assertEquals("Dr.", GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG))
+        val snapshot = ProfileFields.ofSnapshot(doctorJson)!!
+        assertEquals("Dr.", snapshot.title)
+        // The GEDCOM title fact is local: it makes no write
+        person.addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "TITL"; value = "Professor" })
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(snapshot, ProfileFields.of(person)))
+        GeniMapper.setTag(person, GeniMapper.NAME_TITLE_TAG, "Prof.")
+        assertEquals(listOf("title" to "Prof."), GeniParams.profile(snapshot, ProfileFields.of(person)))
+        GeniMapper.setTag(person, GeniMapper.NAME_TITLE_TAG, "")
+        val params = GeniParams.profile(snapshot, ProfileFields.of(person))
+        assertEquals(listOf("title" to ""), params)
+        assertEquals("", ProfileFields.ofSnapshot(SnapshotOverlay.apply(doctorJson, params, "profile-1"))!!.title)
+        // A record from before the title was stored inherits it
+        GeniMapper.setTag(person, GeniMapper.NAME_TITLE_TAG, null)
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(snapshot, ProfileFields.of(person)))
+    }
 }

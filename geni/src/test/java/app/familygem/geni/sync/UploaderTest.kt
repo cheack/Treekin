@@ -402,7 +402,7 @@ class UploaderTest {
         val saved = store.link(1, "profile-50")!!
         // Geni's full version could not be fetched: what was sent is Geni's version for later comparisons
         assertEquals(app.familygem.geni.map.ProfileFields.EMPTY.copy(given = "New", givenParts = app.familygem.geni.map.GivenNameParts("New", null),
-            displayName = ""), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
+            displayName = "", title = ""), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
         assertNull(saved.verifiedHash)
     }
 

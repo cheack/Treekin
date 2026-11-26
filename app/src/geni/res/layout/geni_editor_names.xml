@@ -44,6 +44,20 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_nameTitleLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_name_title">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_nameTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/editor_displayNameLabel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
