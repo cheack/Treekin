@@ -59,6 +59,7 @@ public class PersonEditorActivity extends BaseActivity {
     private boolean nameFromPieces; // If the given name and surname come from the Given and Surname pieces, they must return there
     private boolean surnameBefore; // The given name comes after the surname, e.g. "/Simpson/ Homer"
     private String nameSuffix; // Last part of the name, not editable here
+    private final app.familygem.geni.GeniProfileEditor geniEditor = new app.familygem.geni.GeniProfileEditor(this); // GENI-HOOK
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -166,7 +167,7 @@ public class PersonEditorActivity extends BaseActivity {
             if (!person.getNames().isEmpty()) {
                 String givenName = "";
                 String surname = "";
-                Name name = person.getNames().get(0);
+                Name name = app.familygem.geni.GeniFacts.INSTANCE.editedName(person); // GENI-HOOK: the main name, not a birth name listed first
                 String value = name.getValue();
                 if (value != null) {
                     value = value.trim();
@@ -231,6 +232,7 @@ public class PersonEditorActivity extends BaseActivity {
         }
         birthDateEditor.initialize(birthDate, findViewById(R.id.editor_birthAlert));
         deathDateEditor.initialize(deathDate, findViewById(R.id.editor_deathAlert));
+        geniEditor.bind(person); // GENI-HOOK: the fields Geni syncs
     }
 
     private void disableDeath() {
@@ -254,6 +256,7 @@ public class PersonEditorActivity extends BaseActivity {
 
     private void save() {
         if (!TreeUtil.INSTANCE.isGlobalGedcomOk(this::save)) return; // A crash occurred because gc was null here
+        if (!geniEditor.finishEditingAndValidate()) return; // GENI-HOOK: a date Geni cannot store keeps the form open
 
         // Name
         String givenName = givenNameView.getText().toString().trim();
@@ -267,7 +270,7 @@ public class PersonEditorActivity extends BaseActivity {
                 person.setNames(names);
             }
         } else {
-            name = person.getNames().get(0);
+            name = app.familygem.geni.GeniFacts.INSTANCE.editedName(person); // GENI-HOOK
         }
         if (name != null) {
             if (nameFromPieces) {
@@ -370,6 +373,8 @@ public class PersonEditorActivity extends BaseActivity {
             EventUtilKt.cleanUpFields(death);
             person.addEventFact(death);
         }
+
+        geniEditor.saveTo(person); // GENI-HOOK
 
         // Finalization of new person
         Object[] modifications = {person, null}; // The null is used to receive a possible Family

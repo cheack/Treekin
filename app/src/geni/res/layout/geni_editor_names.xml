@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fields of the person editor for a Geni tree, bound by GeniProfileEditor -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_birthSurnameLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_birth_surname">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_birthSurname"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords|textPersonName"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_suffixLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/suffix">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_suffix"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords|textPersonName"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_nicknamesLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_also_known_as">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_nicknames"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords|textPersonName"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_nameTitleLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_name_title">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_nameTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_displayNameLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_display_name">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_displayName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapWords|textPersonName"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+</merge>

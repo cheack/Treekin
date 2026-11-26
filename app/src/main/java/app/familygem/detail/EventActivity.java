@@ -32,6 +32,7 @@ public class EventActivity extends DetailActivity {
         event = (EventFact)cast(EventFact.class);
         setTitle();
         placeSlug(event.getTag());
+        if (app.familygem.geni.GeniFacts.INSTANCE.placeFields(this, event)) return; // GENI-HOOK: a fact synced with Geni offers only its synced fields
         if (Arrays.asList(eventTags).contains(event.getTag())) // It's an event (without Value)
             place(getString(R.string.value), "Value", false, 0);
         else // All other cases, usually attributes (with Value)

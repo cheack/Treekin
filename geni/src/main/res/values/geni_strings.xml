@@ -152,4 +152,21 @@
     <string name="geni_home_deleted_on_geni">Deleted on Geni</string>
     <string name="geni_home_removed_from_device">Removed from this device</string>
     <string name="geni_delete_tree">Delete tree</string>
+    <string name="geni_baptism">Baptism</string>
+    <string name="geni_birth_surname">Birth surname</string>
+    <string name="geni_also_known_as">Also known as</string>
+    <string name="geni_baptism_date">Baptism date</string>
+    <string name="geni_baptism_place">Baptism place</string>
+    <string name="geni_burial_date">Burial date</string>
+    <string name="geni_burial_place">Burial place</string>
+    <string name="geni_cause_of_death">Cause of death</string>
+    <string name="geni_about_me">About me</string>
+    <string name="geni_date_not_supported">Geni cannot store this date</string>
+    <string name="geni_first_name">First name</string>
+    <string name="geni_middle_name">Middle name</string>
+    <string name="geni_last_name">Last name</string>
+    <string name="geni_display_name">Display name</string>
+    <string name="geni_group_DISPLAY_NAME">Display name</string>
+    <string name="geni_name_title">Name title</string>
+    <string name="geni_group_TITLE">Name title</string>
 </resources>

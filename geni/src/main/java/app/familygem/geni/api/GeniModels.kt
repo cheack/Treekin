@@ -27,6 +27,10 @@ data class GeniProfile(
     @SerializedName("maiden_name") val maidenName: String? = null,
     val suffix: String? = null,
     val name: String? = null,
+    /** Set only while the profile has a display name override (checked on the sandbox, 2026-11-26). */
+    @SerializedName("display_name") val displayName: String? = null,
+    /** Name title like "Dr."; top-level and set only while there is one (checked on the sandbox, 2026-11-26). */
+    val title: String? = null,
     val gender: String? = null,
     @SerializedName("is_alive") val isAlive: Boolean? = null,
     val occupation: String? = null,

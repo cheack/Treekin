@@ -207,4 +207,74 @@ class GeniMapperTest {
         assertEquals("1950", person.fact("OCCU").date)
         assertEquals("Donetsk", person.fact("OCCU").place)
     }
+
+    @Test
+    fun updatedOccupationKeepsLocalDateAndPlace() {
+        val person = Person()
+        val worker = com.google.gson.Gson().fromJson("""{"id":"profile-1","occupation":"Miner"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, worker)
+        person.fact("OCCU").date = "1950"
+        person.fact("OCCU").place = "Donetsk"
+        GeniMapper.applyProfile(Gedcom(), person, worker.copy(occupation = "Engineer"), worker)
+        assertEquals("Engineer", person.fact("OCCU").value)
+        assertEquals("1950", person.fact("OCCU").date)
+        assertEquals("Donetsk", person.fact("OCCU").place)
+    }
+
+    @Test
+    fun importStoresNameParts() {
+        val person = Person()
+        val mary = com.google.gson.Gson().fromJson("""{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise","last_name":"Example"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, mary)
+        assertEquals("Mary Ann Louise /Example/", person.names.single().value)
+        assertEquals(GivenNameParts("Mary Ann", "Louise"), GeniMapper.getGivenNameParts(person))
+        assertEquals("", GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)) // Explicitly none
+        assertEquals(GivenNameParts("Mary Ann", "Louise"), ProfileFields.of(person).givenParts)
+        // Edited elsewhere (the name screen): the stale parts are ignored
+        person.names.single().value = "Maria /Example/"
+        assertNull(ProfileFields.of(person).givenParts)
+    }
+
+    @Test
+    fun splitChangeOnGeniUpdatesParts() {
+        val person = Person()
+        val mary = com.google.gson.Gson().fromJson("""{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, mary)
+        GeniMapper.applyProfile(Gedcom(), person, mary.copy(firstName = "Mary", middleName = "Ann Louise"), mary)
+        assertEquals(GivenNameParts("Mary", "Ann Louise"), GeniMapper.getGivenNameParts(person))
+    }
+
+    @Test
+    fun prefillsPartsFromSnapshotWhenGivenMatches() {
+        val snapshot = """{"id":"profile-1","first_name":"Mary Ann","middle_name":"Louise","last_name":"Example"}"""
+        val legacy = Person().apply { addName(org.folg.gedcom.model.Name().apply { value = "Mary Ann Louise /Example/" }) }
+        assertEquals(GivenNameParts("Mary Ann", "Louise"), GeniMapper.givenNamePartsFor(legacy, snapshot))
+        legacy.names.single().value = "Maria Louise /Example/"
+        assertEquals(GivenNameParts("Maria", "Louise"), GeniMapper.givenNamePartsFor(legacy, snapshot))
+        assertEquals(GivenNameParts("Maria", "Louise"), GeniMapper.givenNamePartsFor(legacy, null))
+    }
+
+    @Test
+    fun clearedEventKeepsAFactWithLocalDetails() {
+        val person = Person()
+        val baptized = com.google.gson.Gson().fromJson("""{"id":"profile-1","baptism":{"date":{"year":1846}}}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, baptized)
+        person.fact("BAPM").type = "Catholic"
+        GeniMapper.applyProfile(Gedcom(), person, baptized.copy(baptism = null), baptized)
+        assertEquals("Catholic", person.fact("BAPM").type)
+        assertNull(person.fact("BAPM").date)
+        assertNull(ProfileFields.of(person).baptism)
+    }
+
+    @Test
+    fun clearedOccupationKeepsAFactWithOtherDetails() {
+        val worker = com.google.gson.Gson().fromJson("""{"id":"profile-1","occupation":"Miner"}""", GeniProfile::class.java)
+        listOf<EventFact.() -> Unit>({ rin = "R1" }, { phone = "123" }, { putExtension("custom", "x") }).forEach { detail ->
+            val person = Person()
+            GeniMapper.applyProfile(Gedcom(), person, worker)
+            person.fact("OCCU").detail()
+            GeniMapper.applyProfile(Gedcom(), person, worker.copy(occupation = null), worker)
+            assertNull(person.fact("OCCU").value)
+        }
+    }
 }

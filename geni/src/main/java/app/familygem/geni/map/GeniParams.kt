@@ -29,18 +29,21 @@ object GeniParams {
      * (Geni makes profiles created through the API deceased otherwise).
      * Values Geni cannot store (a date like "BEF 1900") count as unchanged.
      */
-    fun profile(old: ProfileFields, new: ProfileFields, isNew: Boolean = false): List<Pair<String, String>> {
+    fun profile(oldFields: ProfileFields, newFields: ProfileFields, isNew: Boolean = false): List<Pair<String, String>> {
+        val old = oldFields.resolvedAgainst(oldFields)
+        val new = newFields.resolvedAgainst(oldFields)
         val params = mutableListOf<Pair<String, String>>()
-        // Each name part only if it changed: re-sending an unchanged given name would re-split Geni's first and middle names
-        if (new.given != old.given) {
-            val given = new.given?.split(' ', limit = 2)
-            params += "first_name" to (given?.getOrNull(0) ?: "")
-            params += "middle_name" to (given?.getOrNull(1) ?: "")
-        }
+        // Each name part only if it changed: re-sending an unchanged part could re-split Geni's first and middle names.
+        // A given name changed without stored parts (an edit outside the Geni form) goes split at the first space, whole.
+        val wholeGiven = newFields.givenParts == null && new.given != old.given
+        if (wholeGiven || new.givenParts?.first != old.givenParts?.first) params += "first_name" to (new.givenParts?.first ?: "")
+        if (wholeGiven || new.givenParts?.middle != old.givenParts?.middle) params += "middle_name" to (new.givenParts?.middle ?: "")
         if (new.surname != old.surname) params += "last_name" to (new.surname ?: "")
         if (new.maiden != old.maiden) params += "maiden_name" to (new.maiden ?: "")
         if (new.suffix != old.suffix) params += "suffix" to (new.suffix ?: "")
         if (new.nicknames != old.nicknames) params += "nicknames" to (new.nicknames ?: "")
+        if (new.displayName.orEmpty() != old.displayName.orEmpty()) params += "display_name" to new.displayName.orEmpty()
+        if (new.title.orEmpty() != old.title.orEmpty()) params += "title" to new.title.orEmpty()
         if (new.sex != null && new.sex != old.sex) params += "gender" to if (new.sex == "M") "male" else "female"
         event(params, "birth", old.birth, new.birth)
         event(params, "baptism", old.baptism, new.baptism)

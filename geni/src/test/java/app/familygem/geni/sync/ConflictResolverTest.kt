@@ -90,6 +90,15 @@ class ConflictResolverTest {
     }
 
     @Test
+    fun namesShowTheSplitWhenOnlyItDiffers() = runTest {
+        person.names.single().value = "Ivan Petrovich"
+        GeniMapper.setGivenNameParts(person, app.familygem.geni.map.GivenNameParts("Ivan", "Petrovich"))
+        val (resolver, job) = setUpConflict()
+        server.enqueue(ok(geni.replace("\"Ivan\"", "\"Ivan Petrovich\"")))
+        assertEquals(FieldConflict("NAMES", "Ivan Petrovich (Ivan / Petrovich)", "Ivan Petrovich (Ivan Petrovich / —)"), resolver.details(job).first())
+    }
+
+    @Test
     fun namesAreShownAsOneName() = runTest {
         val (resolver, job) = setUpConflict()
         person.names.single().value = "Vanya /Petrov/"

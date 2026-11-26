@@ -130,6 +130,7 @@ class ProfileActivity : AppCompatActivity() {
                 setCollapsedTitleTextAppearance(R.style.AppTheme_CollapsedAppBar)
                 setOnClickListener { // Not only the name view but all the expanded toolbar
                     if (person!!.names.isNotEmpty()) {
+                        if (app.familygem.geni.GeniFacts.editName(this@ProfileActivity, person, person!!.names[0])) return@setOnClickListener // GENI-HOOK
                         Memory.add(person!!.names[0])
                         startActivity(Intent(this@ProfileActivity, NameActivity::class.java))
                     }
@@ -270,6 +271,7 @@ class ProfileActivity : AppCompatActivity() {
                     // Other events
                     val otherSubMenu = eventSubMenu.addSubMenu(R.string.other)
                     otherEvents.forEachIndexed { i, item -> otherSubMenu.add(0, 50 + i, 0, item.second) }
+                    app.familygem.geni.GeniFacts.replaceEventMenu(this, eventSubMenu) // GENI-HOOK: only the events Geni syncs
                     val noteSubMenu = menu.addSubMenu(R.string.note)
                     noteSubMenu.add(0, 22, 0, R.string.new_note)
                     noteSubMenu.add(0, 23, 0, R.string.new_shared_note)
@@ -290,6 +292,7 @@ class ProfileActivity : AppCompatActivity() {
                 val relativeStrings = arrayOf(
                     getString(R.string.parent), getString(R.string.sibling), getString(R.string.partner), getString(R.string.child)
                 )
+                if (app.familygem.geni.GeniFacts.onEventChosen(this, person, item.itemId)) return@setOnMenuItemClickListener true // GENI-HOOK
                 when (item.itemId) {
                     0 -> {} // When a submenu is clicked
                     // Media page
@@ -312,6 +315,7 @@ class ProfileActivity : AppCompatActivity() {
                     21 -> { // Create sex
                         val sexNames =
                             arrayOf(getString(R.string.male), getString(R.string.female), getString(R.string.unknown))
+                                .let { if (app.familygem.geni.GeniFacts.isGeniTree()) it.copyOfRange(0, 2) else it } // GENI-HOOK: Geni writes male and female
                         AlertDialog.Builder(this)
                             .setSingleChoiceItems(sexNames, -1) { dialog: DialogInterface, i: Int ->
                                 val gender = EventFact()

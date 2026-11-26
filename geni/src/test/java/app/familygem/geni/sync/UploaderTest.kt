@@ -401,7 +401,8 @@ class UploaderTest {
         assertEquals(Outcome.Done, uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))))
         val saved = store.link(1, "profile-50")!!
         // Geni's full version could not be fetched: what was sent is Geni's version for later comparisons
-        assertEquals(app.familygem.geni.map.ProfileFields.EMPTY.copy(given = "New"), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
+        assertEquals(app.familygem.geni.map.ProfileFields.EMPTY.copy(given = "New", givenParts = app.familygem.geni.map.GivenNameParts("New", null),
+            displayName = "", title = ""), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
         assertNull(saved.verifiedHash)
     }
 

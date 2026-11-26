@@ -65,6 +65,7 @@ class FactsFragment : BaseFragment() {
     private var chosenSex = 0
 
     private fun placeEvent(layout: LinearLayout, title: String, text: String, obj: Any) {
+        if (obj is GedcomTag && app.familygem.geni.GeniGlue.isInternalTag(obj)) return // GENI-HOOK: sync data edited in the person editor
         val eventView = layoutInflater.inflate(R.layout.profile_facts_item, layout, false)
         layout.addView(eventView)
         eventView.findViewById<TextView>(R.id.profileFact_title).text = title
@@ -75,6 +76,7 @@ class FactsFragment : BaseFragment() {
         if (obj is Name) {
             MediaUtil.placeMedia(otherLayout, obj as MediaContainer, false)
             eventView.setOnClickListener {
+                if (app.familygem.geni.GeniFacts.editName(requireActivity(), person, obj)) return@setOnClickListener // GENI-HOOK
                 // If it is a complex name, suggests expert mode
                 if (!Global.settings.expert && isNameComplex(obj)) {
                     AlertDialog.Builder(requireContext()).setMessage(R.string.complex_tree_advanced_tools)
@@ -109,6 +111,7 @@ class FactsFragment : BaseFragment() {
                     chosenSex++
                 }
                 if (chosenSex > 2) chosenSex = -1
+                if (app.familygem.geni.GeniFacts.trimSexes(sexes)) chosenSex = chosenSex.takeIf { it < sexes.size } ?: -1 // GENI-HOOK
                 eventView.setOnClickListener {
                     AlertDialog.Builder(requireContext())
                         .setSingleChoiceItems(sexes.values.toTypedArray<String>(), chosenSex) { dialog: DialogInterface, item: Int ->

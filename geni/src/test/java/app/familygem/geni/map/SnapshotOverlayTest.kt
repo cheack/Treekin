@@ -14,7 +14,7 @@ class SnapshotOverlayTest {
     @Test
     fun paramsOfANewProfileGiveItsFields() {
         val json = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, olga, isNew = true), "profile-5")
-        assertEquals(olga, ProfileFields.ofSnapshot(json))
+        assertEquals(olga.asGeni(), ProfileFields.ofSnapshot(json))
         assertEquals("profile-5", com.google.gson.JsonParser.parseString(json).asJsonObject.get("id").asString)
     }
 
@@ -22,8 +22,11 @@ class SnapshotOverlayTest {
     fun paramsOfAnUpdateGiveTheNewFields() {
         val before = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, olga, isNew = true), "profile-5")
         val after = olga.copy(given = "Olga", birth = EventFields("1960", null), death = null, dead = false, causeOfDeath = null, occupation = null)
-        assertEquals(after, ProfileFields.ofSnapshot(SnapshotOverlay.apply(before, GeniParams.profile(olga, after), "profile-5")))
+        assertEquals(after.asGeni(), ProfileFields.ofSnapshot(SnapshotOverlay.apply(before, GeniParams.profile(olga, after), "profile-5")))
     }
+
+    /** As Geni's version projects: name parts split at the first space, no display name, no title. */
+    private fun ProfileFields.asGeni() = copy(givenParts = GivenNameParts.split(given), displayName = "", title = "")
 
     @Test
     fun unionParams() {

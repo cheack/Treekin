@@ -49,10 +49,16 @@ class ConflictResolver(
         return host.edit(job.treeId) { gedcom ->
             if (link.geniId.startsWith("profile-")) {
                 val person = gedcom.people.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit emptyList()
-                val local = ProfileFields.of(person)
-                val geni = ProfileFields.ofSnapshot(raw) ?: return@edit emptyList()
-                threeWay(ProfileFields.ofSnapshot(snapshot) ?: return@edit emptyList(), local, geni).conflicts
-                    .sortedBy { it.ordinal }.map { FieldConflict(it.name, show(local.value(it), it == ProfileGroup.NAMES), show(geni.value(it), it == ProfileGroup.NAMES)) }
+                val base = ProfileFields.ofSnapshot(snapshot) ?: return@edit emptyList()
+                val local = ProfileFields.of(person).resolvedAgainst(base)
+                val geni = ProfileFields.ofSnapshot(raw)?.let { it.resolvedAgainst(it) } ?: return@edit emptyList()
+                // The same given name split differently: the first and middle names tell the two versions apart
+                val split = local.given == geni.given && local.givenParts != geni.givenParts
+                threeWay(base, local, geni).conflicts
+                    .sortedBy { it.ordinal }.map {
+                        val name = it == ProfileGroup.NAMES
+                        FieldConflict(it.name, show(local.value(it), name, split), show(geni.value(it), name, split))
+                    }
             } else {
                 val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit emptyList()
                 val local = UnionFields.of(family)
@@ -147,11 +153,13 @@ class ConflictResolver(
     }
 
     /** A group value as text: parts joined (name parts by spaces), an empty value as a dash. */
-    private fun show(value: Any?, name: Boolean = false): String = when (value) {
+    private fun show(value: Any?, name: Boolean = false, split: Boolean = false): String = when (value) {
         null -> "—"
         is EventFields -> listOfNotNull(value.date, value.place).joinToString(", ").ifEmpty { "—" }
         is Boolean -> if (value) "deceased" else ""
-        is List<*> -> value.map { show(it) }.filter { it.isNotEmpty() && it != "—" }.joinToString(if (name) " " else "; ").ifEmpty { "—" }
+        is app.familygem.geni.map.GivenNameParts -> if (split) "(${value.first ?: "—"} / ${value.middle ?: "—"})" else "" // Else the given name shows them
+        "" -> "—"
+        is List<*> -> value.map { show(it, split = split) }.filter { it.isNotEmpty() && it != "—" }.joinToString(if (name) " " else "; ").ifEmpty { "—" }
         else -> value.toString()
     }
 }

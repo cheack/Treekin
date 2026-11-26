@@ -26,6 +26,17 @@
             android:nextFocusForward="@+id/editor_surname" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- GENI-HOOK: middle name of a Geni tree, filled by GeniProfileEditor -->
+    <LinearLayout
+        android:id="@+id/editor_geniMiddle"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editor_nameLabel" />
+
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/editor_surnameLabel"
         android:layout_width="0dp"
@@ -33,7 +44,7 @@
         android:hint="@string/surname"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editor_nameLabel">
+        app:layout_constraintTop_toBottomOf="@+id/editor_geniMiddle">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/editor_surname"
@@ -43,6 +54,17 @@
             android:nextFocusForward="@+id/editor_birthDate" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- GENI-HOOK: fields of a Geni tree, filled by GeniProfileEditor -->
+    <LinearLayout
+        android:id="@+id/editor_geniNames"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editor_surnameLabel" />
+
     <RadioGroup
         android:id="@+id/editor_sexGroup"
         android:layout_width="wrap_content"
@@ -51,7 +73,7 @@
         android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editor_surnameLabel">
+        app:layout_constraintTop_toBottomOf="@+id/editor_geniNames">
 
         <RadioButton
             android:id="@+id/editor_sex1"
@@ -129,6 +151,17 @@
             android:layout_height="wrap_content" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- GENI-HOOK: baptism of a Geni tree -->
+    <LinearLayout
+        android:id="@+id/editor_geniBaptism"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editor_birthPlaceLabel" />
+
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/editor_dead"
         android:layout_width="wrap_content"
@@ -137,7 +170,7 @@
         android:text="@string/dead"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/editor_birthPlaceLabel" />
+        app:layout_constraintTop_toBottomOf="@+id/editor_geniBaptism" />
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/editor_death"
@@ -186,7 +219,9 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/editor_deathDateLabel" />
 
+        <!-- GENI-HOOK: ID added for editor_geniCause -->
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/editor_deathPlaceLabel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/death_place"
@@ -199,7 +234,29 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
         </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- GENI-HOOK: cause of death of a Geni tree -->
+        <LinearLayout
+            android:id="@+id/editor_geniCause"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/editor_deathPlaceLabel" />
     </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- GENI-HOOK: burial, occupation and about me of a Geni tree -->
+    <LinearLayout
+        android:id="@+id/editor_geni"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/editor_death" />
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -207,7 +264,7 @@
         android:layout_marginTop="24dp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/editor_death">
+        app:layout_constraintTop_toBottomOf="@id/editor_geni">
 
         <Button
             android:id="@+id/editor_cancel"

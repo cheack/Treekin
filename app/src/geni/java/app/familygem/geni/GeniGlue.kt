@@ -181,6 +181,9 @@ object GeniGlue {
         GeniHooks.trimTreeMenu(treeId, menu)
     }
 
+    /** Name parts and the display name are kept for the sync and edited in the person editor: not shown as facts. */
+    fun isInternalTag(tag: org.folg.gedcom.model.GedcomTag): Boolean = tag.tag in GeniMapper.INTERNAL_TAGS
+
     /** The link to the Geni profile must not be edited or deleted by hand: the tag is shown but not opened. */
     fun isLockedTag(tag: org.folg.gedcom.model.GedcomTag): Boolean = tag.tag == app.familygem.geni.map.GeniMapper.GENI_ID_TAG
 

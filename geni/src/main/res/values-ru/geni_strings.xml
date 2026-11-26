@@ -160,4 +160,21 @@
     <string name="geni_home_deleted_on_geni">Удалён на Geni</string>
     <string name="geni_home_removed_from_device">Удалён с этого устройства</string>
     <string name="geni_delete_tree">Удалить дерево</string>
+    <string name="geni_baptism">Крещение</string>
+    <string name="geni_birth_surname">Фамилия при рождении</string>
+    <string name="geni_also_known_as">Также известен как</string>
+    <string name="geni_baptism_date">Дата крещения</string>
+    <string name="geni_baptism_place">Место крещения</string>
+    <string name="geni_burial_date">Дата захоронения</string>
+    <string name="geni_burial_place">Место захоронения</string>
+    <string name="geni_cause_of_death">Причина смерти</string>
+    <string name="geni_about_me">О себе</string>
+    <string name="geni_date_not_supported">Geni не может сохранить такую дату</string>
+    <string name="geni_first_name">Имя</string>
+    <string name="geni_middle_name">Второе имя</string>
+    <string name="geni_last_name">Фамилия</string>
+    <string name="geni_display_name">Отображаемое имя</string>
+    <string name="geni_group_DISPLAY_NAME">Отображаемое имя</string>
+    <string name="geni_name_title">Титул</string>
+    <string name="geni_group_TITLE">Титул</string>
 </resources>

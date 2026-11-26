@@ -27,6 +27,17 @@ object GeniMapper {
 
     const val GENI_ID_TAG = "_GENI_ID"
     const val ABOUT_TAG = "_GENI_ABOUT"
+    const val FIRST_NAME_TAG = "_GENI_FIRST_NAME"
+    const val MIDDLE_NAME_TAG = "_GENI_MIDDLE_NAME"
+
+    /** Geni's display name override; an empty value means none (a missing tag: not known, a record from before). */
+    const val DISPLAY_NAME_TAG = "_GENI_DISPLAY_NAME"
+
+    /** Geni's name title, like the display name; the GEDCOM title fact (TITL) stays local. */
+    const val NAME_TITLE_TAG = "_GENI_NAME_TITLE"
+
+    /** Tags kept for the sync and edited in the person editor, not as facts. */
+    val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG, NAME_TITLE_TAG)
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
@@ -54,8 +65,12 @@ object GeniMapper {
      */
     fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null, keep: Set<ProfileGroup> = emptySet()) {
         fun changed(group: ProfileGroup, field: (GeniProfile) -> Any?) = group !in keep && (previous == null || field(previous) != field(profile))
-        if (changed(ProfileGroup.NAMES) { listOf(it.firstName, it.middleName, it.lastName, it.maidenName, it.suffix, it.nicknames) })
+        if (changed(ProfileGroup.NAMES) { listOf(clean(it.firstName), clean(it.middleName), it.lastName, it.maidenName, it.suffix, it.nicknames) }) {
             updateNames(person, profile)
+            setGivenNameParts(person, GivenNameParts(profile.firstName, profile.middleName))
+        }
+        if (changed(ProfileGroup.DISPLAY_NAME) { clean(it.displayName) }) setTag(person, DISPLAY_NAME_TAG, clean(profile.displayName) ?: "")
+        if (changed(ProfileGroup.TITLE) { clean(it.title) }) setTag(person, NAME_TITLE_TAG, clean(profile.title) ?: "")
         if (profile.gender != null && changed(ProfileGroup.SEX) { it.gender })
             setFact(person, "SEX", value = if (profile.gender == "male") "M" else if (profile.gender == "female") "F" else "U")
         else if (person.eventsFacts.orEmpty().none { it.tag == "SEX" })
@@ -64,7 +79,11 @@ object GeniMapper {
         if (changed(ProfileGroup.BAPTISM) { it.baptism }) setEvent(person, "BAPM", profile.baptism)
         if (changed(ProfileGroup.OCCUPATION) { it.occupation }) {
             val occupation = profile.occupation?.takeIf { it.isNotBlank() }
-            if (occupation != null) setFact(person, "OCCU", value = occupation) else removeFacts(person, "OCCU")
+            // Geni has only the text: a local date or place of the occupation stays
+            val fact = person.eventsFacts.orEmpty().firstOrNull { it.tag == "OCCU" }
+            if (occupation == null) removeFacts(person, "OCCU")
+            else if (fact != null) fact.value = occupation
+            else setFact(person, "OCCU", value = occupation)
         }
         if (changed(ProfileGroup.DEATH) { listOf(it.death, it.isAlive, it.causeOfDeath) }) {
             val dead = profile.isAlive == false || !profile.causeOfDeath.isNullOrBlank()
@@ -117,7 +136,7 @@ object GeniMapper {
 
     /**
      * Removes the facts with this tag. A birth, baptism, burial, marriage or occupation fact that holds local data
-     * (notes, sources, media) is emptied instead: Geni does not have that data. An empty fact projects as no value.
+     * (notes, sources, media, type, cause, age, address) is emptied instead: Geni does not have that data. An empty fact projects as no value.
      * Death and divorce facts are removed anyway: an empty one would still mean "dead" or "divorced".
      */
     private fun removeFacts(container: Any, tag: String) {
@@ -133,8 +152,15 @@ object GeniMapper {
 
     private val EMPTIABLE = setOf("BIRT", "BAPM", "BURI", "MARR", "OCCU")
 
-    private fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
-            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty()
+    /**
+     * True for a fact with data Geni does not have, besides date, place and value: attachments (notes, sources, media),
+     * details (type, cause, age, address, contacts, RIN, UID) and extensions. Such a fact is emptied, never removed,
+     * by a clear from Geni or from the person editor.
+     */
+    fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
+            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty() ||
+            listOf(fact.type, fact.cause, fact.age, fact.phone, fact.fax, fact.email, fact.www, fact.rin, fact.uid).any { !it.isNullOrBlank() } ||
+            fact.address != null || fact.extensions.orEmpty().isNotEmpty()
 
     private fun facts(container: Any): List<EventFact> = when (container) {
         is Person -> container.eventsFacts.orEmpty()
@@ -194,6 +220,28 @@ object GeniMapper {
             else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y")
             else removeFacts(family, "DIV")
         }
+    }
+
+    /** First and middle names stored apart, or null for a person without them. */
+    fun getGivenNameParts(person: Person): GivenNameParts? {
+        val first = getTag(person, FIRST_NAME_TAG)
+        val middle = getTag(person, MIDDLE_NAME_TAG)
+        return if (first == null && middle == null) null else GivenNameParts(first, middle)
+    }
+
+    fun setGivenNameParts(person: Person, parts: GivenNameParts) {
+        val normalized = parts.normalized()
+        setTag(person, FIRST_NAME_TAG, normalized.first)
+        setTag(person, MIDDLE_NAME_TAG, normalized.middle)
+    }
+
+    /**
+     * Name parts to show for a person: the stored ones, or for a record from before they were stored the ones of
+     * Geni's last version [snapshot] if the given name is still the same, else the first-space split.
+     */
+    fun givenNamePartsFor(person: Person, snapshot: String?): GivenNameParts? {
+        val local = ProfileFields.of(person)
+        return local.resolvedAgainst(snapshot?.let { ProfileFields.ofSnapshot(it) } ?: local).givenParts
     }
 
     fun getGeniId(container: ExtensionContainer): String? = getTag(container, GENI_ID_TAG)

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fields of the person editor for a Geni tree, bound by GeniProfileEditor -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/editor_burialDateLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="@string/geni_burial_date"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editor_burialDate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionNext"
+                android:inputType="textCapCharacters" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <ImageView
+            android:id="@+id/editor_burialAlert"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/invalid_date"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@+id/editor_burialDateLabel"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/editor_burialDateLabel"
+            app:srcCompat="@drawable/alert" />
+
+        <app.familygem.DateEditorLayout
+            android:id="@+id/editor_burialDateEditor"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/editor_burialDateLabel" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/editor_burialPlaceLabel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:hint="@string/geni_burial_place"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/editor_burialDateEditor">
+
+            <app.familygem.PlaceFinderTextView
+                android:id="@+id/editor_burialPlace"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionNext" />
+        </com.google.android.material.textfield.TextInputLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_occupationLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/occupation">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_occupation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapSentences"
+            android:imeOptions="actionNext" />
+    </com.google.android.material.textfield.TextInputLayout>
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/editor_aboutLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/geni_about_me">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editor_about"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapSentences|textMultiLine"
+            android:minLines="3"
+            android:gravity="top" />
+    </com.google.android.material.textfield.TextInputLayout>
+</merge>

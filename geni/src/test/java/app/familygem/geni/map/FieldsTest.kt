@@ -56,7 +56,8 @@ class FieldsTest {
         }
         val snapshot = """{"id":"profile-1","first_name":"Ivan","last_name":"P","gender":"male","nicknames":["A","B"],
             "birth":{"date":{"day":5,"month":7,"year":1991}}}"""
-        assertEquals(ProfileFields.ofSnapshot(snapshot), ProfileFields.of(person))
+        val geni = ProfileFields.ofSnapshot(snapshot)!!
+        assertEquals(geni, ProfileFields.of(person).resolvedAgainst(geni)) // The record stores no name parts nor display name
     }
 
     @Test
