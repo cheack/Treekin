@@ -301,7 +301,7 @@ Roadmap: [2026-11-26-geni-full-editing-roadmap.md](2026-11-26-geni-full-editing-
 
 Roadmap: [2026-11-26-modern-ui-roadmap.md](2026-11-26-modern-ui-roadmap.md). Keep the fork; rebuild the most-used screens in Compose with Material 3 Expressive; designs made and approved in Claude Design first. The code starts after section 11 (full editing); the design (stage 0) runs now and already includes the future fields.
 
-- [ ] 0. Design direction: research brief, decisions, design system and screen mockups (Claude Design artifacts), approved — direction A chosen, core screens with all future fields drawn (2026-11-26)
+- [ ] 0. Design direction: research brief, decisions, design system and screen mockups (Claude Design artifacts), approved — direction A chosen; core and app screens drawn with all future fields, dark and tablet (2026-11-26); design system still open
 - [ ] 1. Foundation: Compose, `TreekinTheme` from the tokens, shared components, screenshot tests
 - [ ] 2. Home in Compose
 - [ ] 3. Profile card
