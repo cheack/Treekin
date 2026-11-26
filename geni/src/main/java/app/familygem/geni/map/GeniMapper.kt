@@ -152,10 +152,15 @@ object GeniMapper {
 
     private val EMPTIABLE = setOf("BIRT", "BAPM", "BURI", "MARR", "OCCU")
 
-    /** Data Geni does not have: attachments and details beyond date, place and value (the person editor keeps them too). */
-    private fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
+    /**
+     * True for a fact with data Geni does not have, besides date, place and value: attachments (notes, sources, media),
+     * details (type, cause, age, address, contacts, RIN, UID) and extensions. Such a fact is emptied, never removed,
+     * by a clear from Geni or from the person editor.
+     */
+    fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
             fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty() ||
-            listOf(fact.type, fact.cause, fact.age).any { !it.isNullOrBlank() } || fact.address != null
+            listOf(fact.type, fact.cause, fact.age, fact.phone, fact.fax, fact.email, fact.www, fact.rin, fact.uid).any { !it.isNullOrBlank() } ||
+            fact.address != null || fact.extensions.orEmpty().isNotEmpty()
 
     private fun facts(container: Any): List<EventFact> = when (container) {
         is Person -> container.eventsFacts.orEmpty()

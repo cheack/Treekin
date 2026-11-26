@@ -254,10 +254,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     private fun first(person: Person, tag: String): EventFact? = person.eventsFacts.orEmpty().firstOrNull { it.tag == tag }
 
-    /** Data of a fact that Geni does not have: attachments and details beyond date, place and value. */
-    private fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
-            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty() ||
-            listOf(fact.type, fact.cause, fact.age).any { !it.isNullOrBlank() } || fact.address != null
+    /** Same rule as a clear from Geni. */
+    private fun hasLocalData(fact: EventFact) = GeniMapper.hasLocalData(fact)
 
     /** Data of a name besides its value: attachments and name pieces. */
     private fun hasLocalData(name: Name) = name.notes.orEmpty().isNotEmpty() || name.noteRefs.orEmpty().isNotEmpty() ||

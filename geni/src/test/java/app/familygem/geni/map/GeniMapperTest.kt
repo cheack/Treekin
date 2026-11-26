@@ -265,4 +265,16 @@ class GeniMapperTest {
         assertNull(person.fact("BAPM").date)
         assertNull(ProfileFields.of(person).baptism)
     }
+
+    @Test
+    fun clearedOccupationKeepsAFactWithOtherDetails() {
+        val worker = com.google.gson.Gson().fromJson("""{"id":"profile-1","occupation":"Miner"}""", GeniProfile::class.java)
+        listOf<EventFact.() -> Unit>({ rin = "R1" }, { phone = "123" }, { putExtension("custom", "x") }).forEach { detail ->
+            val person = Person()
+            GeniMapper.applyProfile(Gedcom(), person, worker)
+            person.fact("OCCU").detail()
+            GeniMapper.applyProfile(Gedcom(), person, worker.copy(occupation = null), worker)
+            assertNull(person.fact("OCCU").value)
+        }
+    }
 }
