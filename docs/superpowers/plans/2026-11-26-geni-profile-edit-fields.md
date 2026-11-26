@@ -64,10 +64,10 @@ Sources for the API distinctions are the [v1 profile read](https://www.geni.com/
 
 **Interfaces** — Consume `GeniGlue.isGeniTree(treeId: Int): Boolean`, `Memory.getLeaderObject()` and the existing person/event save methods. The Geni menu creates GEDCOM tags `BIRT`, `BAPM`, `OCCU`, `DEAT` and `BURI`.
 
-- [ ] Add `factsMenuUsesGeniTagsAndKeepsLegacyRecords()`. Assert the Geni menu contains Birth, Baptism, Occupation, Death and Burial and omits Christening, Residence and Other. Open Baptism, save `1904`, and assert the person has `BAPM` with date `1904` and the original `CHR` and `RESI` facts with their original values. Open an ordinary tree and assert its existing event menu entries remain visible.
-- [ ] Run `gradle --console=plain :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.familygem.geni.GeniProfileEditorTest`. Expect the Geni menu assertion to fail.
-- [ ] Change `setupFab()` to build the Geni entries with stable dispatch IDs tied directly to the tag. For an already present synced tag, open its first fact so a second fact cannot silently miss the sync projection. In `EventActivity.format()`, offer Date/Place for supported events and Cause for Death. For Occupation offer Value, and use the existing legacy detail presentation for already-populated local fields. Keep local attachments accessible. Keep the Facts sex chooser consistent with the supported changes and display any existing unknown value.
-- [ ] Rerun the instrumentation test. Expect success. Commit the task as `Match Geni profile fact choices to sync`.
+- [x] Add `factsMenuUsesGeniTagsAndKeepsLegacyRecords()`. Assert the Geni menu contains Birth, Baptism, Occupation, Death and Burial and omits Christening, Residence and Other. Open Baptism, save `1904`, and assert the person has `BAPM` with date `1904` and the original `CHR` and `RESI` facts with their original values. Open an ordinary tree and assert its existing event menu entries remain visible.
+- [x] Run `gradle --console=plain :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.familygem.geni.GeniProfileEditorTest`. Expect the Geni menu assertion to fail.
+- [x] Change `setupFab()` to build the Geni entries with stable dispatch IDs tied directly to the tag. For an already present synced tag, open its first fact so a second fact cannot silently miss the sync projection. In `EventActivity.format()`, offer Date/Place for supported events and Cause for Death. For Occupation offer Value, and use the existing legacy detail presentation for already-populated local fields. Keep local attachments accessible. Keep the Facts sex chooser consistent with the supported changes and display any existing unknown value.
+- [x] Rerun the instrumentation test. Expect success. Commit the task as `Match Geni profile fact choices to sync`.
 
 ### Task 2 — Expose fields already supported by sync
 

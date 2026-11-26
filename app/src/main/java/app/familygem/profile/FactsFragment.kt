@@ -109,10 +109,11 @@ class FactsFragment : BaseFragment() {
                     chosenSex++
                 }
                 if (chosenSex > 2) chosenSex = -1
+                val choices = app.familygem.geni.GeniFacts.sexChoices(sexes) // GENI-HOOK: an unknown sex is shown, not offered
                 eventView.setOnClickListener {
                     AlertDialog.Builder(requireContext())
-                        .setSingleChoiceItems(sexes.values.toTypedArray<String>(), chosenSex) { dialog: DialogInterface, item: Int ->
-                            obj.value = ArrayList(sexes.keys)[item]
+                        .setSingleChoiceItems(choices.values.toTypedArray<String>(), chosenSex.takeIf { it < choices.size } ?: -1) { dialog: DialogInterface, item: Int ->
+                            obj.value = ArrayList(choices.keys)[item]
                             updateSpouseRoles(person)
                             dialog.dismiss()
                             refresh()

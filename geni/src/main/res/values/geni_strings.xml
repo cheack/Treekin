@@ -152,4 +152,5 @@
     <string name="geni_home_deleted_on_geni">Deleted on Geni</string>
     <string name="geni_home_removed_from_device">Removed from this device</string>
     <string name="geni_delete_tree">Delete tree</string>
+    <string name="geni_baptism">Baptism</string>
 </resources>
