@@ -108,8 +108,8 @@ Replaces the persons list.
 
 ## Order with the full-editing roadmap
 
-Decided 2026-11-26: the full-editing roadmap goes first, all of it, in the current screens. Then UI 0 → 8. The design must cover every field and screen the app will have (date ranges, privacy, other languages, read-only Geni data, adoption, photo tags, documents, videos, merge), and designing before those exist would mean redesigning.
+Decided 2026-11-26: the full-editing roadmap is built first, all of it, in the current screens; the UI code (stages 1–8) comes after it. Stage 0 (design) runs now, and draws every field and screen the full-editing roadmap adds (date ranges, structured places, event descriptions, privacy, unknown sex, other languages, read-only Geni data, adoption and foster, photo tags, documents, videos, merge, follow, projects), so nothing is redesigned later.
 
-The first exploration from 2026-11-26 stays as input to stage 0: the [Treekin UI directions](https://claude.ai/artifact/8aAr3fXFUMUbN1oikZEuGv) canvas, with direction A "Expressive" (Material 3 Expressive) and B "Quiet" (minimal), each with Home, Profile and Edit profile. No direction was chosen yet.
+Design so far, on the [Treekin UI directions](https://claude.ai/artifact/8aAr3fXFUMUbN1oikZEuGv) canvas: the page "Directions (A vs B)" compares A "Expressive" (Material 3 Expressive) with B "Quiet" (minimal). **A was chosen.** The page "Core screens (A)" has the first full set with every future field: profile, edit profile, event editor (date ranges, structured place, description), name in another language, family (adopted and foster children), add a child (relationship, email at creation, privacy), photo details and tags, photos / documents / videos, and the more-actions sheet (merge, follow, project). Still to design in stage 0: the design system artifact, Home, people and search, tree, login and onboarding, sync backlog and conflicts, settings, dark mode, tablet layouts.
 
 Each stage gets its own detailed plan (tasks, tests, emulator checks) before work starts.
