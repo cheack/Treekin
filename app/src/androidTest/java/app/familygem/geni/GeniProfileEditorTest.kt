@@ -45,7 +45,8 @@ import org.junit.runner.RunWith
 /**
  * The profile editor of a Geni tree offers what Geni's profile sync writes, and leaves local records alone.
  * Works on an in-memory tree in place of the open tree, with auto save off: the tree file on the device is never written.
- * Run: `adb shell am instrument -w -e class app.familygem.geni.GeniProfileEditorTest
+ * Run without uninstalling the app: `gradle :app:installDebug :app:installDebugAndroidTest`, then
+ * `adb shell am instrument -w -e class app.familygem.geni.GeniProfileEditorTest
  *  net.cheack.treekin.test/androidx.test.runner.AndroidJUnitRunner`
  */
 @RunWith(AndroidJUnit4::class)
@@ -173,6 +174,9 @@ class GeniProfileEditorTest {
         popupItem(context.getString(R.string.event)).perform(click())
     }
 
+    /** A popup item that is there, also while the popup is still animating in (its on-screen rectangle may be empty). */
+    private val shown = androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility(androidx.test.espresso.matcher.ViewMatchers.Visibility.VISIBLE)
+
     private fun displayed(matcher: Matcher<View>) = onView(allOf(matcher, isDisplayed()))
 
     @Test
@@ -182,12 +186,16 @@ class GeniProfileEditorTest {
         openProfile(person).use {
             openEventMenu()
             listOf(R.string.birth, app.familygem.geni.R.string.geni_baptism, R.string.occupation, R.string.death, R.string.burial)
-                .forEach { popupItem(context.getString(it)).check(matches(isDisplayed())) }
+                .forEach { popupItem(context.getString(it)).check(matches(shown)) }
             listOf(R.string.christening, R.string.residence, R.string.other)
                 .forEach { popupItem(context.getString(it)).check(doesNotExist()) }
 
             popupItem(context.getString(app.familygem.geni.R.string.geni_baptism)).perform(click())
-            displayed(allOf(withId(R.id.event_title), withText(R.string.date))).perform(click())
+            // A tap during the opening animation of the event screen can be lost: tap again until the date editor shows
+            for (attempt in 1..3) {
+                displayed(allOf(withId(R.id.event_title), withText(R.string.date))).perform(click())
+                if (runCatching { displayed(withId(R.id.event_edit)).check(matches(isDisplayed())) }.isSuccess) break
+            }
             displayed(withId(R.id.event_edit)).perform(replaceText("1904"))
             displayed(withId(R.id.event_save)).perform(click())
         }
@@ -203,7 +211,7 @@ class GeniProfileEditorTest {
         openProfile(legacyPerson()).use {
             openEventMenu()
             listOf(R.string.birth, R.string.christening, R.string.residence, R.string.other)
-                .forEach { popupItem(context.getString(it)).check(matches(isDisplayed())) }
+                .forEach { popupItem(context.getString(it)).check(matches(shown)) }
         }
     }
 
@@ -366,5 +374,19 @@ class GeniProfileEditorTest {
         assertEquals("Prof.", GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG))
         assertEquals("Professor", person.eventsFacts.single { it.tag == "TITL" }.value)
         assertEquals(listOf("title" to "Prof."), params)
+    }
+
+    @Test
+    fun causeOfDeathFollowsUpstreamCleanUp() {
+        GeniTrees.add(treeId)
+        val person = namedPerson("Ivan /Test/", "Ivan" to "", "")
+        openEditor(person).use { scenario ->
+            scenario.onActivity { it.findViewById<androidx.appcompat.widget.SwitchCompat>(R.id.editor_dead).isChecked = true }
+            field(R.id.editor_causeOfDeath).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("Fever"))
+            tapButton(R.id.editor_save)
+        }
+        val death = person.eventsFacts.single { it.tag == "DEAT" }
+        assertEquals("Fever", death.cause)
+        assertNull(death.value) // "Y" only marks a death fact with nothing else
     }
 }

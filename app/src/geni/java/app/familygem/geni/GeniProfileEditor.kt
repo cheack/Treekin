@@ -11,6 +11,7 @@ import app.familygem.PersonEditorActivity
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.GeniParams
 import app.familygem.geni.map.GivenNameParts
+import app.familygem.util.cleanUpFields
 import com.google.android.material.textfield.TextInputLayout
 import org.folg.gedcom.model.EventFact
 import org.folg.gedcom.model.Name
@@ -186,7 +187,10 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         }
         setEvent(person, "BAPM", AppR.id.editor_baptismDate, AppR.id.editor_baptismPlace)
         // The upstream form already created or removed the death fact following the switch
-        if (changed(AppR.id.editor_causeOfDeath)) first(person, "DEAT")?.cause = text(AppR.id.editor_causeOfDeath).ifEmpty { null }
+        if (changed(AppR.id.editor_causeOfDeath)) first(person, "DEAT")?.let {
+            it.cause = text(AppR.id.editor_causeOfDeath).ifEmpty { null }
+            it.cleanUpFields() // As upstream: "Y" only on a death fact with nothing else
+        }
         setEvent(person, "BURI", AppR.id.editor_burialDate, AppR.id.editor_burialPlace)
         if (changed(AppR.id.editor_occupation)) setOccupation(person, text(AppR.id.editor_occupation))
         if (changed(AppR.id.editor_about))
