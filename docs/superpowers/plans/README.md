@@ -269,6 +269,21 @@ A **Home** screen opens with the tree: upcoming birthdays (next 14 days) and rec
 - [ ] **Deleted or merged on Geni** and **Deleted on Geni** rows on the device (unit tests only); **Removed from this device** was checked
 - [ ] Geni `updated_at` of cached profiles as a second source of "Profile updated" (it would show edits made on Geni by others)
 
+## 10. Profile editor fields
+
+The person editor of a Geni tree offers the fields Geni's profile API can write and read back, and only those event choices; local trees keep upstream's editor. Plan: [2026-11-26-geni-profile-edit-fields.md](2026-11-26-geni-profile-edit-fields.md).
+
+- [x] Facts → Event offers Birth, Baptism (BAPM), Occupation, Death and Burial; an existing synced fact opens instead of a second one; the event screen offers only synced fields; sex choices male/female, Unknown shown only
+- [x] Modify: Birth surname, Suffix, Also known as, Baptism, Cause of death, Burial, Occupation, About me; only changed fields are written, in place; a new date Geni cannot store keeps the form open; Death on a living person opens Modify with Dead switched on in the form only
+- [x] First, middle and display names round-trip apart (`_GENI_FIRST_NAME`, `_GENI_MIDDLE_NAME`, `_GENI_DISPLAY_NAME`); records from before inherit them from the snapshot; the main name row and the header open Modify
+- [x] Name title (`title`, top-level on v1, checked on the sandbox) apart from the GEDCOM `TITL` fact
+- [x] Checked on the emulator against the sandbox: existing profile edit, unchanged save without a job, offline new relative sent once, legacy Christening and Residence kept
+
+### Deferred from the profile editor fields
+
+- [ ] `ProfileFields` gained fields, so its hash changed: a link without a snapshot but with a verified hash looks edited once after the upgrade (Geni then only fills empty fields; a gone profile is kept rather than removed)
+- [ ] The birth name keeps the old given part when the first or middle name changes locally (until Geni's next name change)
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
