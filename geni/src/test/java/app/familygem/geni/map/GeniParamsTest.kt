@@ -142,4 +142,16 @@ class GeniParamsTest {
         assertTrue(params.none { it.first == "status" })
         assertEquals(emptyList<Pair<String, String>>(), GeniParams.union(old, old.copy()))
     }
+
+    @Test
+    fun clearingFieldsSendsEmptyValuesOnly() {
+        val old = ivan.copy(occupation = "Miner", dead = true, death = EventFields("1950", null), causeOfDeath = "Fever",
+            about = "Line one\nLine two", burial = EventFields("1950", "Kazan"))
+        val params = GeniParams.profile(old, old.copy(occupation = null, causeOfDeath = null, about = null, burial = null))
+        assertEquals(listOf("cause_of_death" to "",
+            "burial[date][day]" to "", "burial[date][month]" to "", "burial[date][year]" to "", "burial[date][circa]" to "false",
+            "burial[location][place_name]" to "") + listOf("city", "county", "state", "country").map { "burial[location][$it]" to "" } +
+            listOf("occupation" to "", "about_me" to ""), params.filter { it.first != "is_alive" })
+        assertTrue(params.none { it.first.startsWith("birth") || it.first.startsWith("death") || it.first.endsWith("_name") || it.first == "gender" })
+    }
 }

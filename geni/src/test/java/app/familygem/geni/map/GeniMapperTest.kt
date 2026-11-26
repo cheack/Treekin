@@ -207,4 +207,17 @@ class GeniMapperTest {
         assertEquals("1950", person.fact("OCCU").date)
         assertEquals("Donetsk", person.fact("OCCU").place)
     }
+
+    @Test
+    fun updatedOccupationKeepsLocalDateAndPlace() {
+        val person = Person()
+        val worker = com.google.gson.Gson().fromJson("""{"id":"profile-1","occupation":"Miner"}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, worker)
+        person.fact("OCCU").date = "1950"
+        person.fact("OCCU").place = "Donetsk"
+        GeniMapper.applyProfile(Gedcom(), person, worker.copy(occupation = "Engineer"), worker)
+        assertEquals("Engineer", person.fact("OCCU").value)
+        assertEquals("1950", person.fact("OCCU").date)
+        assertEquals("Donetsk", person.fact("OCCU").place)
+    }
 }

@@ -64,7 +64,11 @@ object GeniMapper {
         if (changed(ProfileGroup.BAPTISM) { it.baptism }) setEvent(person, "BAPM", profile.baptism)
         if (changed(ProfileGroup.OCCUPATION) { it.occupation }) {
             val occupation = profile.occupation?.takeIf { it.isNotBlank() }
-            if (occupation != null) setFact(person, "OCCU", value = occupation) else removeFacts(person, "OCCU")
+            // Geni has only the text: a local date or place of the occupation stays
+            val fact = person.eventsFacts.orEmpty().firstOrNull { it.tag == "OCCU" }
+            if (occupation == null) removeFacts(person, "OCCU")
+            else if (fact != null) fact.value = occupation
+            else setFact(person, "OCCU", value = occupation)
         }
         if (changed(ProfileGroup.DEATH) { listOf(it.death, it.isAlive, it.causeOfDeath) }) {
             val dead = profile.isAlive == false || !profile.causeOfDeath.isNullOrBlank()

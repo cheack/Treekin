@@ -153,4 +153,13 @@
     <string name="geni_home_removed_from_device">Removed from this device</string>
     <string name="geni_delete_tree">Delete tree</string>
     <string name="geni_baptism">Baptism</string>
+    <string name="geni_birth_surname">Birth surname</string>
+    <string name="geni_also_known_as">Also known as</string>
+    <string name="geni_baptism_date">Baptism date</string>
+    <string name="geni_baptism_place">Baptism place</string>
+    <string name="geni_burial_date">Burial date</string>
+    <string name="geni_burial_place">Burial place</string>
+    <string name="geni_cause_of_death">Cause of death</string>
+    <string name="geni_about_me">About me</string>
+    <string name="geni_date_not_supported">Geni cannot store this date</string>
 </resources>

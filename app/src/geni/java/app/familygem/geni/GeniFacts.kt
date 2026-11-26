@@ -5,6 +5,8 @@ import android.content.Intent
 import android.view.Menu
 import app.familygem.Global
 import app.familygem.Memory
+import app.familygem.PersonEditorActivity
+import app.familygem.constant.Extra
 import app.familygem.detail.EventActivity
 import app.familygem.util.TreeUtil
 import org.folg.gedcom.model.EventFact
@@ -30,6 +32,7 @@ object GeniFacts {
 
     /** Synced tags whose Geni field is a value, not a date and place. */
     private const val OCCUPATION = "OCCU"
+    private const val DEATH = "DEAT"
 
     fun isGeniTree(): Boolean = Global.settings != null && GeniGlue.isGeniTree(Global.settings.openTree)
 
@@ -54,6 +57,12 @@ object GeniFacts {
         val tag = EVENTS.getOrNull(itemId - FIRST_ID)?.first ?: return false
         person ?: return true
         val existing = person.eventsFacts.orEmpty().firstOrNull { it.tag == tag }
+        if (existing == null && tag == DEATH) {
+            // A living person: "Dead" is switched on in the Modify form, and nothing changes until it is saved
+            activity.startActivity(Intent(activity, PersonEditorActivity::class.java)
+                .putExtra(Extra.PERSON_ID, person.id).putExtra(GeniProfileEditor.EXTRA_DEAD, true))
+            return true
+        }
         val fact = existing ?: EventFact().apply {
             this.tag = tag
             if (tag == OCCUPATION) value = "" else {
