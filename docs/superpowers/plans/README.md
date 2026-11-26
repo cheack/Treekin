@@ -284,6 +284,19 @@ The person editor of a Geni tree offers the fields Geni's profile API can write 
 - [ ] `ProfileFields` gained fields, so its hash changed: a link without a snapshot but with a verified hash looks edited once after the upgrade (Geni then only fills empty fields; a gone profile is kept rather than removed)
 - [ ] The birth name keeps the old given part when the first or middle name changes locally (until Geni's next name change)
 
+## 11. Full editing (everything the API can write)
+
+Roadmap: [2026-11-26-geni-full-editing-roadmap.md](2026-11-26-geni-full-editing-roadmap.md). Each stage gets its own plan before work starts.
+
+- [ ] Exact dates and places: date ranges (before, after, between), structured locations, event descriptions
+- [ ] Privacy, unknown sex, curator flags (`public`, `gender`, `locked`, `merge_note`)
+- [ ] Names in other languages (`names` per locale)
+- [ ] Read-only Geni data on the card (email, phones, current residence, custom events, managers)
+- [ ] Adopted and foster children (`relationship_modifier`, `adopted_children`, `foster_children`)
+- [ ] Photo details, tags and main photo (`photo/update`, `tag`, `untag`, `add-mugshot` with `photo_id`, albums)
+- [ ] Documents and videos
+- [ ] Merge duplicates on Geni, follow, projects
+
 ## Other tasks
 
 - [x] Register a Geni sandbox app and fill `geni.properties` (`geniAppId`, `geniHost=sandbox.geni.com`)
