@@ -3,7 +3,15 @@ package app.familygem.geni
 import android.app.Activity
 import android.content.Intent
 import android.view.Menu
+import android.text.InputType
+import android.widget.LinearLayout
+import app.familygem.DetailActivity
 import app.familygem.Global
+import app.familygem.util.MediaUtil
+import app.familygem.util.NoteUtil
+import app.familygem.util.SourceCitationUtil
+import org.folg.gedcom.model.Name
+import app.familygem.R as AppR
 import app.familygem.Memory
 import app.familygem.PersonEditorActivity
 import app.familygem.constant.Extra
@@ -84,7 +92,45 @@ object GeniFacts {
         return true
     }
 
-    /** Sexes offered in a Geni tree: Geni writes only male and female. Any other tree keeps all choices. */
-    fun sexChoices(sexes: Map<String, String>): Map<String, String> =
-        if (isGeniTree()) sexes.filterKeys { it == "M" || it == "F" } else sexes
+    /** In a Geni tree removes the unknown sex from the choices (Geni writes male and female). True if trimmed. */
+    fun trimSexes(sexes: MutableMap<String, String>): Boolean {
+        if (!isGeniTree()) return false
+        sexes.remove("U")
+        return true
+    }
+
+    /** The name the person editor edits: in a Geni tree the main name (the mapper's), else upstream's first name. */
+    fun editedName(person: Person): Name {
+        val names = person.names
+        return if (isGeniTree()) names.firstOrNull { it.type != "birth" } ?: names[0] else names[0]
+    }
+
+    /**
+     * Places the pieces of an event screen for a fact synced with Geni: only the fields Geni stores are offered,
+     * other fields show when they hold data, and media, notes and sources stay. False for any other fact.
+     */
+    fun placeFields(activity: DetailActivity, event: EventFact): Boolean {
+        if (!isSynced(event)) return false
+        val occupation = event.tag == OCCUPATION
+        fun s(id: Int) = activity.getString(id)
+        activity.place(s(AppR.string.value), "Value", occupation, 0)
+        activity.place(s(AppR.string.type), "Type", false, 0)
+        activity.place(s(AppR.string.date), "Date", !occupation, 0)
+        activity.place(s(AppR.string.place), "Place", !occupation, 0)
+        if (event.address != null) activity.place(s(AppR.string.address), event.address)
+        activity.place(s(AppR.string.cause), "Cause", event.tag == DEATH, 0)
+        activity.place(s(AppR.string.age), "Age", false, 0)
+        activity.place(s(AppR.string.www), "Www", false, InputType.TYPE_CLASS_TEXT)
+        activity.place(s(AppR.string.email), "Email", false, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
+        activity.place(s(AppR.string.telephone), "Phone", false, InputType.TYPE_CLASS_PHONE)
+        activity.place(s(AppR.string.fax), "Fax", false, InputType.TYPE_CLASS_PHONE)
+        activity.place(s(AppR.string.rin), "Rin", false, 0)
+        activity.place(s(AppR.string.user_id), "Uid", false, 0)
+        activity.placeExtensions(event)
+        val box = activity.findViewById<LinearLayout>(AppR.id.detail_box)
+        MediaUtil.placeMedia(box, event)
+        NoteUtil.placeNotes(box, event)
+        SourceCitationUtil.placeSourceCitations(box, event)
+        return true
+    }
 }

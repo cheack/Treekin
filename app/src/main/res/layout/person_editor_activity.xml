@@ -151,6 +151,7 @@
             android:layout_height="wrap_content" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <!-- GENI-HOOK: baptism of a Geni tree -->
     <LinearLayout
         android:id="@+id/editor_geniBaptism"
         android:layout_width="0dp"
@@ -218,6 +219,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/editor_deathDateLabel" />
 
+        <!-- GENI-HOOK: ID added for editor_geniCause -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/editor_deathPlaceLabel"
             android:layout_width="match_parent"
@@ -233,6 +235,7 @@
                 android:layout_height="wrap_content" />
         </com.google.android.material.textfield.TextInputLayout>
 
+        <!-- GENI-HOOK: cause of death of a Geni tree -->
         <LinearLayout
             android:id="@+id/editor_geniCause"
             android:layout_width="match_parent"
@@ -244,6 +247,7 @@
             app:layout_constraintTop_toBottomOf="@+id/editor_deathPlaceLabel" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- GENI-HOOK: burial, occupation and about me of a Geni tree -->
     <LinearLayout
         android:id="@+id/editor_geni"
         android:layout_width="0dp"

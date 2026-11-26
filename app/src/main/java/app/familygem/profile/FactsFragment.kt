@@ -42,8 +42,7 @@ class FactsFragment : BaseFragment() {
         if (prepareContent()) {
             person.names.forEach { placeEvent(layout, it.writeTitle(), U.firstAndLastName(it, " "), it) }
             person.eventsFacts.forEach { placeEvent(layout, it.writeTitle(), it.writeContent(), it) }
-            U.findExtensions(person).filterNot { app.familygem.geni.GeniGlue.isInternalTag(it.gedcomTag) } // GENI-HOOK
-                .forEach { placeEvent(layout, it.name, it.text, it.gedcomTag) }
+            U.findExtensions(person).forEach { placeEvent(layout, it.name, it.text, it.gedcomTag) }
             NoteUtil.placeNotes(layout, person)
             SourceCitationUtil.placeSourceCitations(layout, person)
             placeChangeDate(layout, person.change)
@@ -66,6 +65,7 @@ class FactsFragment : BaseFragment() {
     private var chosenSex = 0
 
     private fun placeEvent(layout: LinearLayout, title: String, text: String, obj: Any) {
+        if (obj is GedcomTag && app.familygem.geni.GeniGlue.isInternalTag(obj)) return // GENI-HOOK: sync data edited in the person editor
         val eventView = layoutInflater.inflate(R.layout.profile_facts_item, layout, false)
         layout.addView(eventView)
         eventView.findViewById<TextView>(R.id.profileFact_title).text = title
@@ -111,11 +111,11 @@ class FactsFragment : BaseFragment() {
                     chosenSex++
                 }
                 if (chosenSex > 2) chosenSex = -1
-                val choices = app.familygem.geni.GeniFacts.sexChoices(sexes) // GENI-HOOK: an unknown sex is shown, not offered
+                if (app.familygem.geni.GeniFacts.trimSexes(sexes)) chosenSex = chosenSex.takeIf { it < sexes.size } ?: -1 // GENI-HOOK
                 eventView.setOnClickListener {
                     AlertDialog.Builder(requireContext())
-                        .setSingleChoiceItems(choices.values.toTypedArray<String>(), chosenSex.takeIf { it < choices.size } ?: -1) { dialog: DialogInterface, item: Int ->
-                            obj.value = ArrayList(choices.keys)[item]
+                        .setSingleChoiceItems(sexes.values.toTypedArray<String>(), chosenSex) { dialog: DialogInterface, item: Int ->
+                            obj.value = ArrayList(sexes.keys)[item]
                             updateSpouseRoles(person)
                             dialog.dismiss()
                             refresh()

@@ -32,26 +32,24 @@ public class EventActivity extends DetailActivity {
         event = (EventFact)cast(EventFact.class);
         setTitle();
         placeSlug(event.getTag());
-        // GENI-HOOK: a fact synced with Geni offers only the fields Geni stores; other fields show only when filled
-        boolean geni = app.familygem.geni.GeniFacts.INSTANCE.isSynced(event);
-        boolean geniValue = geni && event.getTag().equals("OCCU");
+        if (app.familygem.geni.GeniFacts.INSTANCE.placeFields(this, event)) return; // GENI-HOOK: a fact synced with Geni offers only its synced fields
         if (Arrays.asList(eventTags).contains(event.getTag())) // It's an event (without Value)
             place(getString(R.string.value), "Value", false, 0);
         else // All other cases, usually attributes (with Value)
-            place(getString(R.string.value), "Value", !geni || geniValue, 0);
+            place(getString(R.string.value), "Value");
         if (event.getTag().equals("MARR"))
             place(getString(R.string.type), "Type"); // Type of relationship
         else
-            place(getString(R.string.type), "Type", !geni && event.getTag().equals("EVEN"), 0);
-        place(getString(R.string.date), "Date", !geniValue, 0);
-        place(getString(R.string.place), "Place", !geniValue, 0);
-        if (!geni || event.getAddress() != null) place(getString(R.string.address), event.getAddress()); // GENI-HOOK
+            place(getString(R.string.type), "Type", event.getTag().equals("EVEN"), 0);
+        place(getString(R.string.date), "Date");
+        place(getString(R.string.place), "Place");
+        place(getString(R.string.address), event.getAddress());
         place(getString(R.string.cause), "Cause", event.getTag() != null && event.getTag().equals("DEAT"), 0);
         if (Memory.getLeaderObject() instanceof Family) {
             place(getString(R.string.husband_age), event.getHusband(), true);
             place(getString(R.string.wife_age), event.getWife(), false);
         } else { // Person
-            place(getString(R.string.age), "Age", !geni, 0);
+            place(getString(R.string.age), "Age");
         }
         place(getString(R.string.www), "Www", false, InputType.TYPE_CLASS_TEXT);
         place(getString(R.string.email), "Email", false, InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);

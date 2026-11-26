@@ -126,9 +126,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     /** Geni's last version of the person, read before the form accepts input; null if none or unreadable. */
     private fun cachedSnapshot(personId: String): String? = try {
-        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-            Geni.store(activity).linkByGedcomId(app.familygem.Global.settings.openTree, personId)?.snapshot
-        }
+        val treeId = app.familygem.Global.settings.openTree
+        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(activity).linkByGedcomId(treeId, personId)?.snapshot }
     } catch (e: Exception) {
         android.util.Log.w("GeniSync", "Snapshot of $personId not read", e)
         null
@@ -199,7 +198,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     /** Puts the whole given name [given] where the upstream form put the first name [first], in the name it edited. */
     private fun joinGiven(person: Person, first: String, given: String) {
-        val name = person.names.orEmpty().firstOrNull() ?: return
+        if (person.names.isNullOrEmpty()) return
+        val name = GeniFacts.editedName(person)
         fun join(a: String, b: String) = listOf(a.trim(), b.trim()).filter { it.isNotEmpty() }.joinToString(" ")
         val value = name.value
         if (value != null) name.value = when {
@@ -254,11 +254,15 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     private fun first(person: Person, tag: String): EventFact? = person.eventsFacts.orEmpty().firstOrNull { it.tag == tag }
 
+    /** Data of a fact that Geni does not have: attachments and details beyond date, place and value. */
     private fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
-            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty()
+            fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty() ||
+            listOf(fact.type, fact.cause, fact.age).any { !it.isNullOrBlank() } || fact.address != null
 
+    /** Data of a name besides its value: attachments and name pieces. */
     private fun hasLocalData(name: Name) = name.notes.orEmpty().isNotEmpty() || name.noteRefs.orEmpty().isNotEmpty() ||
-            name.sourceCitations.orEmpty().isNotEmpty() || name.media.orEmpty().isNotEmpty() || name.mediaRefs.orEmpty().isNotEmpty()
+            name.sourceCitations.orEmpty().isNotEmpty() || name.media.orEmpty().isNotEmpty() || name.mediaRefs.orEmpty().isNotEmpty() ||
+            listOf(name.prefix, name.given, name.surnamePrefix, name.surname, name.suffix, name.nickname).any { !it.isNullOrBlank() }
 
     /** Surname of a GEDCOM name value like "Ivan /Petrov/". */
     private fun surname(value: String?): String? {

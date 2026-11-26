@@ -389,4 +389,40 @@ class GeniProfileEditorTest {
         assertEquals("Fever", death.cause)
         assertNull(death.value) // "Y" only marks a death fact with nothing else
     }
+
+    @Test
+    fun birthNameListedFirstIsLeftAlone() {
+        GeniTrees.add(treeId)
+        val person = useTree(Person().apply {
+            id = "I1"
+            addName(Name().apply { value = "Mary /Orlova/"; type = "birth" })
+            addName(Name().apply { value = "Mary Ann /Test/" })
+            addEventFact(fact("SEX", value = "F"))
+            GeniMapper.setGivenNameParts(this, app.familygem.geni.map.GivenNameParts("Mary", "Ann"))
+        })
+        openEditor(person).use {
+            field(R.id.editor_name).check(matches(withText("Mary")))
+            field(R.id.editor_surname).check(matches(withText("Test")))
+            field(R.id.editor_middleName).perform(replaceText("Jane"))
+            tapButton(R.id.editor_save)
+        }
+        assertEquals("Mary /Orlova/", person.names[0].value)
+        assertEquals("Mary Jane /Test/", person.names[1].value)
+    }
+
+    @Test
+    fun clearingKeepsFactsAndNamesWithOtherDetails() {
+        GeniTrees.add(treeId)
+        val person = geniPerson().apply {
+            eventsFacts.single { it.tag == "BAPM" }.type = "Catholic"
+            names.single { it.type == "birth" }.nickname = "Manya"
+        }
+        openEditor(person).use {
+            listOf(R.id.editor_baptismDate, R.id.editor_baptismPlace, R.id.editor_birthSurname)
+                .forEach { field(it).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("")) }
+            tapButton(R.id.editor_save)
+        }
+        assertEquals("Catholic", person.eventsFacts.single { it.tag == "BAPM" }.type)
+        assertEquals("Manya", person.names.single { it.type == "birth" }.nickname)
+    }
 }

@@ -167,7 +167,7 @@ public class PersonEditorActivity extends BaseActivity {
             if (!person.getNames().isEmpty()) {
                 String givenName = "";
                 String surname = "";
-                Name name = person.getNames().get(0);
+                Name name = app.familygem.geni.GeniFacts.INSTANCE.editedName(person); // GENI-HOOK: the main name, not a birth name listed first
                 String value = name.getValue();
                 if (value != null) {
                     value = value.trim();
@@ -270,7 +270,7 @@ public class PersonEditorActivity extends BaseActivity {
                 person.setNames(names);
             }
         } else {
-            name = person.getNames().get(0);
+            name = app.familygem.geni.GeniFacts.INSTANCE.editedName(person); // GENI-HOOK
         }
         if (name != null) {
             if (nameFromPieces) {
