@@ -253,4 +253,16 @@ class GeniMapperTest {
         assertEquals(GivenNameParts("Maria", "Louise"), GeniMapper.givenNamePartsFor(legacy, snapshot))
         assertEquals(GivenNameParts("Maria", "Louise"), GeniMapper.givenNamePartsFor(legacy, null))
     }
+
+    @Test
+    fun clearedEventKeepsAFactWithLocalDetails() {
+        val person = Person()
+        val baptized = com.google.gson.Gson().fromJson("""{"id":"profile-1","baptism":{"date":{"year":1846}}}""", GeniProfile::class.java)
+        GeniMapper.applyProfile(Gedcom(), person, baptized)
+        person.fact("BAPM").type = "Catholic"
+        GeniMapper.applyProfile(Gedcom(), person, baptized.copy(baptism = null), baptized)
+        assertEquals("Catholic", person.fact("BAPM").type)
+        assertNull(person.fact("BAPM").date)
+        assertNull(ProfileFields.of(person).baptism)
+    }
 }
