@@ -43,9 +43,15 @@ class DateConverter {
             }
         var dual = false
 
+        /** GENI-HOOK: "ABT", "EST" or "CAL" in front of one end of a range ("BET ABT 1840 AND 1845"), kept as typed; null for none. */
+        var qualifier: String? = null
+
         /** Receives an exact GEDCOM date and fills all the attributes of the SingleDate. */
         fun scan(gedcomDate: String) {
             var gedcomDate = gedcomDate.trim()
+            val approximation = Regex("^(ABT|EST|CAL)\\s+").find(gedcomDate) // GENI-HOOK
+            qualifier = approximation?.groupValues?.get(1)
+            if (approximation != null) gedcomDate = gedcomDate.substring(approximation.value.length).trim()
             // Recognizes if the date is B.C. and removes the suffix
             negative = if (gedcomDate.endsWith("BC")) {
                 gedcomDate = gedcomDate.substring(0, gedcomDate.length - 2).trim()
@@ -102,6 +108,8 @@ class DateConverter {
         firstDate.date = null
         firstDate.format = Format.OTHER
         secondDate?.format = Format.OTHER
+        firstDate.qualifier = null // GENI-HOOK
+        secondDate?.qualifier = null
 
         val gedcomDate = gedcomDate.trim()
         if (gedcomDate.isEmpty()) {
@@ -161,10 +169,11 @@ class DateConverter {
         val month = "(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)"
         val year = "\\d{3,4}(/\\d{2})?"
         val datePart = "($day $month $year|$month $year|$year( B\\.C\\.)?)"
+        val endPart = "((ABT|CAL|EST) )?$datePart" // GENI-HOOK: an approximate end of a range
         return gedcomDate.matches(datePart.toRegex())
-                || gedcomDate.matches(("(ABT|CAL|EST|BEF|AFT|FROM|TO) $datePart").toRegex())
-                || gedcomDate.matches(("BET $datePart AND $datePart").toRegex())
-                || gedcomDate.matches(("FROM $datePart TO $datePart").toRegex())
+                || gedcomDate.matches(("(ABT|CAL|EST|BEF|AFT|FROM|TO) $endPart").toRegex())
+                || gedcomDate.matches(("BET $endPart AND $endPart").toRegex())
+                || gedcomDate.matches(("FROM $endPart TO $endPart").toRegex())
                 || gedcomDate.matches(("INT $datePart \\(.*\\)").toRegex())
     }
 

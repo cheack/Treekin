@@ -347,6 +347,24 @@ class UploaderTest {
         assertEquals("Driver", app.familygem.geni.map.ProfileFields.ofSnapshot(link.snapshot!!)!!.occupation)
     }
 
+    private val rangeParams = listOf("birth[date][day]" to "", "birth[date][month]" to "", "birth[date][year]" to "1840", "birth[date][circa]" to "true",
+        "birth[date][range]" to "between", "birth[date][end_day]" to "", "birth[date][end_month]" to "", "birth[date][end_year]" to "1845",
+        "birth[date][end_circa]" to "false")
+
+    @Test
+    fun rangeWriteWithFailedFetchLeavesSnapshotOfTheRange() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(error(503)) // The read-back fails
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = rangeParams))))
+        val fields = app.familygem.geni.map.ProfileFields.ofSnapshot(store.link(1, "profile-36430")!!.snapshot!!)!!
+        assertEquals("BET ABT 1840 AND 1845", fields.birth?.date)
+        // The same range as local fields makes no more writes
+        assertEquals(emptyList<Pair<String, String>>(), app.familygem.geni.map.GeniParams.profile(fields, fields))
+    }
+
     @Test
     fun updateIsNotSentWhenJobChangedDuringCheck() = runTest {
         tree()
@@ -475,6 +493,17 @@ class UploaderTest {
         assertEquals(1, server.requestCount) // Nothing sent
         assertEquals(engineer, store.link(1, "profile-36430")!!.snapshot)
         assertEquals("Driver", gedcom.people.single { it.id == "I1" }.eventsFacts.single { it.tag == "OCCU" }.value)
+    }
+
+    @Test
+    fun differentRangeEditsOfTheSameEventConflict() = runTest {
+        val gedcom = tree()
+        gedcom.people.single { it.id == "I1" }.addEventFact(org.folg.gedcom.model.EventFact().apply { tag = "BIRT"; date = "BET 1840 AND 1845" })
+        val base = """{"id":"profile-36430","birth":{"date":{"year":1840,"range":"between","end_year":1845}}}"""
+        store.saveLinks(listOf(link("profile-36430", "I1", snapshot = base.replace("1845", "1844"))))
+        server.enqueue(ok(base.replace("1845", "1850"))) // Someone else changed the end to 1850
+        assertEquals(Outcome.Conflict(listOf("BIRTH")), uploader().run(stored(updateProfile.copy(params = rangeParams))))
+        assertEquals(1, server.requestCount) // Nothing sent
     }
 
     @Test

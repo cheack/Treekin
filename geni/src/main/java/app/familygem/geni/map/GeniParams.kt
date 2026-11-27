@@ -6,14 +6,34 @@ import app.familygem.geni.api.GeniDate
 object GeniParams {
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
-    private val DATE = Regex("""^(?:(ABT|EST|CAL)\s+)?(?:(\d{1,2})\s+)?(?:([A-Z]{3})\s+)?(\d{1,4})$""")
+    private const val POINT = """(?:(?:ABT|EST|CAL)\s+)?(?:\d{1,2}\s+)?(?:[A-Z]{3}\s+)?\d{1,4}"""
+    private val POINT_PARTS = Regex("""^(?:(ABT|EST|CAL)\s+)?(?:(\d{1,2})\s+)?(?:([A-Z]{3})\s+)?(\d{1,4})$""")
+    private val BEFORE_AFTER = Regex("""^(BEF|AFT)\s+($POINT)$""")
+    private val BETWEEN = Regex("""^(?:BET\s+($POINT)\s+AND|FROM\s+($POINT)\s+TO)\s+($POINT)$""")
 
     /**
      * Geni date of a GEDCOM date like "12 MAR 1960", "JUN 2012", "1960" or "ABT 1960" (also EST and CAL), in any case.
-     * Null for anything Geni cannot store: ranges, BEF/AFT, free text, a day without a month.
+     * "BEF 1900" and "AFT 1900" are `before` and `after` ranges; "BET 1840 AND 1845" and "FROM 1840 TO 1845" are `between`,
+     * each end with its own approximation.
+     * Null for anything Geni cannot store: free text, a day without a month, a one-ended FROM or TO.
      */
     fun parseDate(text: String?): GeniDate? {
-        val match = DATE.matchEntire(text?.trim()?.uppercase()?.replace(Regex("\\s+"), " ") ?: return null) ?: return null
+        val normalized = text?.trim()?.uppercase()?.replace(Regex("\\s+"), " ") ?: return null
+        BEFORE_AFTER.matchEntire(normalized)?.let { match ->
+            val date = point(match.groupValues[2]) ?: return null
+            return date.copy(range = if (match.groupValues[1] == "BEF") "before" else "after")
+        }
+        BETWEEN.matchEntire(normalized)?.let { match ->
+            val start = point(match.groupValues[1].ifEmpty { match.groupValues[2] }) ?: return null
+            val end = point(match.groupValues[3]) ?: return null
+            return start.copy(range = "between", endYear = end.year, endMonth = end.month, endDay = end.day, endCirca = end.circa)
+        }
+        return point(normalized)
+    }
+
+    /** One date without range: "12 MAR 1960", "ABT 1960". */
+    private fun point(text: String): GeniDate? {
+        val match = POINT_PARTS.matchEntire(text) ?: return null
         val (prefix, day, monthName, year) = match.destructured
         val month = if (monthName.isEmpty()) null else MONTHS.indexOf(monthName).takeIf { it >= 0 }?.plus(1) ?: return null
         val dayNumber = if (day.isEmpty()) null else day.toInt().takeIf { it in 1..31 && month != null } ?: return null
@@ -64,7 +84,8 @@ object GeniParams {
     }
 
     /** Form parameters for marriage and divorce changes. Never `status`: changing it wipes both events on Geni. */
-    fun union(old: UnionFields, new: UnionFields): List<Pair<String, String>> {
+    fun union(old: UnionFields, newFields: UnionFields): List<Pair<String, String>> {
+        val new = newFields.resolvedAgainst(old)
         val params = mutableListOf<Pair<String, String>>()
         event(params, "marriage", old.marriage, new.marriage)
         event(params, "divorce", old.divorce, new.divorce)
@@ -72,7 +93,8 @@ object GeniParams {
     }
 
     /**
-     * Date parameters if the date changed (all four parts: Geni replaces the date as a whole),
+     * Date parameters if the date changed (all four parts: Geni replaces the date as a whole; the range parts only when
+     * the old or the new date has a range, so a switch to a single date clears the stale end parts),
      * location parameters if the place changed (the structured parts are cleared, the place goes to place_name).
      */
     private fun event(params: MutableList<Pair<String, String>>, name: String, old: EventFields?, new: EventFields?) {
@@ -83,6 +105,13 @@ object GeniParams {
             params += "$name[date][month]" to (date?.month?.toString() ?: "")
             params += "$name[date][year]" to (date?.year?.toString() ?: "")
             params += "$name[date][circa]" to (date?.circa == true).toString()
+            if (date?.range != null || parseDate(old?.date)?.range != null) {
+                params += "$name[date][range]" to (date?.range ?: "")
+                params += "$name[date][end_day]" to (date?.endDay?.toString() ?: "")
+                params += "$name[date][end_month]" to (date?.endMonth?.toString() ?: "")
+                params += "$name[date][end_year]" to (date?.endYear?.toString() ?: "")
+                params += "$name[date][end_circa]" to (date?.range == "between" && date.endCirca == true).toString()
+            }
         }
         if (new?.place != old?.place) {
             params += "$name[location][place_name]" to (new?.place ?: "")

@@ -16,13 +16,25 @@ class GeniParamsTest {
         assertEquals(GeniDate(1960, null, null, true), GeniParams.parseDate("ABT 1960"))
         assertEquals(GeniDate(1890, 1, 2, true), GeniParams.parseDate(" est 2 Jan 1890 "))
         assertEquals(GeniDate(1700, null, null, true), GeniParams.parseDate("CAL 1700"))
-        assertNull(GeniParams.parseDate("BEF 1900"))
-        assertNull(GeniParams.parseDate("BET 1900 AND 1910"))
+        assertNull(GeniParams.parseDate("FROM 1900"))
+        assertNull(GeniParams.parseDate("TO 1900"))
+        assertNull(GeniParams.parseDate("BET 1900 AND"))
+        assertNull(GeniParams.parseDate("BET 1900"))
+        assertNull(GeniParams.parseDate("INT 1900 (about)"))
         assertNull(GeniParams.parseDate("5 1990"))
         assertNull(GeniParams.parseDate("32 JAN 1990"))
         assertNull(GeniParams.parseDate("spring 1990"))
         assertNull(GeniParams.parseDate(""))
         assertNull(GeniParams.parseDate(null))
+    }
+
+    @Test
+    fun parsesRanges() {
+        assertEquals(GeniDate(1900, null, null, false, range = "before"), GeniParams.parseDate("BEF 1900"))
+        assertEquals(GeniDate(1900, 5, 2, false, range = "after"), GeniParams.parseDate("aft 2 may 1900"))
+        assertEquals(GeniDate(1840, null, null, false, "between", 1845, null, null, false), GeniParams.parseDate("BET 1840 AND 1845"))
+        assertEquals(GeniDate(1840, 3, null, true, "between", 1845, 7, 4, true), GeniParams.parseDate("BET ABT MAR 1840 AND est 4 JUL 1845"))
+        assertEquals(GeniDate(1840, null, null, false, "between", 1845, null, null, true), GeniParams.parseDate("FROM 1840 TO ABT 1845"))
     }
 
     private val ivan = ProfileFields.EMPTY.copy(given = "Ivan", surname = "User", sex = "M", birth = EventFields("12 MAR 1960", "Moscow, Russia"))
@@ -62,9 +74,69 @@ class GeniParamsTest {
 
     @Test
     fun unparseableDateKeepsGeniDate() {
-        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(ivan, ivan.copy(birth = EventFields("BEF 1900", "Moscow, Russia"))))
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(ivan, ivan.copy(birth = EventFields("FROM 1900", "Moscow, Russia"))))
         assertEquals(listOf("birth[location][place_name]" to "Kazan") + location,
-            GeniParams.profile(ivan, ivan.copy(birth = EventFields("BEF 1900", "Kazan"))))
+            GeniParams.profile(ivan, ivan.copy(birth = EventFields("FROM 1900", "Kazan"))))
+    }
+
+    private val rangeParts = listOf("range", "end_day", "end_month", "end_year", "end_circa")
+
+    @Test
+    fun rangeSendsAllRangeParts() {
+        val params = GeniParams.profile(ivan, ivan.copy(birth = EventFields("BET ABT 1840 AND 1845", "Moscow, Russia"))).toMap()
+        assertEquals("between", params["birth[date][range]"])
+        assertEquals("1840", params["birth[date][year]"])
+        assertEquals("true", params["birth[date][circa]"])
+        assertEquals("1845", params["birth[date][end_year]"])
+        assertEquals("false", params["birth[date][end_circa]"])
+        assertEquals("", params["birth[date][end_month]"])
+    }
+
+    @Test
+    fun beforeSendsRangeAndNoEnd() {
+        val params = GeniParams.profile(ivan, ivan.copy(birth = EventFields("BEF 1900", "Moscow, Russia"))).toMap()
+        assertEquals("before", params["birth[date][range]"])
+        assertEquals("1900", params["birth[date][year]"])
+        assertEquals("", params["birth[date][end_year]"])
+    }
+
+    @Test
+    fun singleDateReplacingRangeClearsTheRangeParts() {
+        val ranged = ivan.copy(birth = EventFields("BET 1840 AND 1845", null))
+        val params = GeniParams.profile(ranged, ranged.copy(birth = EventFields("1841", null))).toMap()
+        assertEquals("1841", params["birth[date][year]"])
+        rangeParts.filter { it != "end_circa" }.forEach { assertEquals(it, "", params["birth[date][$it]"]) }
+        assertEquals("false", params["birth[date][end_circa]"])
+    }
+
+    @Test
+    fun clearingARangeClearsTheRangeParts() {
+        val ranged = ivan.copy(birth = EventFields("BEF 1900", null))
+        val params = GeniParams.profile(ranged, ranged.copy(birth = null)).toMap()
+        assertEquals("", params["birth[date][year]"])
+        assertEquals("", params["birth[date][range]"])
+    }
+
+    @Test
+    fun plainDateChangeSendsNoRangeParts() {
+        val params = GeniParams.profile(ivan, ivan.copy(birth = EventFields("1961", "Moscow, Russia"))).toMap()
+        rangeParts.forEach { assertFalse(it, "birth[date][$it]" in params) }
+    }
+
+    @Test
+    fun legacyStartOfRangeIsNoChange() {
+        val geni = ivan.copy(birth = EventFields("BET 1840 AND 1845", "Moscow, Russia"))
+        val legacy = geni.copy(birth = EventFields("1840", "Moscow, Russia"))
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(geni, legacy))
+        // A deliberate change of the date still goes
+        assertEquals("1841", GeniParams.profile(geni, legacy.copy(birth = EventFields("1841", "Moscow, Russia"))).toMap()["birth[date][year]"])
+    }
+
+    @Test
+    fun unionRangeUsesTheSameParts() {
+        val params = GeniParams.union(UnionFields.EMPTY, UnionFields(EventFields("BET 1900 AND 1901", null), null)).toMap()
+        assertEquals("between", params["marriage[date][range]"])
+        assertEquals("1901", params["marriage[date][end_year]"])
     }
 
     @Test

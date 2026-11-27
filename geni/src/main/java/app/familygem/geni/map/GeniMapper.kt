@@ -41,13 +41,33 @@ object GeniMapper {
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
-    /** GEDCOM date like "12 MAR 1960", "JUN 2012", "2014" or "ABT 1960"; null without a year. */
+    /**
+     * GEDCOM date like "12 MAR 1960", "JUN 2012", "2014" or "ABT 1960"; null without a year.
+     * A `before` / `after` range gives "BEF 1900" / "AFT 1900", `between` gives "BET 1840 AND 1845" (each end with its own ABT).
+     * A `between` without a usable end is the start date alone.
+     */
     fun gedcomDate(date: GeniDate?): String? {
-        val year = date?.year ?: return null
-        val month = date.month?.takeIf { it in 1..12 }?.let { MONTHS[it - 1] }
-        val day = date.day?.takeIf { month != null && it in 1..31 }
-        val text = listOfNotNull(day?.toString(), month, year.toString()).joinToString(" ")
-        return if (date.circa == true) "ABT $text" else text
+        val start = point(date?.year, date?.month, date?.day, date?.circa) ?: return null
+        return when (date?.range) {
+            "before" -> "BEF $start"
+            "after" -> "AFT $start"
+            "between" -> point(date.endYear, date.endMonth, date.endDay, date.endCirca)?.let { "BET $start AND $it" } ?: start
+            else -> start
+        }
+    }
+
+    /** The start date alone of a GEDCOM range, as the app stored such a date before it synced ranges; null for a date without range. */
+    fun startOfRange(date: String): String? {
+        val parsed = GeniParams.parseDate(date)?.takeIf { it.range != null } ?: return null
+        return gedcomDate(parsed.copy(range = null, endYear = null, endMonth = null, endDay = null, endCirca = null))
+    }
+
+    private fun point(year: Int?, month: Int?, day: Int?, circa: Boolean?): String? {
+        year ?: return null
+        val monthName = month?.takeIf { it in 1..12 }?.let { MONTHS[it - 1] }
+        val dayNumber = day?.takeIf { monthName != null && it in 1..31 }
+        val text = listOfNotNull(dayNumber?.toString(), monthName, year.toString()).joinToString(" ")
+        return if (circa == true) "ABT $text" else text
     }
 
     /** Place text from the non-blank location parts, from the most specific. */

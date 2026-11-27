@@ -37,6 +37,30 @@ class GeniMapperTest {
     fun circa() = assertEquals("ABT 1960", GeniMapper.gedcomDate(GeniDate(1960, null, null, true)))
 
     @Test
+    fun beforeAndAfter() {
+        assertEquals("BEF 1900", GeniMapper.gedcomDate(GeniDate(1900, null, null, null, "before")))
+        assertEquals("AFT 3 MAY 1900", GeniMapper.gedcomDate(GeniDate(1900, 5, 3, false, "after")))
+    }
+
+    @Test
+    fun betweenKeepsEachEndsApproximation() {
+        assertEquals("BET ABT 1840 AND 1845", GeniMapper.gedcomDate(GeniDate(1840, null, null, true, "between", 1845, null, null, false)))
+        assertEquals("BET 1840 AND ABT JUN 1845", GeniMapper.gedcomDate(GeniDate(1840, null, null, false, "between", 1845, 6, null, true)))
+    }
+
+    @Test
+    fun betweenWithoutEndIsTheStartDate() =
+        assertEquals("1840", GeniMapper.gedcomDate(GeniDate(1840, null, null, null, "between")))
+
+    @Test
+    fun rangeRoundTripsThroughText() {
+        listOf("BEF 1900", "AFT ABT 1900", "BET ABT 1840 AND 1845", "BET 12 MAR 1840 AND ABT JUN 1845").forEach {
+            assertEquals(it, GeniMapper.gedcomDate(GeniParams.parseDate(it)))
+        }
+        assertEquals("BET 1840 AND 1845", GeniMapper.gedcomDate(GeniParams.parseDate("FROM 1840 TO 1845")))
+    }
+
+    @Test
     fun noYearIsNull() {
         assertNull(GeniMapper.gedcomDate(GeniDate(null, 5, 3, null)))
         assertNull(GeniMapper.gedcomDate(null))

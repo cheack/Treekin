@@ -520,7 +520,8 @@ public abstract class DetailActivity extends BaseActivity {
     /**
      * Concludes the possible editing of an active piece.
      */
-    private void concludeActivePieces() {
+    private boolean concludeActivePieces() { // GENI-HOOK: returns false if a piece stayed in editor mode (a refused save)
+        boolean concluded = true;
         for (int i = 0; i < box.getChildCount(); i++) {
             View piece = box.getChildAt(i);
             EditText editText = piece.findViewById(R.id.event_edit);
@@ -530,8 +531,10 @@ public abstract class DetailActivity extends BaseActivity {
                     save(piece);
                 else
                     restore(piece);
+                if (editText.isShown()) concluded = false; // GENI-HOOK
             }
         }
+        return concluded; // GENI-HOOK
     }
 
     /**
@@ -802,7 +805,7 @@ public abstract class DetailActivity extends BaseActivity {
     }
 
     void edit(View pieceView) {
-        concludeActivePieces();
+        if (!concludeActivePieces()) return; // GENI-HOOK: a refused date keeps its editor, no other piece opens
         TextView textView = pieceView.findViewById(R.id.event_text);
         textView.setVisibility(View.GONE);
         getFabBox().setVisibility(View.GONE);
@@ -889,6 +892,7 @@ public abstract class DetailActivity extends BaseActivity {
         if (pieceObject.equals("Date"))
             dateEditor.finishEditing();
         String text = editText.getText().toString().trim();
+        if (pieceObject.equals("Date") && object instanceof EventFact && app.familygem.geni.GeniFacts.INSTANCE.rejectDate(this, (EventFact)object, text)) return; // GENI-HOOK: a date Geni cannot store keeps the editor open
         if (pieceObject instanceof Integer) { // Saves given name and surname on non-expert mode
             String givenName = "";
             String surname = "";

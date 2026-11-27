@@ -15,7 +15,19 @@ import org.folg.gedcom.model.Person
  */
 
 /** Date and place of an event; the date is canonical when Geni can store it, else the trimmed text. */
-data class EventFields(val date: String?, val place: String?)
+data class EventFields(val date: String?, val place: String?) {
+    /**
+     * This event with the date a legacy record lacks taken from [baseline] (the last Geni version): a date that is only the
+     * start of the baseline's range ("1840" for "BET 1840 AND 1845", as the app stored ranges before it synced them)
+     * is the baseline's date, not a change.
+     */
+    fun resolvedAgainst(baseline: EventFields?): EventFields {
+        val baseDate = baseline?.date
+        return if (date != null && baseDate != null && date != baseDate && date == GeniMapper.startOfRange(baseDate)) copy(date = baseDate) else this
+    }
+}
+
+internal fun EventFields?.resolvedAgainst(baseline: EventFields?): EventFields? = this?.resolvedAgainst(baseline)
 
 /** First and middle names as Geni keeps them apart; joined with a space they make the given name of the GEDCOM name. */
 data class GivenNameParts(val first: String?, val middle: String?) {
@@ -59,7 +71,11 @@ data class ProfileFields(
     fun resolvedAgainst(baseline: ProfileFields): ProfileFields = copy(
         givenParts = givenParts ?: baseline.givenParts?.takeIf { given == baseline.given } ?: GivenNameParts.split(given),
         displayName = displayName ?: baseline.displayName,
-        title = title ?: baseline.title
+        title = title ?: baseline.title,
+        birth = birth.resolvedAgainst(baseline.birth),
+        baptism = baptism.resolvedAgainst(baseline.baptism),
+        death = death.resolvedAgainst(baseline.death),
+        burial = burial.resolvedAgainst(baseline.burial)
     )
 
     companion object {
@@ -108,6 +124,9 @@ data class ProfileFields(
 
 /** @param divorced Any divorce fact, also one without date and place ("DIV Y", Geni's ex-spouse status) */
 data class UnionFields(val marriage: EventFields?, val divorce: EventFields?, val divorced: Boolean = false) {
+    /** The fields with legacy dates resolved against [baseline] (see [EventFields.resolvedAgainst]). */
+    fun resolvedAgainst(baseline: UnionFields) = copy(marriage = marriage.resolvedAgainst(baseline.marriage), divorce = divorce.resolvedAgainst(baseline.divorce))
+
     companion object {
         val EMPTY = UnionFields(null, null)
 

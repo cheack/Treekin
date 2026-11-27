@@ -2,6 +2,7 @@ package app.familygem.geni.sync
 
 import app.familygem.geni.map.EventFields
 import app.familygem.geni.map.ProfileFields
+import app.familygem.geni.map.SnapshotOverlay
 import app.familygem.geni.map.UnionFields
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -165,7 +166,25 @@ class UploadPlannerTest {
 
     @Test
     fun unparseableDateMakesNoJob() {
-        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = ivan.copy(birth = EventFields("BEF 1960", null)))).upserts)
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = ivan.copy(birth = EventFields("FROM 1960", null)))).upserts)
+    }
+
+    @Test
+    fun legacyStartOfARangeMakesNoJob() {
+        val ranged = ivanJson.replace("\"birth\":{\"date\":{\"year\":1960}}", "\"birth\":{\"date\":{\"year\":1960,\"range\":\"between\",\"end_year\":1965}}")
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(snapshot = ranged) else it }
+        assertEquals(emptyList<UploadJob>(), plan(couple(), links).upserts) // Local "1960" is the start of the range
+        val changed = plan(couple(ivanFields = ivan.copy(birth = EventFields("1961", null))), links).upserts
+        assertEquals("1961", changed.single().params.toMap()["birth[date][year]"])
+    }
+
+    @Test
+    fun rangeEditMakesAJobOnce() {
+        val local = ivan.copy(birth = EventFields("BET 1960 AND 1965", null))
+        val job = plan(couple(ivanFields = local)).upserts.single()
+        assertEquals("between", job.params.toMap()["birth[date][range]"])
+        val links = coupleLinks.map { if (it.geniId == "profile-1") it.copy(snapshot = SnapshotOverlay.apply(it.snapshot, job.params, "profile-1")) else it }
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = local), links).upserts)
     }
 
     @Test
