@@ -135,3 +135,20 @@ class DateTest {
         }
     }
 }
+
+class DateQualifierTest {
+
+    @Test
+    fun `approximate ends of a range keep their qualifier`() {
+        val converter = DateConverter("BET ABT 1840 AND est 1845")
+        assertEquals(Kind.BETWEEN_AND, converter.kind)
+        assertEquals("ABT", converter.firstDate.qualifier)
+        assertEquals("EST", converter.secondDate!!.qualifier)
+        assertEquals(Format.Y, converter.firstDate.format)
+        assertEquals(Format.Y, converter.secondDate!!.format)
+        assertTrue(converter.isValid("BET ABT 1840 AND EST 1845"))
+        assertTrue(converter.isValid("FROM 1840 TO ABT 1845"))
+        converter.analyze("BET 1840 AND 1845")
+        assertEquals(null, converter.firstDate.qualifier)
+    }
+}

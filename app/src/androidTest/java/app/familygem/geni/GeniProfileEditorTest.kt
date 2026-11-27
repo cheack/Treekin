@@ -272,11 +272,53 @@ class GeniProfileEditorTest {
     }
 
     @Test
+    fun supportedRangeSavesFromModify() {
+        GeniTrees.add(treeId)
+        val person = geniPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_baptismDate).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("BET ABT 1846 AND 1847"))
+            field(R.id.editor_burialDate).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("BEF 1902"))
+            saveAndParams(person, before)
+        }.toMap()
+        assertEquals("BET ABT 1846 AND 1847", person.eventsFacts.single { it.tag == "BAPM" }.date)
+        assertEquals("between", params["baptism[date][range]"])
+        assertEquals("true", params["baptism[date][circa]"])
+        assertEquals("1847", params["baptism[date][end_year]"])
+        assertEquals("before", params["burial[date][range]"])
+        assertEquals("S1", person.eventsFacts.single { it.tag == "BURI" }.sourceCitations.single().ref)
+        // A second save of the same form makes no new write
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(ProfileFields.of(person), ProfileFields.of(person)))
+    }
+
+    @Test
+    fun eventScreenRefusesOnlyNewDatesGeniCannotStore() {
+        GeniTrees.add(treeId)
+        val person = geniPerson()
+        val birth = person.eventsFacts.single { it.tag == "BIRT" }
+        val family = org.folg.gedcom.model.Family().apply { id = "F1" }
+        val marriage = fact("MARR", date = "FROM 1870")
+        family.addEventFact(marriage)
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            Memory.setLeader(person)
+            val reject = { f: EventFact, text: String -> GeniFacts.rejectDate(context, f, text) }
+            assertFalse(reject(birth, "BET 1850 AND 1855"))
+            assertFalse(reject(birth, ""))
+            assertFalse(reject(birth, "BET 1840 AND 1845")) // Untouched
+            assertTrue(reject(birth, "FROM 1850"))
+            Memory.setLeader(family)
+            assertFalse(reject(marriage, "FROM 1870")) // Untouched legacy text
+            assertFalse(reject(marriage, "BEF 1871"))
+            assertTrue(reject(marriage, "spring 1871"))
+        }
+    }
+
+    @Test
     fun unsupportedNewDateKeepsFormOpen() {
         GeniTrees.add(treeId)
         val person = geniPerson()
         openEditor(person).use { scenario ->
-            field(R.id.editor_baptismDate).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("BEF 1846"))
+            field(R.id.editor_baptismDate).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("FROM 1846"))
             tapButton(R.id.editor_save)
             assertEquals(androidx.lifecycle.Lifecycle.State.RESUMED, scenario.state)
             scenario.onActivity {

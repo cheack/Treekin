@@ -4,8 +4,21 @@ import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 
-/** Date of a Geni event; every part is optional. */
-data class GeniDate(val year: Int?, val month: Int?, val day: Int?, val circa: Boolean?)
+/**
+ * Date of a Geni event; every part is optional.
+ * A [range] of `before` or `after` has one date; `between` also has the end date in the `end*` parts.
+ */
+data class GeniDate(
+    val year: Int?,
+    val month: Int?,
+    val day: Int?,
+    val circa: Boolean?,
+    val range: String? = null,
+    @SerializedName("end_year") val endYear: Int? = null,
+    @SerializedName("end_month") val endMonth: Int? = null,
+    @SerializedName("end_day") val endDay: Int? = null,
+    @SerializedName("end_circa") val endCirca: Boolean? = null
+)
 
 data class GeniLocation(
     @SerializedName("place_name") val placeName: String?,

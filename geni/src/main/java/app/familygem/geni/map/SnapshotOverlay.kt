@@ -11,8 +11,8 @@ import com.google.gson.JsonPrimitive
  */
 object SnapshotOverlay {
 
-    private val NUMBERS = setOf("day", "month", "year")
-    private val BOOLEANS = setOf("is_alive", "circa")
+    private val NUMBERS = setOf("day", "month", "year", "end_day", "end_month", "end_year")
+    private val BOOLEANS = setOf("is_alive", "circa", "end_circa")
 
     /** [base] (raw Geni JSON, or nothing for a new record) with [params] written over it, as Geni stores them. */
     fun apply(base: String?, params: List<Pair<String, String>>, id: String): String {

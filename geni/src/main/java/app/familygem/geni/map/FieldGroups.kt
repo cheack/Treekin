@@ -50,4 +50,4 @@ fun threeWay(snapshot: ProfileFields, local: ProfileFields, geni: ProfileFields)
     threeWay(ProfileGroup.values(), snapshot.resolvedAgainst(snapshot), local.resolvedAgainst(snapshot), geni.resolvedAgainst(geni)) { value(it) }
 
 fun threeWay(snapshot: UnionFields, local: UnionFields, geni: UnionFields): ThreeWay<UnionGroup> =
-    threeWay(UnionGroup.values(), snapshot, local, geni) { value(it) }
+    threeWay(UnionGroup.values(), snapshot, local.resolvedAgainst(snapshot), geni) { value(it) }

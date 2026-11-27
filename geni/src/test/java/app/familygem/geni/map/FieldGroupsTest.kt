@@ -86,3 +86,40 @@ class FieldGroupsTest {
         assertEquals(emptySet<ProfileGroup>(), result.conflicts)
     }
 }
+
+class LegacyRangeTest {
+
+    private val geni = ProfileFields.EMPTY.copy(given = "Ivan", birth = EventFields("BET 1840 AND 1845", "Kyiv"))
+    private val legacy = geni.copy(birth = EventFields("1840", "Kyiv")) // Stored by the app before it synced ranges
+
+    @Test
+    fun legacyRecordIsNotLocallyChanged() {
+        val result = threeWay(geni, legacy, geni)
+        assertEquals(emptySet<ProfileGroup>(), result.local)
+        assertEquals(emptySet<ProfileGroup>(), result.conflicts)
+    }
+
+    @Test
+    fun deliberateChangeOfALegacyDateIsLocalChange() =
+        assertEquals(setOf(ProfileGroup.BIRTH), threeWay(geni, legacy.copy(birth = EventFields("1841", "Kyiv")), geni).local)
+
+    @Test
+    fun geniChangeOfTheRangeReachesALegacyRecord() {
+        val result = threeWay(geni, legacy, geni.copy(birth = EventFields("BET 1840 AND 1846", "Kyiv")))
+        assertEquals(emptySet<ProfileGroup>(), result.local)
+        assertEquals(setOf(ProfileGroup.BIRTH), result.geni)
+        assertEquals(emptySet<ProfileGroup>(), result.conflicts)
+    }
+
+    @Test
+    fun concurrentDifferentEditsOfARangedEventConflict() {
+        val result = threeWay(geni, geni.copy(birth = EventFields("1850", "Kyiv")), geni.copy(birth = EventFields("BET 1840 AND 1846", "Kyiv")))
+        assertEquals(setOf(ProfileGroup.BIRTH), result.conflicts)
+    }
+
+    @Test
+    fun legacyMarriageIsNotLocallyChanged() {
+        val snapshot = UnionFields(EventFields("BEF 1900", null), null)
+        assertEquals(emptySet<UnionGroup>(), threeWay(snapshot, UnionFields(EventFields("1900", null), null), snapshot).local)
+    }
+}

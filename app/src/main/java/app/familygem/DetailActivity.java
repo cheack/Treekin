@@ -889,6 +889,7 @@ public abstract class DetailActivity extends BaseActivity {
         if (pieceObject.equals("Date"))
             dateEditor.finishEditing();
         String text = editText.getText().toString().trim();
+        if (pieceObject.equals("Date") && object instanceof EventFact && app.familygem.geni.GeniFacts.INSTANCE.rejectDate(this, (EventFact)object, text)) return; // GENI-HOOK: a date Geni cannot store keeps the editor open
         if (pieceObject instanceof Integer) { // Saves given name and surname on non-expert mode
             String givenName = "";
             String surname = "";

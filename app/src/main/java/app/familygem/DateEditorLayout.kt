@@ -300,6 +300,7 @@ class DateEditorLayout(context: Context, set: AttributeSet?) : LinearLayout(cont
 
     /** Rewrites the string with the final GEDCOM date and puts it in editText. */
     private fun generateDate() {
+        if (dateConverter.isSingleKind) firstDate.qualifier = null // GENI-HOOK: the kind says it now
         val rewritten = when (dateConverter.kind) {
             Kind.EXACT -> writeDate(firstDate)
             Kind.BETWEEN_AND -> "BET " + writeDate(firstDate) + " AND " + writeDate(secondDate!!)
@@ -327,7 +328,8 @@ class DateEditorLayout(context: Context, set: AttributeSet?) : LinearLayout(cont
             }
         }
         if (singleDate.negative) text += " B.C."
-        return text.replace("-", "").uppercase()
+        text = text.replace("-", "").uppercase()
+        return if (text.isNotEmpty() && singleDate.qualifier != null) singleDate.qualifier + " " + text else text // GENI-HOOK
     }
 
     /** Displays or hides the alert icon according to whether the date is valid. */

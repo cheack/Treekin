@@ -34,4 +34,40 @@ class SnapshotOverlayTest {
         val json = SnapshotOverlay.apply("""{"id":"union-1","status":"spouse"}""", GeniParams.union(UnionFields.EMPTY, married), "union-1")
         assertEquals(married, UnionFields.ofSnapshot(json))
     }
+
+    private fun overlay(base: ProfileFields, after: ProfileFields): ProfileFields? {
+        val before = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, base, isNew = true), "profile-5")
+        return ProfileFields.ofSnapshot(SnapshotOverlay.apply(before, GeniParams.profile(base, after), "profile-5"))
+    }
+
+    @Test
+    fun rangeWithApproximateEndsRoundTrips() {
+        val ranged = olga.copy(birth = EventFields("BET ABT 1840 AND 1845", "Kyiv"), death = EventFields("BEF 3 MAY 1900", null))
+        assertEquals(ranged.asGeni(), ProfileFields.ofSnapshot(SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, ranged, isNew = true), "profile-5")))
+    }
+
+    @Test
+    fun singleDateReplacingARangeLeavesNoStaleParts() {
+        val ranged = olga.copy(birth = EventFields("BET ABT 1840 AND ABT 1845", null))
+        val json = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, ranged, isNew = true), "profile-5")
+        val replaced = SnapshotOverlay.apply(json, GeniParams.profile(ranged, ranged.copy(birth = EventFields("1841", null))), "profile-5")
+        assertEquals(EventFields("1841", null), ProfileFields.ofSnapshot(replaced)!!.birth)
+        val date = com.google.gson.JsonParser.parseString(replaced).asJsonObject.getAsJsonObject("birth").getAsJsonObject("date")
+        assertEquals(setOf("year", "circa"), date.keySet().toSet().minus(setOf("end_circa")))
+        assertEquals(false, date.has("range"))
+        assertEquals(false, date.has("end_year"))
+    }
+
+    @Test
+    fun clearingARangeLeavesNothing() {
+        val ranged = olga.copy(birth = EventFields("AFT 1900", null))
+        assertEquals(null, overlay(ranged, ranged.copy(birth = null))!!.birth)
+    }
+
+    @Test
+    fun unionRange() {
+        val married = UnionFields(EventFields("BET 1900 AND ABT 1902", "Kazan"), null)
+        val json = SnapshotOverlay.apply("""{"id":"union-1","status":"spouse"}""", GeniParams.union(UnionFields.EMPTY, married), "union-1")
+        assertEquals(married, UnionFields.ofSnapshot(json))
+    }
 }

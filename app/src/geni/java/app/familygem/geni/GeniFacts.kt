@@ -5,6 +5,9 @@ import android.content.Intent
 import android.view.Menu
 import android.text.InputType
 import android.widget.LinearLayout
+import android.widget.Toast
+import app.familygem.geni.map.GeniParams
+import org.folg.gedcom.model.Family
 import app.familygem.DetailActivity
 import app.familygem.Global
 import app.familygem.util.MediaUtil
@@ -46,6 +49,22 @@ object GeniFacts {
 
     /** True for a fact whose date, place (or value of an occupation, cause of death) Geni stores. */
     fun isSynced(fact: EventFact): Boolean = isGeniTree() && EVENTS.any { it.first == fact.tag }
+
+    /** True for a fact whose date Geni stores: a synced person event (not the occupation) or a marriage or divorce of a family. */
+    private fun hasSyncedDate(fact: EventFact): Boolean =
+        if (Memory.getLeaderObject() is Family) fact.tag == "MARR" || fact.tag == "DIV"
+        else isSynced(fact) && fact.tag != OCCUPATION
+
+    /**
+     * Refuses a date typed in an event screen that Geni cannot store, with the same error as the person editor.
+     * Blanks and the date the fact already has (an untouched legacy text) are accepted. True if refused.
+     */
+    fun rejectDate(context: android.content.Context, fact: EventFact, text: String): Boolean {
+        if (!isGeniTree() || !hasSyncedDate(fact) || text.isEmpty() || text == fact.date?.trim()) return false
+        if (GeniParams.parseDate(text) != null) return false
+        Toast.makeText(context, R.string.geni_date_not_supported, Toast.LENGTH_LONG).show()
+        return true
+    }
 
     /** In a Geni tree replaces the items of the event menu with the synced events. */
     fun replaceEventMenu(activity: Activity, menu: Menu) {
