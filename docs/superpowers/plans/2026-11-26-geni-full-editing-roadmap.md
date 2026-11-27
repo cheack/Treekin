@@ -35,6 +35,13 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - Verify first: write and read back each `range`, a `between` with `end_circa`, a location with only `city` + `country`, and clearing each of them.
 - Touches: `GeniModels` (`GeniDate`, `GeniLocation`, `GeniEvent`), `GeniParams`, `GeniMapper`, `Fields` (`EventFields` gains range parts), `SnapshotOverlay`, and the date validation in `GeniProfileEditor`. Unions get the same change for free.
 
+**Sandbox results (2026-11-27, profile and union events):**
+
+- Date keys `<event>[date][range|year|month|day|circa|end_year|end_month|end_day|end_circa]` work on `profile/update`, `union/update` and `add-child`. GET returns `range`, `end_*` and `formatted_date`; `circa` and `end_circa` are omitted when false. `between`, `before` and `after` round-trip, also with `circa` on `before`, and with only an approximate end.
+- A single date replaces the whole date: sending only `year` and `circa` also removes `range` and `end_*`; sending the range keys empty works too (the app sends them). Clearing year plus the other parts removes the event.
+- Location keys `<event>[location][place_name|city|county|state|country|street_address1-3|latitude|longitude]` are independent: setting or clearing one leaves the others. GET adds `country_code` and `formatted_location`. The old behaviour (clear city, county, state and country when `place_name` changes) was never needed.
+- `<event>[description]` is accepted and silently dropped (a profile `GET` never returns it, single line or multiline): not synced.
+
 ### 2. Privacy, sex and the remaining profile flags
 
 What the user gets: a profile can be made public or private, sex can be unknown, and curator flags are visible.
