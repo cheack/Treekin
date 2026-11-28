@@ -186,9 +186,11 @@ class SyncQueue(
      * @return false if nothing is queued for the photo (no changed field and no job)
      */
     suspend fun enqueueUpdatePhoto(
-        treeId: Int, photoId: String, personGedcomId: String, label: String, base: PhotoDetails, wanted: PhotoDetails, fields: Collection<PhotoField>
+        treeId: Int, photoId: String, personGedcomId: String, label: String, base: PhotoDetails, wanted: PhotoDetails, fields: Collection<PhotoField>,
+        kind: JobKind = JobKind.UPDATE_PHOTO
     ): Boolean = lock(treeId).withLock {
-        val key = "updphoto:$photoId"
+        // A document (kind UPDATE_DOCUMENT, its ID in [photoId]) edits the same three details the same way
+        val key = (if (kind == JobKind.UPDATE_DOCUMENT) "upddoc:" else "updphoto:") + photoId
         // A dismissed job was given up: this edit starts from the current values. A sending one may still reach Geni, so what it
         // sends is the starting point: reverting it then sends the revert instead of dropping the job
         val existing = store.jobs(treeId).firstOrNull { it.key == key }?.takeIf { it.state != JobState.DISMISSED }
@@ -205,7 +207,7 @@ class SyncQueue(
             return@withLock existing != null
         }
         val params = start.toParams(UploadJob.BASE_PREFIX) + want.toParams(UploadJob.WANT_PREFIX)
-        val job = UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PHOTO, geniId = photoId, personGedcomId = personGedcomId,
+        val job = UploadJob(treeId = treeId, key = key, kind = kind, geniId = photoId, personGedcomId = personGedcomId,
             params = params, label = label, localHash = 0)
         store.saveJob(if (existing == null) store.jobs(treeId).firstOrNull { it.key == key }?.let { job.copy(id = it.id, version = it.version + 1) } ?: job else job.copy(id = existing.id, version = existing.version + 1))
         true
@@ -216,6 +218,42 @@ class SyncQueue(
         val key = "tags:$photoId:$profileId"
         val existing = store.jobs(treeId).firstOrNull { it.key == key }
         val job = UploadJob(treeId = treeId, key = key, kind = if (tag) JobKind.TAG_PHOTO else JobKind.UNTAG_PHOTO, geniId = photoId,
+            personGedcomId = personGedcomId, params = listOf("profile" to profileId), label = label, localHash = 0)
+        store.saveJob(if (existing == null) job else job.copy(id = existing.id, version = existing.version + 1))
+    }
+
+    /**
+     * Queues the upload of a document file of a person's profile: one job per file, never planned from the tree, never sent twice by itself
+     * (like a photo, a lost answer leaves it failed for the user to check on Geni). The file is already in the tree's media folder.
+     * @return false if the same file is already queued
+     */
+    suspend fun enqueueAddDocument(
+        treeId: Int, profileId: String, personGedcomId: String, fileName: String, contentType: String, title: String?, description: String?, label: String
+    ): Boolean = lock(treeId).withLock {
+        val key = "doc:$personGedcomId:$fileName"
+        if (store.jobs(treeId).any { it.key == key }) return@withLock false
+        store.saveJob(UploadJob(treeId = treeId, key = key, kind = JobKind.ADD_DOCUMENT, geniId = profileId, personGedcomId = personGedcomId,
+            params = listOfNotNull("file" to fileName, "content_type" to contentType, title?.let { "title" to it }, description?.let { "description" to it }),
+            label = label, localHash = 0))
+        true
+    }
+
+    /** Queues the deletion of a document on Geni (once per document); a failed or dismissed one is asked for again. */
+    suspend fun enqueueDeleteDocument(treeId: Int, documentId: String, personGedcomId: String, label: String) = lock(treeId).withLock {
+        val key = "deldoc:$documentId"
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }
+        if (existing != null) {
+            if (existing.state != JobState.PENDING && existing.state != JobState.SENDING)
+                store.saveJob(existing.copy(state = JobState.PENDING, error = null, version = existing.version + 1))
+        } else store.saveJob(UploadJob(treeId = treeId, key = key, kind = JobKind.DELETE_DOCUMENT, geniId = documentId,
+            personGedcomId = personGedcomId, params = emptyList(), label = label, localHash = 0))
+    }
+
+    /** Queues tagging ([tag] true) or untagging a linked profile in a document; the latest wish for the pair replaces an earlier one. */
+    suspend fun enqueueDocumentTag(treeId: Int, documentId: String, profileId: String, personGedcomId: String, tag: Boolean, label: String) = lock(treeId).withLock {
+        val key = "doctags:$documentId:$profileId"
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }
+        val job = UploadJob(treeId = treeId, key = key, kind = if (tag) JobKind.TAG_DOCUMENT else JobKind.UNTAG_DOCUMENT, geniId = documentId,
             personGedcomId = personGedcomId, params = listOf("profile" to profileId), label = label, localHash = 0)
         store.saveJob(if (existing == null) job else job.copy(id = existing.id, version = existing.version + 1))
     }
@@ -383,8 +421,8 @@ class SyncQueue(
     /** What a finished job sent: its params and kind, so an untag followed by a tag with the same params is not taken for a repeat. */
     private fun UploadJob.signature() = params + ("kind" to kind.name)
 
-    /** A photo upload is like an add: after a lost response the photo may exist on Geni, so it is never sent again by itself. */
-    private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER || kind == JobKind.ADD_PHOTO
+    /** A photo or document upload is like an add: after a lost response it may exist on Geni, so it is never sent again by itself. */
+    private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER || kind == JobKind.ADD_PHOTO || kind == JobKind.ADD_DOCUMENT
 
     private fun isHeld(job: UploadJob): Boolean {
         val file = job.params.firstOrNull { it.first == "file" }?.second ?: return false
@@ -401,7 +439,7 @@ class SyncQueue(
         val pending = jobs.filter {
             it.state == JobState.PENDING && it.key !in skip && (it.kind != JobKind.ADD_PHOTO || (photos && !isHeld(it)))
         }
-        val adding = jobs.filter { it.isAdd() && it.kind != JobKind.ADD_PHOTO && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
+        val adding = jobs.filter { it.isAdd() && it.kind != JobKind.ADD_PHOTO && it.kind != JobKind.ADD_DOCUMENT && (it.state == JobState.PENDING || it.state == JobState.SENDING) }
             .mapNotNull { it.personGedcomId }.toSet()
         fun waits(job: UploadJob): Boolean {
             val waiting = job.anchors.filter { it.substringAfter(':') in adding }

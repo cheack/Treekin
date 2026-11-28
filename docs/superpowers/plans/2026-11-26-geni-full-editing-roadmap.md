@@ -168,6 +168,14 @@ What the user gets: documents (scans, certificates, text) and videos of a profil
 - Mapping: GEDCOM media with `_GENI_DOCUMENT_ID` / `_GENI_VIDEO_ID`, the same pattern as photos (download on demand, upload queue jobs, delete only for managed profiles). Text documents can map to a shared note.
 - Verify first: file size limits, the response of `text` documents, and whether a video upload works through the API at all.
 
+**Sandbox findings (2026-11-28, details in [the stage plan](2026-11-28-geni-documents.md)):** `profile-X/add-document` needs `file_name` and `content_type`, takes PDF, JPEG, PNG, GIF, TIFF and `text/plain`, tags the profile itself and was accepted up to 5 MB (8 MB was cut off). The original of a PDF or image is a complete, token-free signed URL; **a text document's text is not readable through the API** (no shared note is made, text upload is not offered). `labels` only appends and `source_url` is never returned, so only title, description and date are editable. `video/add` and `profile-X/add-video` work and give a playable `.mp4` in `sizes.video`.
+
+**Status of stage 7:**
+
+- [x] Sandbox checks: documents (add, read, update, tag, untag, delete, limits, text) and a video probe
+- [x] PR 1: documents: list, download on demand, open, upload (queued, offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
+- [ ] PR 2: videos (`add-video`, tag, untag, delete, play the downloaded `.mp4`)
+
 ### 8. Merging duplicates, following, projects
 
 What the user gets: a duplicate found in the app can be merged on Geni (or a merge requested). People can be followed, and profiles added to a Geni project.

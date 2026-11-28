@@ -47,6 +47,9 @@ data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFami
             val label = listOfNotNull(fields.given, fields.surname).joinToString(" ").ifEmpty { person.id }
             val media = person.media.orEmpty().mapNotNull { m ->
                 if (m.file?.contains("://") != false) return@mapNotNull null // Not a file of this device
+                // A Geni document (or one queued for upload) is never a photo, even a scan saved as a JPEG
+                if (GeniMapper.getTag(m, DocumentSync.DOCUMENT_TAG) != null || GeniMapper.getTag(m, DocumentSync.QUEUED_TAG) != null ||
+                    GeniMapper.getTag(m, DocumentSync.DETACHED_TAG) != null) return@mapNotNull null
                 // Only a plain file name of the tree's media folder, and only an image, is a candidate
                 if ('/' in m.file || '\\' in m.file || m.file.isEmpty()) return@mapNotNull null
                 if (m.file.substringAfterLast('.', "").lowercase() !in IMAGE_EXTENSIONS) return@mapNotNull null

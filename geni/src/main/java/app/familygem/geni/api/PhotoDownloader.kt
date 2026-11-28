@@ -25,11 +25,13 @@ import kotlin.coroutines.coroutineContext
  * network interceptors and authenticators are dropped, so no credential it would add (like the
  * Geni bearer token) can reach the photo host.
  * @param allowHttp permits plain http, but only to loopback hosts (for tests).
+ * @param accept the content types it takes (images by default); another one fails the download before a byte is stored.
  */
 class PhotoDownloader(
     http: OkHttpClient = OkHttpClient(),
     private val maxBytes: Long = 15_000_000,
-    private val allowHttp: Boolean = false
+    private val allowHttp: Boolean = false,
+    private val accept: (String) -> Boolean = { it.startsWith("image/", ignoreCase = true) }
 ) {
 
     // Policy applies to any supplied client: no redirects (signed URLs) and a total time cap
@@ -85,8 +87,8 @@ class PhotoDownloader(
                 throw GeniApiException(response.code, "Photo download failed: HTTP ${response.code}")
             }
             val type = response.header("Content-Type")?.substringBefore(';')?.trim().orEmpty()
-            if (!type.startsWith("image/", ignoreCase = true)) {
-                throw IOException("Not an image: $type")
+            if (!accept(type)) {
+                throw IOException("Unexpected content type: $type")
             }
             val body = response.body ?: throw IOException("Empty response")
             var total = 0L

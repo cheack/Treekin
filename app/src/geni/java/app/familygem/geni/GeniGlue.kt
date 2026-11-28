@@ -20,6 +20,7 @@ import app.familygem.geni.sync.DeleteDecision
 import app.familygem.geni.sync.DeleteRules
 import app.familygem.geni.sync.PersonRemoval
 import app.familygem.geni.sync.PersonPhotoChanges
+import app.familygem.geni.sync.DocumentSync
 import app.familygem.geni.sync.PhotoSync
 import org.folg.gedcom.model.Media
 import kotlinx.coroutines.Dispatchers
@@ -278,6 +279,7 @@ object GeniGlue {
         val treeId = Global.settings.openTree
         val geniId = GeniMapper.getGeniId(person)
         val photoId = GeniMapper.getTag(media, PhotoSync.PHOTO_TAG)
+        if (GeniTrees.isGeni(treeId) && geniId != null && GeniMapper.getTag(media, DocumentSync.DOCUMENT_TAG) != null) return GeniDocuments.handleDelete(context, person, media, onDone)
         if (!GeniTrees.isGeni(treeId) || geniId == null || photoId == null) return false
         val owner = context as? LifecycleOwner ?: return false
         owner.lifecycleScope.launch {
@@ -422,6 +424,10 @@ object GeniGlue {
         val treeId = Global.settings.openTree
         menu.add(R.string.geni_album).setOnMenuItemClickListener {
             GeniAlbum.show(activity, treeId, geniId, person.id) { (activity as? app.familygem.profile.ProfileActivity)?.refresh() }
+            true
+        }
+        menu.add(R.string.geni_documents).setOnMenuItemClickListener {
+            GeniDocuments.show(activity, treeId, geniId, person.id) { (activity as? app.familygem.profile.ProfileActivity)?.refresh() }
             true
         }
         menu.add(R.string.geni_keep_offline).setOnMenuItemClickListener {

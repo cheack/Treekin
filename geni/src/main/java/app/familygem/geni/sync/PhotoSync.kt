@@ -250,7 +250,10 @@ class PhotoSync(
      */
     suspend fun reconcileAlbum(treeId: Int, geniProfileId: String, personGedcomId: String, album: List<GeniPhoto>): Int {
         val listed = album.map { it.id }.toSet()
-        val gone = store.photoLinks(treeId, geniProfileId).filter { !it.isMain && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in listed }
+        // Document links share the table: the album never touches them
+        val gone = store.photoLinks(treeId, geniProfileId).filter {
+            !it.isMain && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in listed && !DocumentSync.isDocumentId(it.geniPhotoId)
+        }
         var removed = 0
         for (link in gone) {
             if (removeLink(treeId, geniProfileId, personGedcomId, link, keepIfEdited = true)) removed++
@@ -296,23 +299,7 @@ class PhotoSync(
     private fun isEdited(media: Media) =
         PhotoDetails.hasOwnTitle(media) || media.notes.orEmpty().isNotEmpty() || media.noteRefs.orEmpty().isNotEmpty()
 
-    /**
-     * Two profiles can share one Geni photo and so one file: it goes only when no photo link uses it any more
-     * and no media in the tree still names it (a photo kept as the user's own has no link).
-     */
-    private suspend fun deleteFileIfUnused(treeId: Int, fileName: String?) {
-        if (fileName == null || store.photoLinks(treeId).any { it.fileName == fileName }) return
-        if (host.edit(treeId) { gedcom -> mediaFiles(gedcom).any { it == fileName } }) return
-        withContext(Dispatchers.IO) { File(host.mediaDir(treeId), fileName).delete() }
-    }
-
-    /** File names (without folders) of every media of people, families, their events and the shared media. */
-    private fun mediaFiles(gedcom: org.folg.gedcom.model.Gedcom): Sequence<String> {
-        val holders = gedcom.people.orEmpty().asSequence().flatMap { sequenceOf(it.media.orEmpty()) + it.eventsFacts.orEmpty().map { e -> e.media.orEmpty() } } +
-                gedcom.families.orEmpty().asSequence().flatMap { sequenceOf(it.media.orEmpty()) + it.eventsFacts.orEmpty().map { e -> e.media.orEmpty() } } +
-                sequenceOf(gedcom.media.orEmpty())
-        return holders.flatMap { it.asSequence() }.mapNotNull { it.file?.substringAfterLast('/')?.substringAfterLast('\\') }
-    }
+    private suspend fun deleteFileIfUnused(treeId: Int, fileName: String?) = MediaFiles.deleteIfUnused(store, host, treeId, fileName)
 
     companion object {
         /** Custom tag of a media that came from Geni. */
