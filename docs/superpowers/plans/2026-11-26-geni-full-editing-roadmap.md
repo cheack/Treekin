@@ -6,7 +6,7 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #41)
+## Where we are (after PR #43)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
@@ -17,7 +17,7 @@
 | Contact data | `email` of a new relative, sent with the add (PR #39) | `email` of an existing profile, `phone_numbers` and `current_residence` stay site-only (shown read-only in "On Geni" when Geni returns them) |
 | Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | — (lineage of each child is read from `adopted_children` / `foster_children`; PR #41) |
 | Relatives | add parent/partner/child/sibling; `relationship_modifier` (adopt / foster) when adding a child or sibling (PR #41) | change the lineage of an existing child (no API call); merge duplicates |
-| Photos | add, delete, read main and album | title / description / date edit, tag and untag profiles, set an existing photo as main (`add-mugshot` with `photo_id`), albums |
+| Photos | add, delete, read main and album; title, description and single date (PR #42); tag, untag, set an existing photo as main (PR #43) | date ranges (Geni does not store them on photos), albums (no API route), the editor is offered for every photo and a refusal by Geni shows in the backlog |
 | Documents, videos | — | everything (add, update, tag, untag, delete) |
 | Projects, follow | — | add profiles to a project, follow / unfollow |
 
@@ -140,14 +140,14 @@ What the user gets: a child or sibling can be added as adopted or foster, and ex
 - [x] Modify: Lineage choice (Birth default, Adopted, Foster) for a new child or sibling in a Geni tree, also from the Family screen; set on the new person's own `ParentFamilyRef` before the save (the sibling case no longer shares the ref with the pivot); the Lineage action is read-only for a person already on Geni
 - [ ] Changing the lineage of an existing child stays on the site (no API call)
 
-### 6. Photo details, tags and main photo
+### 6. Photo details, tags and main photo (done: PR #42 details, PR #43 tags and main photo)
 
 What the user gets: photo title, description and date are editable. People can be tagged in a photo and removed from it. Any photo can become the main photo.
 
 - API: `photo/update` (`title`, `description`, `date`), `photo/tag/profile-X`, `photo/untag/profile-X`, `profile/add-mugshot` with `photo_id`, `photo_album/add` and `update` (`name`).
 - Mapping: the Media record of a Geni photo (`_GENI_PHOTO_ID`) gets `TITL` and its date. Tags are the profiles the photo is linked to: a media link added on another person of the tree means "tag", removing it means "untag" (needs the `tags` read).
 - Verify first: `add-mugshot` with `photo_id` (in 2026-11 it returned `null` without it), what `tags` returns, and whether `photo/update` accepts the same Date JSON as events.
-- The roadmap's "no call found to set an existing photo as main" is solved by this if the sandbox confirms it.
+- The roadmap's "no call found to set an existing photo as main" is solved: `add-mugshot` with `photo_id` works (answers `null` when the photo is already main).
 
 **Sandbox findings (2026-11-28, details in [the stage plan](2026-11-28-geni-photo-details.md)):** `photo/update` takes `title`, `description` and `date[day|month|year|circa]`, empty clears, one field at a time keeps the others; date ranges are accepted but not stored (read back as the first date), so photo dates are single dates. `tag` / `untag` answer the tagged profiles; `add-mugshot` with `photo_id=photo-Y` sets the main photo (also tags the profile). There is no album route: album create and rename are not possible through the API.
 
@@ -157,7 +157,8 @@ What the user gets: photo title, description and date are editable. People can b
 - [x] PR 1: read and edit title, description and date of a Geni photo (queued offline, conflict and rejection keep the draft, both profiles of a shared photo show the same, no re-download)
 - [x] PR 2: tag and untag from the app (Tag a person, Untag on Geni; distinct from remove-from-device and delete)
 - [x] PR 2: set an existing photo as main on Geni
-- [ ] Album create and rename: no API route, stays on the site
+- [x] Album create and rename: no API route (checked 2026-11-28), stays on the site
+- [x] Emulator check against the sandbox: offline edit, conflict, set main, tag, untag, each confirmed by a fresh API read
 
 ### 7. Documents and videos
 
@@ -182,11 +183,12 @@ What the user gets: a duplicate found in the app can be merged on Geni (or a mer
 - Create or edit custom timeline events (`events` is read-only, and there is no event resource).
 - Remove a relationship (no call; the app keeps blocking it).
 - Change a child from biological to adopted or foster after it was added (stage 5 checked: `profile/update` and `union/update` ignore `relationship_modifier`).
+- Create or rename albums, and keep a date range on a photo (no album route; the photo date is read back as its first date; stage 6 checked).
 - About-me text in other languages (`detail_strings` is read-only), discussions, and editing or deleting comments. Comments can only be added (`photo/comment`, `document/comment`, `video/comment`).
 
 ## Order and dependencies
 
-1 → 2 → 3 change the profile projection, `GeniParams` and the snapshot overlay, so they go one after another. 4 and 5 are done. 6 → 7 share the media pattern. 8 is independent.
+1 → 2 → 3 change the profile projection, `GeniParams` and the snapshot overlay, so they go one after another. 4, 5 and 6 are done. 7 shares the media pattern. 8 is independent.
 
 This roadmap goes before the modern UI roadmap ([2026-11-26-modern-ui-roadmap.md](2026-11-26-modern-ui-roadmap.md)). The new fields are built in today's screens (`GeniProfileEditor`, the Facts and media tabs), and the UI rebuild takes them over with their tests.
 
