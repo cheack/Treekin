@@ -308,6 +308,27 @@ class GeniProfileEditorTest {
     }
 
     @Test
+    fun publicChoiceSurvivesDeadSwitchedOffAndOn() {
+        GeniTrees.add(treeId)
+        // Dead without data: switching Dead off asks nothing (a death date or place would raise a confirmation)
+        val person = geniPerson().apply {
+            eventsFacts.removeAll { it.tag == "DEAT" }
+            addEventFact(fact("DEAT", value = "Y"))
+        }
+        GeniMapper.setBoolean(person, GeniMapper.PUBLIC_TAG, true)
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            // Taps as the user does, without Espresso's input injection
+            repeat(2) { _ -> it.onActivity { activity -> activity.findViewById<View>(R.id.editor_dead).performClick() } }
+            scrollToEnd()
+            field(R.id.editor_geniPublic).check(matches(isChecked()))
+            saveAndParams(person, before)
+        }
+        assertEquals(true, GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+        assertEquals(emptyList<Pair<String, String>>(), params)
+    }
+
+    @Test
     fun privacyIsAbsentInAnOrdinaryTree() {
         GeniTrees.remove(treeId)
         openEditor(geniPerson()).use {

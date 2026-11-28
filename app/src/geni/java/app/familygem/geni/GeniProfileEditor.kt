@@ -54,6 +54,9 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     /** Privacy when the form was filled: the person's stored tag, else Geni's last version; null when neither is known. */
     private var initialPublic: Boolean? = null
 
+    /** The privacy the user wants, kept apart from the switch: a living person shows it off, and Dead back on restores it. */
+    private var publicChoice = false
+
     /** The user touched the Privacy switch: an explicit choice, also when it ends where it started. */
     private var publicTouched = false
 
@@ -161,8 +164,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         // A linked person whose version has no privacy yet (stored before it was read) waits for the next load
         privacyUsable = initialPublic != null || (!unavailable && snapshot == null)
         val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
-        switch.isChecked = initialPublic == true
-        switch.setOnClickListener { publicTouched = true; updatePrivacy() }
+        publicChoice = initialPublic == true
+        switch.setOnClickListener { publicTouched = true; publicChoice = switch.isChecked; updatePrivacy() }
         // The upstream form owns the checked listener of the Dead switch: a tap is listened to here as well
         view<SwitchCompat>(AppR.id.editor_dead).setOnClickListener { updatePrivacy() }
         updatePrivacy()
@@ -171,7 +174,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     private fun updatePrivacy() {
         val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
         val dead = view<SwitchCompat>(AppR.id.editor_dead).isChecked
-        if (!dead && switch.isChecked) switch.isChecked = false
+        switch.isChecked = publicChoice && dead
         switch.isEnabled = privacyUsable && dead
         view<TextView>(AppR.id.editor_geniPublicNote).setText(
             when {
@@ -187,7 +190,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     private fun savePrivacy(person: Person) {
         if (!privacyUsable) return
         val dead = view<SwitchCompat>(AppR.id.editor_dead).isChecked
-        val value = view<SwitchCompat>(AppR.id.editor_geniPublic).isChecked && dead
+        val value = publicChoice && dead
         if (publicTouched || value != (initialPublic ?: false)) GeniMapper.setBoolean(person, GeniMapper.PUBLIC_TAG, value)
     }
 
