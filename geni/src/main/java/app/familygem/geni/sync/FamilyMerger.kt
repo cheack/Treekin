@@ -7,7 +7,7 @@ import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.ProfileFields
 import app.familygem.geni.map.UnionFields
 import app.familygem.geni.map.UnionGroup
-import app.familygem.geni.map.ProfileGroup
+import app.familygem.geni.map.FieldGroup
 import app.familygem.geni.map.ThreeWay
 import app.familygem.geni.map.filled
 import app.familygem.geni.map.threeWay
@@ -57,7 +57,7 @@ object FamilyMerger {
                 { a, b, c -> threeWay(a, b, c) }, { it.filled() }) else Decision.NONE
             val keep = decision.keep
             if (keep != Keep.CONFLICT)
-                GeniMapper.applyProfile(gedcom, person, profile, previous, decision.groups.filterIsInstance<ProfileGroup>().toSet())
+                GeniMapper.applyProfile(gedcom, person, profile, previous, decision.groups.filterIsInstance<FieldGroup>().toSet())
             GeniMapper.setGeniId(person, profile.id)
             people[profile.id] = person
             val isFocus = profile.id == family.focusId

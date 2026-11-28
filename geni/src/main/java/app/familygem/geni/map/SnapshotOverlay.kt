@@ -19,14 +19,22 @@ object SnapshotOverlay {
     fun apply(base: String?, params: List<Pair<String, String>>, id: String): String {
         val root = base?.let { runCatching { JsonParser.parseString(it).asJsonObject }.getOrNull() } ?: JsonObject()
         root.addProperty("id", id)
+        // Geni's `names` is `{}` for none (the client writes it): it stays, an absent one means a version from before they were read
+        val hadNames = root.get("names")?.isJsonObject == true
+        // The primary name sits in `names` too; a write of its fields goes there as well, or it would look like another language
+        val primary = primaryKeys(root)
         for ((key, value) in params) {
             val path = key.replace("]", "").split('[')
+            if (path.size == 1 && path[0] in LocaleName.KEYS) {
+                for (key in primary) root.getAsJsonObject("names")?.getAsJsonObject(key)?.let { write(it, path[0], value) }
+            }
             var parent = root
             for (name in path.dropLast(1)) parent = parent.getAsJsonObject(name) ?: JsonObject().also { parent.add(name, it) }
             val leaf = path.last()
             if (leaf in LocationParts.KEYS && path.getOrNull(path.size - 2) == "location") LOCATION_DISPLAY.forEach { parent.remove(it) }
             // Geni omits a cleared sex
-            if (value.isEmpty() || (leaf == "gender" && path.size == 1 && value == "unknown")) parent.remove(leaf) else parent.add(leaf, element(leaf, value))
+            if (value.isEmpty() || (leaf == "gender" && path.size == 1 && value == "unknown")) parent.remove(leaf)
+            else parent.add(leaf, if (path[0] == "names") JsonPrimitive(value) else element(leaf, value)) // Under `names` nicknames are a text
         }
         // Geni ignores death for a living profile, and no death parameters are sent with is_alive=true
         if (root.get("is_alive")?.takeIf { it.isJsonPrimitive }?.asBoolean == true) {
@@ -34,7 +42,19 @@ object SnapshotOverlay {
             root.remove("cause_of_death")
         }
         prune(root)
+        if (hadNames && root.get("names")?.isJsonObject != true) root.add("names", JsonObject())
         return root.toString()
+    }
+
+    /** The keys of the primary name in the `names` of [root]. */
+    private fun primaryKeys(root: JsonObject): Set<String> {
+        val names = LocaleNames.rawNames(root.get("names")) ?: return emptySet()
+        fun text(key: String) = root.get(key)?.takeIf { it.isJsonPrimitive }?.asString
+        return LocaleNames.primaryKeys(names, text("first_name"), text("middle_name"), text("last_name"))
+    }
+
+    private fun write(entry: JsonObject, key: String, value: String) {
+        if (value.isEmpty()) entry.remove(key) else entry.add(key, JsonPrimitive(value))
     }
 
     private fun element(name: String, value: String) = when (name) {

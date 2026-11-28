@@ -21,6 +21,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import app.familygem.geni.map.GeniLocales
+import app.familygem.geni.map.LocaleGroup
 import app.familygem.geni.Geni
 import app.familygem.geni.GeniSettings
 import app.familygem.geni.R
@@ -336,8 +338,9 @@ class GeniLoginActivity : AppCompatActivity() {
             }
             val mineButtons = fields.associate { field ->
                 val name = resources.getIdentifier("geni_group_${field.group}", "string", packageName)
+                val locale = LocaleGroup.localeOf(field.group)
                 layout.addView(TextView(this@GeniLoginActivity).apply {
-                    text = if (name != 0) getString(name) else field.group
+                    text = if (locale != null) getString(R.string.geni_group_locale, GeniLocales.label(locale)) else if (name != 0) getString(name) else field.group
                     setPadding(0, padding, 0, 0)
                     setTypeface(typeface, Typeface.BOLD)
                 })

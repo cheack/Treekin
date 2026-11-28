@@ -85,7 +85,24 @@ object GeniParams {
         event(params, "burial", old.burial, new.burial)
         if (new.occupation != old.occupation) params += "occupation" to (new.occupation ?: "")
         if (new.about != old.about) params += "about_me" to (new.about ?: "")
+        // A new profile is created without them: the next save, once the profile exists, sends its languages
+        if (!isNew) locales(params, old.locales, new.locales)
         return params
+    }
+
+    /**
+     * `names[<locale>][<key>]` for each field of each language that changed, the others stay as Geni has them
+     * (sandbox, 2026-11-28). A field that went is sent empty, and a language with every field sent empty is removed on Geni.
+     * A code Geni does not list is skipped: it would make Geni refuse the whole request.
+     */
+    private fun locales(params: MutableList<Pair<String, String>>, old: Map<String, LocaleName>, new: Map<String, LocaleName>) {
+        for (code in (old.keys + new.keys).sorted()) {
+            if (!GeniLocales.isSupported(code) || code == GeniLocales.DEFAULT) continue
+            for (key in LocaleName.KEYS) {
+                val value = new[code]?.get(key)
+                if (value != old[code]?.get(key)) params += "names[$code][$key]" to (value ?: "")
+            }
+        }
     }
 
     /** Form parameters for marriage and divorce changes. Never `status`: changing it wipes both events on Geni. */

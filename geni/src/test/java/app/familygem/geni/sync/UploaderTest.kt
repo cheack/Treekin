@@ -119,7 +119,7 @@ class UploaderTest {
         assertEquals("occupation=Driver", post.body!!.utf8())
         assertEquals("profile-36430", server.takeRequest().url.queryParameter("ids"))
         val saved = store.link(1, "profile-36430")!!
-        assertEquals(full, saved.snapshot)
+        assertEquals(withNames(full), saved.snapshot)
         assertEquals("1795000000", saved.geniUpdatedAt)
         assertNull(saved.verifiedHash)
         assertEquals("I1", saved.gedcomId)
@@ -377,7 +377,84 @@ class UploaderTest {
         assertEquals(Outcome.Done, uploader().run(stored(job)))
         assertEquals("GET", server.takeRequest().method)
         assertEquals("gender=unknown&public=true", server.takeRequest().body!!.utf8())
-        assertEquals(full, store.link(1, "profile-36430")!!.snapshot)
+        assertEquals(withNames(full), store.link(1, "profile-36430")!!.snapshot)
+    }
+
+    private val germanParams = listOf("names[de][last_name]" to "Schmid")
+
+    @Test
+    fun aLanguageIsSentAndReadBack() = runTest {
+        tree()
+        val before = """{"id":"profile-36430","first_name":"Mary","names":{"en-US":{"first_name":"Mary"},"de":{"first_name":"Marie","last_name":"Schmidt"}}}"""
+        store.saveLinks(listOf(link("profile-36430", "I1", before)))
+        server.enqueue(ok(before)) // Check: Geni unchanged since the snapshot
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        val after = before.replace("Schmidt", "Schmid")
+        server.enqueue(ok(after))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = germanParams))))
+        server.takeRequest()
+        assertEquals("names%5Bde%5D%5Blast_name%5D=Schmid", server.takeRequest().body!!.utf8())
+        assertEquals(after, store.link(1, "profile-36430")!!.snapshot)
+    }
+
+    @Test
+    fun aLanguageWriteWithFailedFetchLeavesItInTheSnapshotAndSendsNothingMore() = runTest {
+        tree()
+        val before = """{"id":"profile-36430","first_name":"Mary","names":{"en-US":{"first_name":"Mary"},"de":{"first_name":"Marie","last_name":"Schmidt"}}}"""
+        store.saveLinks(listOf(link("profile-36430", "I1", before)))
+        server.enqueue(ok(before))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(error(503)) // The read-back fails
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = germanParams))))
+        val fields = app.familygem.geni.map.ProfileFields.ofSnapshot(store.link(1, "profile-36430")!!.snapshot!!)!!
+        assertEquals("Schmid", fields.locales.getValue("de")[app.familygem.geni.map.LocaleName.LAST])
+        assertEquals("Marie", fields.locales.getValue("de")[app.familygem.geni.map.LocaleName.FIRST])
+        // The next save of the same fields sends nothing
+        assertEquals(emptyList<Pair<String, String>>(), app.familygem.geni.map.GeniParams.profile(fields, fields.copy()))
+    }
+
+    @Test
+    fun aRemovedLanguageWithFailedFetchIsGoneFromTheSnapshot() = runTest {
+        tree()
+        val before = """{"id":"profile-36430","first_name":"Mary","names":{"en-US":{"first_name":"Mary"},"de":{"first_name":"Marie","last_name":"Schmidt"}}}"""
+        store.saveLinks(listOf(link("profile-36430", "I1", before)))
+        server.enqueue(ok(before))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(error(503))
+        val clear = listOf("names[de][first_name]" to "", "names[de][last_name]" to "")
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = clear))))
+        val snapshot = store.link(1, "profile-36430")!!.snapshot!!
+        assertTrue(app.familygem.geni.map.ProfileFields.ofSnapshot(snapshot)!!.locales.isEmpty())
+        assertTrue("an empty names object stays: the list is known to be empty", snapshot.contains("\"names\":{"))
+    }
+
+    @Test
+    fun aLanguageChangedOnGeniMeanwhileMergesWhenAnotherOneWasEdited() = runTest {
+        val gedcom = tree().also { it.createIndexes() }
+        val before = """{"id":"profile-36430","first_name":"Mary","names":{"en-US":{"first_name":"Mary"},"de":{"first_name":"Marie"},"ru":{"first_name":"Мария"}}}"""
+        GeniMapper.applyProfile(gedcom, gedcom.getPerson("I1"), com.google.gson.Gson().fromJson(before, app.familygem.geni.api.GeniProfile::class.java))
+        app.familygem.geni.map.LocaleNames.set(gedcom.getPerson("I1"), "de", app.familygem.geni.map.LocaleName.of(mapOf("first_name" to "Marie", "last_name" to "Local")))
+        store.saveLinks(listOf(link("profile-36430", "I1", before)))
+        // Geni changed the Russian name meanwhile
+        server.enqueue(ok(before.replace("Мария", "Маша")))
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        server.enqueue(ok(before.replace("Мария", "Маша").replace("\"Marie\"", "\"Marie\",\"last_name\":\"Local\"")))
+        assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = listOf("names[de][last_name]" to "Local")))))
+        val fields = app.familygem.geni.map.ProfileFields.of(gedcom.getPerson("I1"))
+        assertEquals("Маша", fields.locales.getValue("ru")[app.familygem.geni.map.LocaleName.FIRST])
+        assertEquals("Local", fields.locales.getValue("de")[app.familygem.geni.map.LocaleName.LAST])
+    }
+
+    @Test
+    fun theSameLanguageChangedOnBothSidesStopsAsAConflictNamedByLanguage() = runTest {
+        val gedcom = tree().also { it.createIndexes() }
+        val before = """{"id":"profile-36430","first_name":"Mary","names":{"en-US":{"first_name":"Mary"},"de":{"first_name":"Marie"}}}"""
+        GeniMapper.applyProfile(gedcom, gedcom.getPerson("I1"), com.google.gson.Gson().fromJson(before, app.familygem.geni.api.GeniProfile::class.java))
+        app.familygem.geni.map.LocaleNames.set(gedcom.getPerson("I1"), "de", app.familygem.geni.map.LocaleName.of(mapOf("first_name" to "Mine")))
+        store.saveLinks(listOf(link("profile-36430", "I1", before)))
+        server.enqueue(ok(before.replace("\"de\":{\"first_name\":\"Marie\"}", "\"de\":{\"first_name\":\"Geni\"}")))
+        assertEquals(Outcome.Conflict(listOf("LOCALE:de")), uploader().run(stored(updateProfile.copy(params = listOf("names[de][first_name]" to "Mine")))))
+        assertEquals(1, server.requestCount) // Nothing was posted
     }
 
     @Test
@@ -482,7 +559,7 @@ class UploaderTest {
             if (loads++ == 0) store.saveLinks(listOf(store.link(1, "profile-36430")!!.copy(snapshot = """{"id":"profile-36430","occupation":"Loaded"}""")))
         }
         assertEquals(Outcome.Done, uploader().run(stored(updateProfile)))
-        assertEquals("""{"id":"profile-36430","occupation":"Fresh"}""", store.link(1, "profile-36430")!!.snapshot)
+        assertEquals("""{"id":"profile-36430","occupation":"Fresh","names":{}}""", store.link(1, "profile-36430")!!.snapshot)
     }
 
     @Test
@@ -505,7 +582,7 @@ class UploaderTest {
         assertEquals(Outcome.Done, uploader().run(stored(updateProfile.copy(params = emptyList()))))
         assertEquals("GET", server.takeRequest().method)
         assertEquals(1, server.requestCount)
-        assertEquals("""{"id":"profile-36430","first_name":"Olga"}""", store.link(1, "profile-36430")!!.snapshot)
+        assertEquals("""{"id":"profile-36430","first_name":"Olga","names":{}}""", store.link(1, "profile-36430")!!.snapshot)
     }
 
     // Check of Geni's version before an update
@@ -1175,4 +1252,6 @@ class UploaderTest {
         assertEquals(1, server.requestCount)
         assertEquals("/api/profile-36430/add-photo", server.takeRequest().url.encodedPath)
     }
+    /** The client adds an empty `names` to a stored profile that has none (Geni omits it). */
+    private fun withNames(json: String) = json.removeSuffix("}") + ""","names":{}}"""
 }

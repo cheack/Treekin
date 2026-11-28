@@ -5,7 +5,10 @@ import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.GeniUnion
 import app.familygem.geni.map.EventFields
+import app.familygem.geni.map.FieldGroup
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.LocaleGroup
+import app.familygem.geni.map.LocaleName
 import app.familygem.geni.map.ProfileFields
 import app.familygem.geni.map.ProfileGroup
 import app.familygem.geni.map.UnionFields
@@ -55,9 +58,10 @@ class ConflictResolver(
                 // The same given name split differently: the first and middle names tell the two versions apart
                 val split = local.given == geni.given && local.givenParts != geni.givenParts
                 threeWay(base, local, geni).conflicts
-                    .sortedBy { it.ordinal }.map {
+                    .sortedWith(compareBy<FieldGroup>({ (it as? ProfileGroup)?.ordinal ?: Int.MAX_VALUE }, { it.name })).map {
                         val name = it == ProfileGroup.NAMES
-                        FieldConflict(it.name, show(local.value(it), name, split), show(geni.value(it), name, split))
+                        val splitHere = if (it is LocaleGroup) localeSplit(local.locales[it.locale], geni.locales[it.locale]) else split
+                        FieldConflict(it.name, show(local.value(it), name, splitHere), show(geni.value(it), name, splitHere))
                     }
             } else {
                 val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: return@edit emptyList()
@@ -132,7 +136,7 @@ class ConflictResolver(
             // Local edits outside the conflict stay too, also when Geni only reformatted the same field
             val result = threeWay(ProfileFields.ofSnapshot(snapshot)!!, ProfileFields.of(person), ProfileFields.ofSnapshot(raw)!!)
             check(shown == null || result.conflicts.map { it.name }.toSet() == shown) { CHANGED }
-            val keep = (result.local - result.conflicts) + ProfileGroup.values().filter { it.name in keepMine }
+            val keep = (result.local - result.conflicts) + result.conflicts.filter { it.name in keepMine }
             GeniMapper.applyProfile(gedcom, person, gson.fromJson(raw, GeniProfile::class.java), gson.fromJson(snapshot, GeniProfile::class.java), keep)
         } else {
             val family = gedcom.families.orEmpty().firstOrNull { it.id == link.gedcomId } ?: error("the family is no longer in the tree")
@@ -161,10 +165,27 @@ class ConflictResolver(
             .joinToString(", ").ifEmpty { "—" }
     }
 
+    /** True when the two versions of a language have the same given name split into first and middle names differently. */
+    private fun localeSplit(a: LocaleName?, b: LocaleName?) =
+        a?.given == b?.given && (a?.get(LocaleName.FIRST) != b?.get(LocaleName.FIRST) || a?.get(LocaleName.MIDDLE) != b?.get(LocaleName.MIDDLE))
+
+    /** A name in another language: title, given name, last name and suffix, then the other fields with their meaning. */
+    private fun showLocale(name: LocaleName, split: Boolean): String {
+        // The same given name split differently: the first and middle names tell the two versions apart
+        val given = if (split) "${name.given} (${name[LocaleName.FIRST] ?: "—"} / ${name[LocaleName.MIDDLE] ?: "—"})" else name.given
+        val full = listOfNotNull(name[LocaleName.TITLE], given, name[LocaleName.LAST], name[LocaleName.SUFFIX]).joinToString(" ")
+        val more = listOfNotNull(
+            name[LocaleName.MAIDEN]?.let { "born $it" }, name[LocaleName.DISPLAY]?.let { "display name $it" },
+            name[LocaleName.NICKNAMES]?.let { "nicknames $it" }
+        )
+        return (listOf(full).filter { it.isNotEmpty() } + more).joinToString(", ").ifEmpty { "—" }
+    }
+
     /** A group value as text: parts joined (name parts by spaces), an empty value as a dash. */
     private fun show(value: Any?, name: Boolean = false, split: Boolean = false): String = when (value) {
         null -> "—"
         is EventFields -> showEvent(value)
+        is LocaleName -> showLocale(value, split)
         is Boolean -> if (value) "deceased" else ""
         is app.familygem.geni.map.GivenNameParts -> if (split) "(${value.first ?: "—"} / ${value.middle ?: "—"})" else "" // Else the given name shows them
         "" -> "—"

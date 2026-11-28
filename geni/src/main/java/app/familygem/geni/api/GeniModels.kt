@@ -63,6 +63,13 @@ data class GeniProfile(
     @SerializedName("about_me") val aboutMe: String? = null,
     @SerializedName("cause_of_death") val causeOfDeath: String? = null,
     val nicknames: List<String>? = null,
+    /**
+     * Names by locale (`{"en-US": {...}, "de": {...}}`), each with the fields first_name, middle_name, last_name, maiden_name, suffix,
+     * display_name, nicknames (a comma separated text) and title. Omitted by Geni while the profile has no other language
+     * (sandbox, 2026-11-28); the client then writes `{}` into the stored version, so a missing key means a version from before.
+     * Read it through `LocaleNames`.
+     */
+    val names: JsonElement? = null,
     val birth: GeniEvent? = null,
     val baptism: GeniEvent? = null,
     val death: GeniEvent? = null,

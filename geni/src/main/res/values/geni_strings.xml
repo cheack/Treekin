@@ -187,4 +187,9 @@
     <string name="geni_group_DISPLAY_NAME">Display name</string>
     <string name="geni_name_title">Name title</string>
     <string name="geni_group_TITLE">Name title</string>
+    <string name="geni_locales_title">Names in other languages</string>
+    <string name="geni_locales_add">Add a language</string>
+    <string name="geni_locale_remove">Remove</string>
+    <string name="geni_locale_name_title">Name (%1$s)</string>
+    <string name="geni_group_locale">Name in %1$s</string>
 </resources>

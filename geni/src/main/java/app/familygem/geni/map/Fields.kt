@@ -88,7 +88,9 @@ data class ProfileFields(
     /** Geni's privacy: null when the record does not know it (no `_GENI_PUBLIC` tag), false for an explicit private. */
     val isPublic: Boolean? = null,
     /** Curator lock as Geni reported it (read-only, never written): null when unknown. */
-    val locked: Boolean? = null
+    val locked: Boolean? = null,
+    /** The names in other languages by Geni locale code; empty for none, and for a version from before they were read. */
+    val locales: Map<String, LocaleName> = emptyMap()
 ) {
     /**
      * The fields with what a legacy record does not store taken from [baseline] (the last Geni version):
@@ -126,8 +128,7 @@ data class ProfileFields(
 
         /** Reads what [GeniMapper.applyProfile] writes: first main name, birth name, first fact of each tag. */
         fun of(person: Person): ProfileFields {
-            val names = person.names.orEmpty()
-            val main = names.firstOrNull { it.type != "birth" }
+            val main = LocaleNames.main(person)
             val (given, surname) = splitName(main?.value)
             val facts = person.eventsFacts.orEmpty()
             fun first(tag: String) = facts.firstOrNull { it.tag == tag }
@@ -136,7 +137,7 @@ data class ProfileFields(
                 given = given,
                 surname = surname,
                 // GeniMapper writes no birth name when the maiden name equals the surname
-                maiden = splitName(names.firstOrNull { it.type == "birth" }?.value).second?.takeIf { it != surname },
+                maiden = splitName(LocaleNames.birth(person)?.value).second?.takeIf { it != surname },
                 suffix = clean(main?.suffix),
                 nicknames = main?.nickname?.split(',')?.mapNotNull { clean(it) }?.joinToString(", ")?.takeIf { it.isNotEmpty() },
                 // "U" is Geni's cleared sex (or a record that never had one); a missing SEX fact is null
@@ -154,7 +155,8 @@ data class ProfileFields(
                 displayName = GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)?.let { clean(it) ?: "" },
                 title = GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG)?.let { clean(it) ?: "" },
                 isPublic = GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG),
-                locked = GeniMapper.getBoolean(person, GeniMapper.LOCKED_TAG)
+                locked = GeniMapper.getBoolean(person, GeniMapper.LOCKED_TAG),
+                locales = LocaleNames.read(person)
             )
         }
 

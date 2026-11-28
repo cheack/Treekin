@@ -113,8 +113,8 @@ object GeniMapper {
      * the Geni version of the last load (null on the first load: every field is applied).
      * Facts are updated in place, keeping their notes, sources and media. Groups in [keep] are left as they are.
      */
-    fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null, keep: Set<ProfileGroup> = emptySet()) {
-        fun changed(group: ProfileGroup, field: (GeniProfile) -> Any?) = group !in keep && (previous == null || field(previous) != field(profile))
+    fun applyProfile(gedcom: Gedcom, person: Person, profile: GeniProfile, previous: GeniProfile? = null, keep: Set<FieldGroup> = emptySet()) {
+        fun changed(group: FieldGroup, field: (GeniProfile) -> Any?) = group !in keep && (previous == null || field(previous) != field(profile))
         if (changed(ProfileGroup.NAMES) { listOf(clean(it.firstName), clean(it.middleName), it.lastName, it.maidenName, it.suffix, it.nicknames) }) {
             updateNames(person, profile)
             setGivenNameParts(person, GivenNameParts(profile.firstName, profile.middleName))
@@ -150,17 +150,36 @@ object GeniMapper {
         }
         if (changed(ProfileGroup.BURIAL) { it.burial }) setEvent(person, "BURI", profile.burial)
         if (changed(ProfileGroup.ABOUT) { it.aboutMe }) setTag(person, ABOUT_TAG, profile.aboutMe?.takeIf { it.isNotBlank() })
+        applyLocales(person, profile, previous, keep)
+    }
+
+    /**
+     * The names in other languages, locale by locale: one that Geni changed since [previous] is set (the record's name of that locale
+     * updated in place, or a new one added), one that Geni removed is removed. Without [previous], or when its version predates the
+     * languages, nothing counts as removed: Geni only adds. A locale in [keep] stays as it is.
+     */
+    private fun applyLocales(person: Person, profile: GeniProfile, previous: GeniProfile?, keep: Set<FieldGroup>) {
+        if (profile.names == null) return // Not read (a profile fetched without the field): says nothing about the languages
+        val geni = LocaleNames.of(profile)
+        // A version from before the languages were read has none: everything Geni has now is new
+        val before = if (previous?.names == null) null else LocaleNames.of(previous)
+        for ((code, parts) in geni) {
+            if (LocaleGroup(code) in keep) continue
+            if (before == null || before[code] != parts) LocaleNames.set(person, code, parts)
+        }
+        for (code in before?.keys.orEmpty() - geni.keys) {
+            if (LocaleGroup(code) !in keep) LocaleNames.remove(person, code)
+        }
     }
 
     /** Updates the main name and the birth (maiden) name in place, keeping their sub-records. */
     private fun updateNames(person: Person, profile: GeniProfile) {
         val wanted = names(profile)
-        val current = person.names.orEmpty()
-        val main = current.firstOrNull { it.type != "birth" } ?: Name().also { person.addName(it) }
+        val main = LocaleNames.main(person) ?: Name().also { person.addName(it) }
         main.value = wanted[0].value
         main.suffix = wanted[0].suffix
         main.nickname = wanted[0].nickname
-        val birthName = current.firstOrNull { it.type == "birth" }
+        val birthName = LocaleNames.birth(person)
         val wantedBirth = wanted.getOrNull(1)
         when {
             wantedBirth == null -> if (birthName != null) person.names = person.names.filter { it !== birthName }

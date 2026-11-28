@@ -1,0 +1,10 @@
+{
+  "_note": "Sandbox results 2026-11-28 (profile-36543, sanitized). Form parameters: names[<locale>][<field>]=value; fields first_name middle_name last_name maiden_name suffix display_name nicknames (comma string) title all round-trip per locale. Only names[de][last_name]=X keeps every other field of de and the other locales. An empty value clears one field; clearing every field of a locale removes it, and with no other locale `names` is omitted from the response. names[en-US] is the primary name (the top-level fields). The locale query parameter on a GET changes nothing. An unsupported locale (xx, DE, de-AT, pt-BR) fails the whole request with 400 'Unsupported locale'. Locales come from the catalog on /platform/developer/help/locales. Top-level maiden_name, display_name, nicknames and title fall back to another locale while the primary has none.",
+  "updateParams": [
+    "names[de][last_name]=Schmidt",
+    "names[de][suffix]=&names[de][middle_name]=",
+    "names[ru][first_name]=&names[ru][last_name]=&names[ru][maiden_name]=&names[ru][display_name]=&names[ru][nicknames]=&names[ru][title]=",
+    "names[xx][first_name]=Bad"
+  ],
+  "unsupportedLocaleError": {"error":{"type":"ApiException","message":"Unsupported locale: `xx`. A list of valid locale can be found at: sandbox.geni.com/platform/developer/help/locales"}}
+}

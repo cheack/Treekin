@@ -1,5 +1,6 @@
 package app.familygem.geni.sync
 
+import app.familygem.geni.map.LocaleNames
 import app.familygem.geni.map.ProfileFields
 import org.folg.gedcom.model.EventFact
 import org.folg.gedcom.model.Gedcom
@@ -23,8 +24,10 @@ object GoneProfiles {
                 facts.any { it.tag !in MAPPED_FACTS } || facts.groupBy { it.tag }.any { it.value.size > 1 } ||
                 // Geni's occupation has no date or place
                 facts.any { it.tag == "OCCU" && (!it.date.isNullOrBlank() || !it.place.isNullOrBlank()) } ||
+                // Notes, sources and extensions of a name are not on Geni
+                person.names.orEmpty().any { LocaleNames.hasLocalData(it) } ||
                 // Geni has one main name and one birth name
-                person.names.orEmpty().partition { it.type == "birth" }.let { (birth, other) -> birth.size > 1 || other.size > 1 }
+                person.names.orEmpty().filter { !LocaleNames.isLocalized(it) }.partition { it.type == "birth" }.let { (birth, other) -> birth.size > 1 || other.size > 1 }
         if (localData) return true
         val local = ProfileFields.of(person)
         val snapshot = link.snapshot?.let { ProfileFields.ofSnapshot(it) }
