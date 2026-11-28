@@ -211,5 +211,5 @@
     <string name="geni_new_email">Email (optional)</string>
     <string name="geni_new_email_note">Geni may email this person an invitation to join. The email can only be changed on Geni afterwards.</string>
     <string name="geni_email_invalid">Enter a valid email or leave it empty</string>
-    <string name="geni_email_not_saved">The email could not be saved; the profile will be created without it.</string>
+    <string name="geni_email_not_saved">The email could not be saved. Try again, or clear the email field.</string>
 </resources>

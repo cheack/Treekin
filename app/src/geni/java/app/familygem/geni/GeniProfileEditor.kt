@@ -374,15 +374,19 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     /**
      * Keeps the email typed for the new person [personId] until the add that creates its Geni profile is sent. Stored before the tree
      * is saved, so the upload never finds a new relative without it; it never enters the person, the GEDCOM or an update.
+     * False when it could not be stored: the form stays open, so the typed email is not lost.
      */
-    fun saveNewEmail(personId: String) {
-        val email = enteredEmail() ?: return
-        try {
+    fun saveNewEmail(personId: String): Boolean {
+        val email = enteredEmail() ?: return true
+        return try {
             val treeId = Global.settings.openTree
             kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(activity).saveNewEmail(treeId, personId, email) }
+            true
         } catch (e: Exception) {
             android.util.Log.w("GeniSync", "Email of $personId not stored", e)
             android.widget.Toast.makeText(activity, R.string.geni_email_not_saved, android.widget.Toast.LENGTH_LONG).show()
+            view<View>(AppR.id.editor_save).isEnabled = true // Disabled by the click
+            false
         }
     }
 

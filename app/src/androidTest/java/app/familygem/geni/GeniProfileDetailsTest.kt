@@ -47,6 +47,7 @@ class GeniProfileDetailsTest {
     private var treeId = 0
     private var wasGeni = false
     private var autoSave = true
+    private var pendingEmails: Map<String, String> = emptyMap()
 
     @Before
     fun setUp() {
@@ -56,6 +57,7 @@ class GeniProfileDetailsTest {
         wasGeni = GeniTrees.isGeni(treeId)
         autoSave = Global.settings.autoSave
         Global.settings.autoSave = false
+        pendingEmails = runBlocking { Geni.store(context).newEmails(treeId) }
     }
 
     @After
@@ -69,7 +71,9 @@ class GeniProfileDetailsTest {
         runBlocking {
             val store = Geni.store(context)
             store.deleteLink(treeId, PROFILE)
+            // Only what the test added goes; emails the user had pending come back
             store.newEmails(treeId).keys.forEach { store.saveNewEmail(treeId, it, null) }
+            pendingEmails.forEach { (gedcomId, email) -> store.saveNewEmail(treeId, gedcomId, email) }
         }
         Global.settings.autoSave = autoSave
         if (wasGeni) GeniTrees.add(treeId) else GeniTrees.remove(treeId)
@@ -183,7 +187,7 @@ class GeniProfileDetailsTest {
             onView(withId(R.id.editor_save)).perform(click())
         }
         val kid = Global.gc.people.single { it.id != "I1" }
-        assertEquals(mapOf(kid.id to "kid@example.com"), runBlocking { Geni.store(context).newEmails(treeId) })
+        assertEquals(pendingEmails + (kid.id to "kid@example.com"), runBlocking { Geni.store(context).newEmails(treeId) })
 
         runBlocking { Geni.store(context).saveNewEmail(treeId, kid.id, null) }
         newRelativeEditor().use {
@@ -191,7 +195,7 @@ class GeniProfileDetailsTest {
             scrollToEnd()
             onView(withId(R.id.editor_save)).perform(click())
         }
-        assertTrue(runBlocking { Geni.store(context).newEmails(treeId) }.isEmpty())
+        assertEquals(pendingEmails, runBlocking { Geni.store(context).newEmails(treeId) })
     }
 
     private companion object {

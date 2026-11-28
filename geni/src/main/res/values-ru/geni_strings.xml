@@ -221,5 +221,5 @@
     <string name="geni_new_email">Email (необязательно)</string>
     <string name="geni_new_email_note">Geni может отправить этому человеку приглашение по email. Позже email можно изменить только на Geni.</string>
     <string name="geni_email_invalid">Введите корректный email или оставьте поле пустым</string>
-    <string name="geni_email_not_saved">Не удалось сохранить email: профиль будет создан без него.</string>
+    <string name="geni_email_not_saved">Не удалось сохранить email. Повторите или очистите поле email.</string>
 </resources>
