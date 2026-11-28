@@ -439,6 +439,25 @@ class SyncQueueTest {
     }
 
     @Test
+    fun emailOfANewRelativeSurvivesReplanningAndNeverEntersTheJob() = runTest {
+        linkBoth()
+        store.saveNewEmail(1, "I6", "olga@example.com")
+        queue.onSaved(1, withSpouse("Olga"))
+        // An unrelated save while the add still waits (offline)
+        queue.onSaved(1, withSpouse("Olga").let { it.copy(people = listOf(it.people[0].copy(fields = driver)) + it.people.drop(1), stamp = it.stamp + 1) })
+        assertEquals(mapOf("I6" to "olga@example.com"), store.newEmails(1))
+        assertTrue(store.jobs(1).none { job -> job.params.any { it.first == "email" } })
+    }
+
+    @Test
+    fun emailOfAPersonWhoLeftTheTreeIsForgotten() = runTest {
+        linkBoth()
+        store.saveNewEmail(1, "I6", "olga@example.com")
+        queue.onSaved(1, tree())
+        assertTrue(store.newEmails(1).isEmpty())
+    }
+
+    @Test
     fun editedSendingAddThatFailsIsNotRunAgain() = runTest {
         linkBoth()
         queue.onSaved(1, withSpouse("Olga"))

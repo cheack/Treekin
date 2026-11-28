@@ -26,6 +26,8 @@ import org.folg.gedcom.model.EventFact
 import org.folg.gedcom.model.Name
 import org.folg.gedcom.model.Person
 import app.familygem.R as AppR
+import app.familygem.Global
+import app.familygem.constant.Extra
 
 /**
  * The extra fields of the person editor ("Modify") in a Geni tree: the profile fields that Geni's sync maps
@@ -184,6 +186,11 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         view<RadioButton>(AppR.id.editor_sex2).setOnClickListener(null)
         view<RadioButton>(AppR.id.editor_sex3).setOnClickListener(null)
 
+        // Only a new relative is created by a Geni add (the routes checked on the sandbox accept an email); a person alone is never uploaded
+        if (isNew && (activity.intent.getSerializableExtra(Extra.RELATION) != null || activity.intent.getBooleanExtra(Extra.FROM_FAMILY, false))) {
+            view<View>(AppR.id.editor_emailLabel).visibility = View.VISIBLE
+            view<View>(AppR.id.editor_emailNote).visibility = View.VISIBLE
+        }
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
         bindPrivacy(person, snapshot) // After the Dead switch has its final state
         bindLocales(person, snapshot)
@@ -349,10 +356,34 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
             view<TextInputLayout>(label).error = if (wrong) activity.getString(R.string.geni_date_not_supported) else null
             if (wrong && firstError == null) firstError = view(field)
         }
+        val email = enteredEmail()
+        if (email != null && !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            view<TextInputLayout>(AppR.id.editor_emailLabel).error = activity.getString(R.string.geni_email_invalid)
+            if (firstError == null) firstError = view(AppR.id.editor_email)
+        } else view<TextInputLayout>(AppR.id.editor_emailLabel).error = null
         if (firstError == null) return true
         firstError.requestFocus()
         view<View>(AppR.id.editor_save).isEnabled = true // Disabled by the click
         return false
+    }
+
+    /** The email typed for a new relative; null when the field is hidden or blank. */
+    private fun enteredEmail(): String? =
+        if (!enabled || view<View>(AppR.id.editor_emailLabel).visibility != View.VISIBLE) null else text(AppR.id.editor_email).ifEmpty { null }
+
+    /**
+     * Keeps the email typed for the new person [personId] until the add that creates its Geni profile is sent. Stored before the tree
+     * is saved, so the upload never finds a new relative without it; it never enters the person, the GEDCOM or an update.
+     */
+    fun saveNewEmail(personId: String) {
+        val email = enteredEmail() ?: return
+        try {
+            val treeId = Global.settings.openTree
+            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(activity).saveNewEmail(treeId, personId, email) }
+        } catch (e: Exception) {
+            android.util.Log.w("GeniSync", "Email of $personId not stored", e)
+            android.widget.Toast.makeText(activity, R.string.geni_email_not_saved, android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Writes the changed Geni fields to the person, after the upstream form wrote names, sex, birth and death. */

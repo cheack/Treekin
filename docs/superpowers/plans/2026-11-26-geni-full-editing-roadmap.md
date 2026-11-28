@@ -109,6 +109,14 @@ What the user gets: the card shows what Geni knows even where the API can't writ
 - New relatives: `email` can be set in the new-person form (add-* only), with a note that it can only be changed on the site afterwards.
 - Verify first: the shape of `events` when requested (fields, whether custom events appear), and whether `email` of other people is returned at all (privacy).
 
+**Status of stage 4:**
+
+- [x] Sandbox checks: single and batch GET agree. `events` is the profile's whole timeline, not custom events: its own birth plus the births and unions of relatives ("Birth of Sasha P", "Marriage of …"), each with `name`, `date.formatted_date`, `location.formatted_location`; the batch returns it only when asked. `email` and `phone_numbers` were never returned, for any profile (own, managed, other, one created with an email). `claimed` and `relationship` come with an explicit false/text; `managers` only on managed profiles; `big_tree`, `merge_pending` and `curator` were not returned (`is_curator` is, always false); `current_residence` is writable by `profile/update`. Fixtures `profile-details-*.json` (the custom-event one is synthetic: the sandbox cannot create one)
+- [x] Read from the snapshot: the batch asks for the fields, `ProfileDetails` reads them tolerantly from the saved snapshot (missing key or odd shape leaves the rest), nothing in `ProfileFields`, the mapper or GEDCOM
+- [x] "On Geni" in Facts of a linked profile: read-only rows (relationship, email, phone, residence, managers, claimed, curator, big tree, merge pending, explicit false shown as No), events that are not the profile's own vital facts or unions listed once, "Open on Geni" only for an https `profile_url` on the configured host; read from the saved snapshot, so offline and after every refresh; no section in an ordinary tree
+- [x] Email of a new relative: profile `add-child`, `add-parent`, `add-partner` and union `add-child`, `add-partner` all accept `email` without error, so the field is on every new-relative form. The sandbox never returns the email and cannot show an invitation, so the form says Geni may send one. The value waits in a `new_email` table (Room v9) bound to the new person's ID, goes with the one add POST only, and is dropped after the add, when the person is linked or when the person leaves the tree; never in the job, a snapshot, an update or GEDCOM
+- [ ] Email of an existing profile, phone numbers and managers' names stay site-only (nothing returned to show)
+
 ### 5. Adoption and foster relationships
 
 What the user gets: a child or sibling can be added as adopted or foster, and existing ones show it.

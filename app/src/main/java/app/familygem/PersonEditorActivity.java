@@ -381,6 +381,7 @@ public class PersonEditorActivity extends BaseActivity {
         if (personId == null || relation != null) {
             String newId = U.newID(gc, Person.class);
             person.setId(newId);
+            geniEditor.saveNewEmail(newId); // GENI-HOOK: email of a new relative, kept for the Geni add
             gc.addPerson(person);
             if (Global.settings.getCurrentTree().root == null)
                 Global.settings.getCurrentTree().root = newId;

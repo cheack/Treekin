@@ -184,7 +184,10 @@ open class Uploader(
         val treeId = job.treeId
         val personId = job.personGedcomId ?: return Outcome.Failed("no person")
         // Already created (a finished job run again): never create a second profile
-        if (store.linkByGedcomId(treeId, personId)?.geniId?.startsWith("profile-") == true) return Outcome.Done
+        if (store.linkByGedcomId(treeId, personId)?.geniId?.startsWith("profile-") == true) {
+            bestEffort { store.saveNewEmail(treeId, personId, null) }
+            return Outcome.Done
+        }
         val familyLink = job.familyGedcomId?.let { store.linkByGedcomId(treeId, it) }?.takeIf { it.geniId.startsWith("union-") }
         suspend fun anchor(role: String): GeniLink? = job.anchors.filter { it.startsWith("$role:") }.firstNotNullOfOrNull {
             store.linkByGedcomId(treeId, it.substringAfter(':'))?.takeIf { link -> link.geniId.startsWith("profile-") }
@@ -195,9 +198,18 @@ open class Uploader(
                 ?: anchor("partner")?.let { "${it.geniId}/add-partner" }
         } ?: return Outcome.Failed("depends on a change that was not uploaded")
 
+        // The email typed for the new relative goes with this one request only: not into the job, the snapshot or any later update
+        val emailParam = try {
+            store.newEmails(treeId)[personId]?.takeIf { it.isNotBlank() }?.let { listOf("email" to it) }.orEmpty()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Outcome.Retry("email not read: ${e.message ?: e.javaClass.simpleName}") // Nothing was sent yet
+        }
+
         // From here Geni may have created the profile even when the request fails: never retry automatically
         val response = try {
-            client.post(path, job.paramsToSend())
+            client.post(path, job.paramsToSend() + emailParam)
         } catch (e: CancellationException) {
             throw e
         } catch (e: GeniAuthRequiredException) {
@@ -241,6 +253,7 @@ open class Uploader(
             }
             host.refreshScreens()
         }
+        bestEffort { store.saveNewEmail(treeId, personId, null) } // Used: later changes of the email are made on Geni
         FeedRecords.addedHere(store, treeId, profileId, personId, now())
         bestEffort {
             refreshSnapshot(treeId, profileId)

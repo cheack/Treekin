@@ -200,4 +200,26 @@
     <string name="geni_locale_remove">Удалить</string>
     <string name="geni_locale_name_title">Имя (%1$s)</string>
     <string name="geni_group_locale">Имя: %1$s</string>
+    <string name="geni_on_geni">На Geni</string>
+    <string name="geni_on_geni_note">Только чтение: данные получены с Geni и меняются только там.</string>
+    <string name="geni_detail_email">Email</string>
+    <string name="geni_detail_phones">Телефон</string>
+    <string name="geni_detail_residence">Место проживания</string>
+    <string name="geni_detail_managers">Управляют</string>
+    <plurals name="geni_detail_managers_count">
+        <item quantity="one">%1$d профиль</item>
+        <item quantity="few">%1$d профиля</item>
+        <item quantity="many">%1$d профилей</item>
+        <item quantity="other">%1$d профиля</item>
+    </plurals>
+    <string name="geni_detail_claimed">Принадлежит владельцу</string>
+    <string name="geni_detail_curator">Куратор Geni</string>
+    <string name="geni_detail_big_tree">В большом дереве</string>
+    <string name="geni_detail_merge_pending">Ожидает объединения</string>
+    <string name="geni_detail_relationship">Родство с вами</string>
+    <string name="geni_open_on_geni">Открыть на Geni</string>
+    <string name="geni_new_email">Email (необязательно)</string>
+    <string name="geni_new_email_note">Geni может отправить этому человеку приглашение по email. Позже email можно изменить только на Geni.</string>
+    <string name="geni_email_invalid">Введите корректный email или оставьте поле пустым</string>
+    <string name="geni_email_not_saved">Не удалось сохранить email: профиль будет создан без него.</string>
 </resources>

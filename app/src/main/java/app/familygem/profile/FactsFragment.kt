@@ -43,6 +43,7 @@ class FactsFragment : BaseFragment() {
             person.names.forEach { placeEvent(layout, app.familygem.geni.GeniFacts.nameTitle(requireContext(), it) ?: it.writeTitle(), U.firstAndLastName(it, " "), it) } // GENI-HOOK: a name in another language names its language
             person.eventsFacts.forEach { placeEvent(layout, it.writeTitle(), it.writeContent(), it) }
             U.findExtensions(person).forEach { placeEvent(layout, it.name, it.text, it.gedcomTag) }
+            app.familygem.geni.GeniProfileDetails.place(requireContext(), layoutInflater, layout, person) // GENI-HOOK: read-only "On Geni" section
             NoteUtil.placeNotes(layout, person)
             SourceCitationUtil.placeSourceCitations(layout, person)
             placeChangeDate(layout, person.change)

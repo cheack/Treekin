@@ -39,6 +39,20 @@ class RoomSyncStoreTest {
     }
 
     @Test
+    fun newEmailsAreKeptPerPersonAndForgottenWithTheTree() = runTest {
+        store.saveNewEmail(1, "I2", "a@example.com")
+        store.saveNewEmail(1, "I2", "b@example.com")
+        store.saveNewEmail(1, "I3", "c@example.com")
+        store.saveNewEmail(2, "I2", "d@example.com")
+        assertEquals(mapOf("I2" to "b@example.com", "I3" to "c@example.com"), store.newEmails(1))
+        store.saveNewEmail(1, "I3", " ")
+        assertEquals(mapOf("I2" to "b@example.com"), store.newEmails(1))
+        store.deleteTree(1)
+        assertEquals(emptyMap<String, String>(), store.newEmails(1))
+        assertEquals(mapOf("I2" to "d@example.com"), store.newEmails(2))
+    }
+
+    @Test
     fun deleteTreeRemovesLinks() = runTest {
         store.saveTree(GeniTreeInfo(1, "profile-1"))
         store.saveLinks(listOf(link("profile-1", "I1"), link("union-1", "F1")))
@@ -105,6 +119,8 @@ class RoomSyncStoreTest {
             assertEquals(0, migratedStore.jobs(1).single { it.key == "profile:old" }.paramsFormat)
             migratedStore.savePhotoLink(photoLink("profile-1", "photo-1"))
             assertEquals(1, migratedStore.photoLinks(1).size)
+            migratedStore.saveNewEmail(1, "I2", "kid@example.com")
+            assertEquals(mapOf("I2" to "kid@example.com"), migratedStore.newEmails(1))
         } finally {
             migrated.close()
             context.deleteDatabase(name)
