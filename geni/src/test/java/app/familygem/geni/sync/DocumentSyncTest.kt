@@ -183,6 +183,20 @@ class DocumentSyncTest {
     }
 
     @Test
+    fun aDetachedJpegWithANoteIsNeverAPhotoUpload() = runTest {
+        store.saveLinks(listOf(GeniLink(treeId, "profile-1", "I1", true, null, null, 0)))
+        val jpegDoc = parseDocument(Fixtures.read("document-png.json"))!!.copy(urls = mapOf("original" to "https://p.example/a.jpg"), contentType = "image/jpeg")
+        val sync = DocumentSync(store, host, download = { _, target -> target.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1)); "image/jpeg" })
+        sync.attach(treeId, "profile-1", "I1", jpegDoc)
+        person("I1").media.single().addNote(org.folg.gedcom.model.Note().apply { value = "my note" })
+        sync.deletedOnGeni(treeId, jpegDoc.id)
+        val kept = person("I1").media.single()
+        assertNull(GeniMapper.getTag(kept, DocumentSync.DOCUMENT_TAG))
+        val plan = UploadPlanner.plan(treeId, LocalTree.capture(gedcom), store.links(treeId), emptyList(), store.photoLinks(treeId), true)
+        assertTrue(plan.upserts.none { it.kind == JobKind.ADD_PHOTO })
+    }
+
+    @Test
     fun reconcileRemovesOnlyDocumentsGeniNoLongerListsAndNeverAPhoto() = runTest {
         documents.attach(treeId, "profile-1", "I1", doc)
         store.savePhotoLink(PhotoLink(treeId, "profile-1", "photo-7", null, false, null, "geni-photo-7.jpg", PhotoState.DOWNLOADED))

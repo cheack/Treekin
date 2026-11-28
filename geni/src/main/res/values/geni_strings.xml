@@ -22,7 +22,7 @@
     <string name="geni_retry_all">Retry all</string>
     <string name="geni_dismiss_all">Dismiss all</string>
     <string name="geni_close">Close</string>
-    <string name="geni_retry_adds_warning">Some of these changes add people or photos. Geni may have created them already (it may already be on Geni): check on Geni first, or they may be added twice.</string>
+    <string name="geni_retry_adds_warning">Some of these changes add people, photos or documents. Geni may have created them already (it may already be on Geni): check on Geni first, or they may be added twice.</string>
     <string name="geni_retry_anyway">Retry anyway</string>
     <string name="geni_conflicts">Conflicts (%1$d)</string>
     <string name="geni_conflict_intro">Someone changed these fields on Geni while you were editing them. Choose the value to keep.</string>

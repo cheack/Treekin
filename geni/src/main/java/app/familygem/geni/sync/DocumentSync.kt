@@ -74,11 +74,13 @@ class DocumentSync(
             if (staged != null) withContext(Dispatchers.IO) {
                 val target = File(host.mediaDir(treeId), fileName)
                 if (!staged.file.renameTo(target)) staged.file.copyTo(target, overwrite = true)
-            }
+            } else if (!File(host.mediaDir(treeId), fileName).isFile) return@withTree false // The reused copy vanished meanwhile
             val details = if (editQueued(treeId, doc.id)) null else details(doc)
+            var personFound = false
             val attached = host.edit(treeId) { gedcom ->
                 val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == profileId }
                     ?: return@edit false
+                personFound = true
                 val existing = person.media.orEmpty().firstOrNull { GeniMapper.getTag(it, DOCUMENT_TAG) == doc.id }
                 val changed = existing == null || existing.file != fileName
                 existing?.file = fileName
@@ -90,9 +92,10 @@ class DocumentSync(
                 }
                 (details != null && PhotoDetails.apply(media, details)) || changed
             }
-            if (!attached) return@withTree false
+            if (!personFound) return@withTree false
+            // The link is saved whenever the person has the media, also when nothing in the tree changed
             store.savePhotoLink(PhotoLink(treeId, profileId, doc.id, null, false, marker(doc), fileName, PhotoState.DOWNLOADED))
-            true
+            attached
         }
 
     /**
@@ -157,6 +160,7 @@ class DocumentSync(
                 }
                 if (detachIfEdited) person?.media.orEmpty().filter { GeniMapper.getTag(it, DOCUMENT_TAG) == documentId && isEdited(it) }.forEach {
                     GeniMapper.setTag(it, DOCUMENT_TAG, null)
+                    GeniMapper.setTag(it, DETACHED_TAG, "Y") // Still no photo candidate, though it has no link any more
                     detached = true
                 }
                 person?.let { it.media = it.media.orEmpty().filter { m -> GeniMapper.getTag(m, DOCUMENT_TAG) != documentId }.toMutableList() }
@@ -212,6 +216,9 @@ class DocumentSync(
 
         /** The title, description and date Geni lists for [doc]. */
         fun details(doc: GeniDocument) = PhotoDetails(PhotoDetails.clean(doc.title), PhotoDetails.clean(doc.description), GeniMapper.gedcomDate(doc.date))
+
+        /** Set on a media that was a Geni document and is now the user's own: it never becomes a photo upload. */
+        const val DETACHED_TAG = "_GENI_DOCUMENT_DETACHED"
 
         fun isDocumentId(id: String) = id.startsWith("document-")
 

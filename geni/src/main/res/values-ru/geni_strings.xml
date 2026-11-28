@@ -22,7 +22,7 @@
     <string name="geni_retry_all">Повторить все</string>
     <string name="geni_dismiss_all">Скрыть все</string>
     <string name="geni_close">Закрыть</string>
-    <string name="geni_retry_adds_warning">Часть этих изменений добавляет людей или фото. Возможно, это уже есть на Geni: сначала проверьте на Geni, иначе они могут добавиться дважды.</string>
+    <string name="geni_retry_adds_warning">Часть этих изменений добавляет людей, фото или документы. Возможно, это уже есть на Geni: сначала проверьте на Geni, иначе они могут добавиться дважды.</string>
     <string name="geni_retry_anyway">Всё равно повторить</string>
     <string name="geni_conflicts">Конфликты (%1$d)</string>
     <string name="geni_conflict_intro">Пока вы редактировали, кто-то изменил эти поля на Geni. Выберите, какое значение оставить.</string>

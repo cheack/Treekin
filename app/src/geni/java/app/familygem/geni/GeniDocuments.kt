@@ -156,6 +156,15 @@ object GeniDocuments {
 
     /** Checks the chosen file, then asks for the title and description before anything is queued. */
     private fun describe(activity: Activity, treeId: Int, geniId: String, personGedcomId: String, uri: Uri, onDone: () -> Unit) {
+        val owner = activity as? LifecycleOwner ?: return
+        // The provider may be slow: its answers are read off the main thread
+        owner.lifecycleScope.launch {
+            val (name, size, contentType) = withContext(Dispatchers.IO) { readMeta(activity, uri) }
+            confirm(activity, treeId, geniId, personGedcomId, uri, name, size, contentType, onDone)
+        }
+    }
+
+    private fun readMeta(activity: Activity, uri: Uri): Triple<String, Long, String?> {
         val resolver = activity.contentResolver
         var name = "document"
         var size = -1L
@@ -174,6 +183,12 @@ object GeniDocuments {
                 contentType = DocumentTypes.contentTypeFor(name)
             }
         }
+        return Triple(name, size, contentType)
+    }
+
+    private fun confirm(
+        activity: Activity, treeId: Int, geniId: String, personGedcomId: String, uri: Uri, name: String, size: Long, contentType: String?, onDone: () -> Unit
+    ) {
         if (contentType == null) {
             Toast.makeText(activity, R.string.geni_document_unsupported, Toast.LENGTH_LONG).show()
             return
@@ -236,7 +251,18 @@ object GeniDocuments {
                         Geni.queue(activity).enqueueAddDocument(treeId, geniId, personGedcomId, stored, contentType, title, description, "Document: ${title ?: stored}")
                     }
                 } catch (e: Exception) {
-                    // Nothing was queued: the copy must not stay as a document nobody sends
+                    // Nothing was queued: neither the media nor the copy may stay as a document nobody sends
+                    try {
+                        AppTreeHost.edit(treeId) { gedcom ->
+                            gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId }?.let { person ->
+                                person.media = person.media.orEmpty().filterNot {
+                                    it.file == stored && GeniMapper.getTag(it, DocumentSync.QUEUED_TAG) != null
+                                }.toMutableList()
+                            }
+                        }
+                    } catch (cleanup: Exception) {
+                        Log.w("GeniSync", "Removing the media of an unqueued document failed", cleanup)
+                    }
                     withContext(Dispatchers.IO) { File(AppTreeHost.mediaDir(treeId), stored).delete() }
                     throw e
                 }
@@ -261,10 +287,12 @@ object GeniDocuments {
         val clean = name.replace(Regex("[^A-Za-z0-9._-]"), "_").trimStart('.').ifEmpty { "document" }
         val base = clean.substringBeforeLast('.', clean)
         val ext = clean.substringAfterLast('.', "")
+        // The name is reserved atomically: two copies at once never take the same one
         var target = File(dir, clean)
         var n = 2
-        while (target.exists()) target = File(dir, "$base-${n++}.$ext")
+        while (!target.createNewFile()) target = File(dir, "$base-${n++}.$ext")
         val part = File.createTempFile("geni-upload-", ".part", dir)
+        var published = false
         try {
             var total = 0L
             (context.contentResolver.openInputStream(uri) ?: error("the file cannot be read")).use { input ->
@@ -281,9 +309,11 @@ object GeniDocuments {
             }
             if (total == 0L) error("the file is empty")
             if (!part.renameTo(target)) error("the file cannot be saved")
+            published = true
             return target.name
         } finally {
             part.delete()
+            if (!published) target.delete() // Only the placeholder: a published copy stays
         }
     }
 
@@ -355,7 +385,7 @@ object GeniDocuments {
                     // Stored first, so a failure in the local cleanup cannot lose the untag; the document leaves this person at once
                     q.enqueueDocumentTag(treeId, docId, geniId, personId, false, label)
                     try {
-                        DocumentSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, docId)
+                        DocumentSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, docId, detachIfEdited = true)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {

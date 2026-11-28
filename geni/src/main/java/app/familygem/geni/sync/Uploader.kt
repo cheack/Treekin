@@ -473,11 +473,7 @@ open class Uploader(
         if (store.photoLinks(treeId, profileId).any { it.fileName == fileName && DocumentSync.isDocumentId(it.geniPhotoId) }) return Outcome.Done
         if (!documentOwnerMatches(treeId, profileId, personId)) return Outcome.Deferred
         // The user may have removed the media meanwhile: the file is no longer wanted on Geni
-        val wanted = host.edit(treeId) { gedcom ->
-            gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
-                .any { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, DocumentSync.QUEUED_TAG) != null }
-        }
-        if (!wanted) return Outcome.Failed("the document was removed from this device before it was sent; dismiss this change")
+        if (!stillQueued(treeId, personId, fileName)) return Outcome.Failed("the document was removed from this device before it was sent; dismiss this change")
         val file = File(host.mediaDir(treeId), fileName)
         if (!file.isFile) return Outcome.Failed("the document file is missing: $fileName")
         if (file.length() > DocumentTypes.MAX_UPLOAD_BYTES) return Outcome.Failed("the document is larger than ${DocumentTypes.MAX_UPLOAD_BYTES / 1_000_000} MB, which Geni does not take; dismiss this change")
@@ -492,7 +488,7 @@ open class Uploader(
             return Outcome.Failed("cannot read the document: ${e.message ?: e.javaClass.simpleName}")
         }
         val document: GeniDocument = try {
-            client.addDocument(profileId, fileName, contentType, title, description, bytes) { documentOwnerMatches(treeId, profileId, personId) }
+            client.addDocument(profileId, fileName, contentType, title, description, bytes) { documentOwnerMatches(treeId, profileId, personId) && stillQueued(treeId, personId, fileName) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: GeniSendRejectedException) {
@@ -534,6 +530,12 @@ open class Uploader(
             host.refreshScreens()
         }
         return Outcome.Done
+    }
+
+    /** True while the person still has the media of the queued document file: the user may remove it before the send. */
+    private suspend fun stillQueued(treeId: Int, personId: String, fileName: String): Boolean = host.edit(treeId) { gedcom ->
+        gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+            .any { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, DocumentSync.QUEUED_TAG) != null }
     }
 
     /** True if the link rules still resolve the person (as the tree is saved) to [profileId]; anything that cannot be verified counts as no. */
@@ -588,7 +590,7 @@ open class Uploader(
         }
         bestEffort {
             val personId = job.personGedcomId ?: return@bestEffort
-            if (documents.removeLocal(job.treeId, profileId, personId, documentId)) host.refreshScreens()
+            if (documents.removeLocal(job.treeId, profileId, personId, documentId, detachIfEdited = true)) host.refreshScreens()
         }
         return Outcome.Done
     }
