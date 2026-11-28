@@ -165,16 +165,28 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         privacyUsable = initialPublic != null || (!unavailable && snapshot == null)
         val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
         publicChoice = initialPublic == true
-        switch.setOnClickListener { publicTouched = true; publicChoice = switch.isChecked; updatePrivacy() }
+        switch.setOnClickListener { publicTouched = true }
+        // Any change the user (or Android, restoring the form after a recreation) makes to the switch is the choice;
+        // the changes made by updatePrivacy are not
+        switch.setOnCheckedChangeListener { _, checked ->
+            if (!updatingPrivacy) {
+                publicChoice = checked
+                updatePrivacy()
+            }
+        }
         // The upstream form owns the checked listener of the Dead switch: a tap is listened to here as well
         view<SwitchCompat>(AppR.id.editor_dead).setOnClickListener { updatePrivacy() }
         updatePrivacy()
     }
 
+    private var updatingPrivacy = false
+
     private fun updatePrivacy() {
         val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
         val dead = view<SwitchCompat>(AppR.id.editor_dead).isChecked
+        updatingPrivacy = true
         switch.isChecked = publicChoice && dead
+        updatingPrivacy = false
         switch.isEnabled = privacyUsable && dead
         view<TextView>(AppR.id.editor_geniPublicNote).setText(
             when {
