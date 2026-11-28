@@ -22,11 +22,11 @@ object SnapshotOverlay {
         // Geni's `names` is `{}` for none (the client writes it): it stays, an absent one means a version from before they were read
         val hadNames = root.get("names")?.isJsonObject == true
         // The primary name sits in `names` too; a write of its fields goes there as well, or it would look like another language
-        val primary = primaryKey(root)
+        val primary = primaryKeys(root)
         for ((key, value) in params) {
             val path = key.replace("]", "").split('[')
-            if (path.size == 1 && primary != null && path[0] in LocaleName.KEYS && root.getAsJsonObject("names")?.getAsJsonObject(primary) != null) {
-                write(root.getAsJsonObject("names").getAsJsonObject(primary), path[0], value)
+            if (path.size == 1 && path[0] in LocaleName.KEYS) {
+                for (key in primary) root.getAsJsonObject("names")?.getAsJsonObject(key)?.let { write(it, path[0], value) }
             }
             var parent = root
             for (name in path.dropLast(1)) parent = parent.getAsJsonObject(name) ?: JsonObject().also { parent.add(name, it) }
@@ -46,10 +46,11 @@ object SnapshotOverlay {
         return root.toString()
     }
 
-    /** The key of the primary name in the `names` of [root]; null without one. */
-    private fun primaryKey(root: JsonObject): String? {
-        val names = LocaleNames.rawNames(root.get("names")) ?: return null
-        return LocaleNames.primaryKey(names, root.get("first_name")?.takeIf { it.isJsonPrimitive }?.asString, root.get("last_name")?.takeIf { it.isJsonPrimitive }?.asString)
+    /** The keys of the primary name in the `names` of [root]. */
+    private fun primaryKeys(root: JsonObject): Set<String> {
+        val names = LocaleNames.rawNames(root.get("names")) ?: return emptySet()
+        fun text(key: String) = root.get(key)?.takeIf { it.isJsonPrimitive }?.asString
+        return LocaleNames.primaryKeys(names, text("first_name"), text("middle_name"), text("last_name"))
     }
 
     private fun write(entry: JsonObject, key: String, value: String) {

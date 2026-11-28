@@ -129,12 +129,13 @@ class GeniClient(
      */
     suspend fun profiles(ids: List<String>): Map<String, Pair<GeniProfile, String>> =
         batch(ids, GeniProfile::class.java, { it.id }) { "profile?ids=$it&fields=$PROFILE_FIELDS" }
-            .mapValues { (_, value) -> value.first to withNames(value.second) }
+            .mapValues { (_, value) -> withNames(value.first, value.second) }
 
-    private fun withNames(raw: String): String = runCatching {
+    /** The profile and its raw JSON with an empty `names` in both when Geni left it out; a profile Geni did send `names` for stays as it is. */
+    private fun withNames(profile: GeniProfile, raw: String): Pair<GeniProfile, String> = runCatching {
         val root = JsonParser.parseString(raw).asJsonObject
-        if (root.has("names")) raw else root.also { it.add("names", JsonObject()) }.toString()
-    }.getOrDefault(raw)
+        if (root.has("names")) profile to raw else profile.copy(names = JsonObject()) to root.also { it.add("names", JsonObject()) }.toString()
+    }.getOrDefault(profile to raw)
 
     /** Unions, each with its raw JSON, by Geni ID. */
     suspend fun unions(ids: List<String>): Map<String, Pair<GeniUnion, String>> =

@@ -63,6 +63,9 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     /** The person's names in other languages when the form was filled; null while the list is not offered (a new person). */
     private var initialLocales: Map<String, LocaleName>? = null
 
+    /** Keys of the primary name in Geni's last version: not languages, so not offered. */
+    private var primaryLocales: Set<String> = emptySet()
+
     private var enabled = false
     private var bound = false
     private var isNew = false
@@ -183,37 +186,44 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
         bindPrivacy(person, snapshot) // After the Dead switch has its final state
-        bindLocales(person)
+        bindLocales(person, snapshot)
     }
 
     /**
      * The list of names in other languages: a row per language of the person, or the unsaved rows of the form before a rotation.
      * Not offered for a new person (a profile is created without them). Nothing is stored before Done.
      */
-    private fun bindLocales(person: Person) {
+    private fun bindLocales(person: Person, snapshot: String?) {
         if (isNew) return
-        val stored = LocaleNames.read(person)
-        initialLocales = stored
+        primaryLocales = snapshot?.let { json -> runCatching { LocaleNames.primaryKeys(com.google.gson.Gson().fromJson(json, app.familygem.geni.api.GeniProfile::class.java)) }.getOrNull() }.orEmpty()
         view<View>(AppR.id.editor_geniLocalesSection).visibility = View.VISIBLE
         val state = activity.savedStateRegistry.consumeRestoredStateForKey(LOCALES_STATE)
         val codes = state?.getStringArrayList("codes")
+        // After a rotation the baseline is the one the draft started from, not the person now: a language that Geni's sync added
+        // meanwhile is not in the draft, and must not be taken for one the user removed
+        val stored = if (state != null) state.getStringArrayList("baseCodes").orEmpty().associateWith { code -> LocaleName.of(readFields(state.getStringArray("base:$code")).values) }
+        else LocaleNames.read(person)
+        initialLocales = stored
         if (codes != null) {
-            for (code in codes) addLocaleRow(code, state.getStringArray("fields:$code")?.let { texts ->
-                LocaleName(LOCALE_FIELDS.mapIndexedNotNull { i, (key, _) -> texts.getOrNull(i)?.let { key to it } }.toMap())
-            } ?: LocaleName.EMPTY)
+            for (code in codes) addLocaleRow(code, readFields(state.getStringArray("fields:$code")))
         } else stored.forEach { (code, parts) -> addLocaleRow(code, parts) }
         activity.savedStateRegistry.registerSavedStateProvider(LOCALES_STATE) {
             Bundle().apply {
                 putStringArrayList("codes", ArrayList(localeRows.keys))
                 localeRows.forEach { (code, row) -> putStringArray("fields:$code", LOCALE_FIELDS.map { row.fields.getValue(it.first).text.toString() }.toTypedArray()) }
+                putStringArrayList("baseCodes", ArrayList(stored.keys))
+                stored.forEach { (code, parts) -> putStringArray("base:$code", LOCALE_FIELDS.map { parts[it.first].orEmpty() }.toTypedArray()) }
             }
         }
         view<Button>(AppR.id.editor_geniAddLocale).setOnClickListener { chooseLocale() }
     }
 
+    private fun readFields(texts: Array<String>?): LocaleName =
+        if (texts == null) LocaleName.EMPTY else LocaleName(LOCALE_FIELDS.mapIndexedNotNull { i, (key, _) -> texts.getOrNull(i)?.let { key to it } }.toMap())
+
     /** Asks which language to add: the catalog's, less the ones the list has. */
     private fun chooseLocale() {
-        val codes = GeniLocales.CHOICES.filter { it !in localeRows }
+        val codes = GeniLocales.CHOICES.filter { it !in localeRows && it !in primaryLocales }
         AlertDialog.Builder(activity).setTitle(R.string.geni_locales_add)
             .setItems(codes.map { GeniLocales.label(it) }.toTypedArray()) { _, which ->
                 addLocaleRow(codes[which], LocaleName.EMPTY).fields.getValue(LocaleName.FIRST).requestFocus()

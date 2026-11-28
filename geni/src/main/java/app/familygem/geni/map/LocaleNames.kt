@@ -2,8 +2,10 @@ package app.familygem.geni.map
 
 import app.familygem.geni.api.GeniProfile
 import com.google.gson.JsonElement
+import org.folg.gedcom.model.GedcomTag
 import org.folg.gedcom.model.Name
 import org.folg.gedcom.model.Person
+import org.folg.gedcom.parser.ModelParser
 
 /**
  * The name fields Geni keeps per locale, each under its API key, in normalized form: only non-blank values, text with single spaces,
@@ -159,7 +161,13 @@ object LocaleNames {
 
     /** True for a name with notes, sources or media of its own: records Geni does not have. */
     fun hasLocalData(name: Name) = name.notes.orEmpty().isNotEmpty() || name.noteRefs.orEmpty().isNotEmpty() ||
-            name.sourceCitations.orEmpty().isNotEmpty() || name.media.orEmpty().isNotEmpty() || name.mediaRefs.orEmpty().isNotEmpty()
+            name.sourceCitations.orEmpty().isNotEmpty() || name.media.orEmpty().isNotEmpty() || name.mediaRefs.orEmpty().isNotEmpty() ||
+            hasOtherExtensions(name)
+
+    /** True for an extension of the name that is not one of the tags this class writes. */
+    private fun hasOtherExtensions(name: Name): Boolean = name.extensions.orEmpty().any { (key, value) ->
+        key != ModelParser.MORE_TAGS_EXTENSION_KEY || (value as? List<*>)?.any { it !is GedcomTag || (it.tag != LOCALE_TAG && it.tag !in PART_TAGS) } != false
+    }
 
     /**
      * The names of a profile in other languages: Geni's `names` without the primary name's own entry. Empty when there are none.
@@ -168,18 +176,31 @@ object LocaleNames {
      */
     fun of(profile: GeniProfile): Map<String, LocaleName> {
         val raw = rawNames(profile) ?: return emptyMap()
-        val own = primaryKey(profile)
+        val own = primaryKeys(profile)
         val result = linkedMapOf<String, LocaleName>()
         for ((code, fields) in raw) {
-            if (code == own) continue
+            if (code in own) continue
             val parts = LocaleName.of(fields)
             if (!parts.isEmpty) result[code] = parts
         }
         return result
     }
 
-    /** The key of the primary name in [GeniProfile.names]; null when there is none. */
-    fun primaryKey(profile: GeniProfile): String? = primaryKey(rawNames(profile), profile.firstName, profile.lastName)
+    /** The keys of the primary name in [GeniProfile.names]; none without one. */
+    fun primaryKeys(profile: GeniProfile): Set<String> = primaryKeys(rawNames(profile), profile.firstName, profile.middleName, profile.lastName)
+
+    /**
+     * `en-US` is the primary name's key. Without it the entries with the profile's own first, middle and last name are the primary one:
+     * the order of the response says nothing, so when two entries match, both stay out of the languages (never written, never imported).
+     */
+    fun primaryKeys(names: Map<String, Map<String, String?>>?, first: String?, middle: String?, last: String?): Set<String> {
+        names ?: return emptySet()
+        if (GeniLocales.DEFAULT in names) return setOf(GeniLocales.DEFAULT)
+        return names.filter { (_, fields) ->
+            clean(fields[LocaleName.FIRST]) == clean(first) && clean(fields[LocaleName.LAST]) == clean(last) &&
+                    clean(fields[LocaleName.MIDDLE]) == clean(middle)
+        }.keys
+    }
 
     /**
      * Geni's `names` as locale to field to text, read leniently (a field that is not text is joined or skipped, as one odd value
@@ -198,11 +219,5 @@ object LocaleNames {
                 }
             }
         }
-    }
-
-    fun primaryKey(names: Map<String, Map<String, String?>>?, first: String?, last: String?): String? {
-        names ?: return null
-        if (GeniLocales.DEFAULT in names) return GeniLocales.DEFAULT
-        return names.entries.firstOrNull { (_, fields) -> clean(fields[LocaleName.FIRST]) == clean(first) && clean(fields[LocaleName.LAST]) == clean(last) }?.key
     }
 }

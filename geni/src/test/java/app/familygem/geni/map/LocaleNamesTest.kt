@@ -331,4 +331,25 @@ class LocaleNamesTest {
         val name = Name().apply { value = "Marie Anne /Schmidt/"; GeniMapper.setTag(this, LocaleNames.LOCALE_TAG, "de") }
         assertEquals(LocaleName.of(mapOf("first_name" to "Marie", "middle_name" to "Anne", "last_name" to "Schmidt")), LocaleNames.parts(name))
     }
+
+    @Test
+    fun twoEntriesWithTheProfilesOwnNameStayOutOfTheLanguages() {
+        // No en-US: the response order says nothing about which one is the primary name
+        val json = """{"id":"profile-1","first_name":"Иван","last_name":"Петров","names":{"de":{"first_name":"Иван","last_name":"Петров"},"ru":{"first_name":"Иван","last_name":"Петров"},"fr":{"first_name":"Jean"}}}"""
+        assertEquals(setOf("de", "ru"), LocaleNames.primaryKeys(profile(json)))
+        assertEquals(setOf("fr"), LocaleNames.of(profile(json)).keys)
+        // The middle name tells them apart
+        val middle = """{"id":"profile-1","first_name":"Иван","middle_name":"П","last_name":"Петров","names":{"de":{"first_name":"Иван","last_name":"Петров"},"ru":{"first_name":"Иван","middle_name":"П","last_name":"Петров"}}}"""
+        assertEquals(setOf("ru"), LocaleNames.primaryKeys(profile(middle)))
+        assertEquals(setOf("de"), LocaleNames.of(profile(middle)).keys)
+    }
+
+    @Test
+    fun aRemovedLanguageWithAnExtensionStaysAsAnOrdinaryName() {
+        val person = applied(locales)
+        GeniMapper.setTag(LocaleNames.find(person, "ru")!!, "_CUSTOM", "keep me")
+        applied(withoutRussian, previous = locales, into = person)
+        assertFalse("ru" in ProfileFields.of(person).locales)
+        assertEquals("keep me", GeniMapper.getTag(person.names.single { it.value == "Мария /Пэ/" }, "_CUSTOM"))
+    }
 }

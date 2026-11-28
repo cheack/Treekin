@@ -221,21 +221,20 @@ class GeniLocaleNamesEditorTest {
         }
     }
 
+    /** The items of the language picker: read from the dialog's own list, which must be there. */
     private fun dialogItems(): List<String> {
-        var items = emptyList<String>()
-        instrumentation.runOnMainSync {
-            val monitor = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
-            val activity = monitor.getActivitiesInStage(androidx.test.runner.lifecycle.Stage.RESUMED).firstOrNull() ?: return@runOnMainSync
-            val list = findListView(activity.window.decorView.rootView)
-            items = list?.let { l -> (0 until l.adapter.count).map { l.adapter.getItem(it).toString() } }.orEmpty()
-        }
+        val items = mutableListOf<String>()
+        onView(androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom(android.widget.ListView::class.java)).inRoot(isDialog())
+            .perform(object : androidx.test.espresso.ViewAction {
+                override fun getConstraints() = androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom(android.widget.ListView::class.java)
+                override fun getDescription() = "read the items"
+                override fun perform(uiController: androidx.test.espresso.UiController, view: View) {
+                    val list = view as android.widget.ListView
+                    items += (0 until list.adapter.count).map { list.adapter.getItem(it).toString() }
+                }
+            })
+        assertTrue(items.size > 100)
         return items
-    }
-
-    private fun findListView(view: View): android.widget.ListView? {
-        if (view is android.widget.ListView && view.adapter?.count ?: 0 > 20) return view
-        if (view is ViewGroup) for (i in 0 until view.childCount) findListView(view.getChildAt(i))?.let { return it }
-        return null
     }
 
     @Test
