@@ -73,6 +73,7 @@ class GeniLineageEditorTest {
         }
         instrumentation.waitForIdleSync()
         Global.settings.autoSave = autoSave
+        Global.settings.save() // The editor's save wrote the test's setting to the file
         if (wasGeni) GeniTrees.add(treeId) else GeniTrees.remove(treeId)
         Global.gc = null
         Memory.clear()

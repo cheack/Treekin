@@ -211,6 +211,7 @@ class UploaderTest {
         val adopted = add.copy(params = add.params + (UploadJob.MODIFIER_PARAM to "adopt"))
         assertEquals(Outcome.Done, uploader().run(adopted))
         assertEquals("I3", store.link(1, "profile-50")!!.gedcomId)
+        assertEquals(false, store.link(1, "profile-50")!!.snapshot!!.contains("relationship_modifier"))
         val posted = server.requestCount
         assertEquals(Outcome.Done, uploader().run(adopted)) // Run again: the person is linked
         assertEquals(posted, server.requestCount)

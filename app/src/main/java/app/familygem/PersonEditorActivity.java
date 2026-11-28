@@ -445,11 +445,7 @@ public class PersonEditorActivity extends BaseActivity {
                 childRef1.setRef(pivotId);
                 childRef2.setRef(newId);
                 if (pivot != null) pivot.addParentFamilyRef(parentFamilyRef);
-                if (newPerson != null) { // GENI-HOOK: a ref of its own, so a lineage of the new child never lands on the pivot
-                    ParentFamilyRef newPersonRef = new ParentFamilyRef();
-                    newPersonRef.setRef(family.getId());
-                    newPerson.addParentFamilyRef(newPersonRef);
-                }
+                if (newPerson != null) newPerson.addParentFamilyRef(app.familygem.geni.GeniGlue.INSTANCE.ownParentRef(parentFamilyRef)); // GENI-HOOK
                 break;
             case PARTNER:
                 spouseRef1.setRef(pivotId);

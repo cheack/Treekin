@@ -203,6 +203,7 @@ object PersonUtil {
         person.parentFamilyRefs.firstOrNull { it.ref == family.id }?.apply {
             lineageTypes.indexOf(relationshipType).let {
                 AlertDialog.Builder(context).setSingleChoiceItems(lineageTexts, it) { dialog, selected ->
+                    if (app.familygem.geni.GeniGlue.blockLineage(context, person)) { dialog.dismiss(); return@setSingleChoiceItems } // GENI-HOOK
                     relationshipType = lineageTypes[selected]
                     dialog.dismiss()
                     if (context is ProfileActivity) context.refresh()

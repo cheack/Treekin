@@ -143,7 +143,7 @@ class ConflictResolver(
             val result = threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!)
             check(shown == null || result.conflicts.map { it.name }.toSet() == shown) { CHANGED }
             val keep = (result.local - result.conflicts) + UnionGroup.values().filter { it.name in keepMine }
-            GeniMapper.applyUnion(gedcom, family, gson.fromJson(raw, GeniUnion::class.java), gson.fromJson(snapshot, GeniUnion::class.java), keep) { null }
+            GeniMapper.applyUnion(gedcom, family, gson.fromJson(raw, GeniUnion::class.java), gson.fromJson(snapshot, GeniUnion::class.java), keep, GeniMapper.peopleByGeniId(gedcom))
         }
         queue.setLocal(link.treeId, LocalTree.capture(gedcom))
     }

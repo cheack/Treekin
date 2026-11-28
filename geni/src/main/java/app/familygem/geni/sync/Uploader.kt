@@ -383,7 +383,7 @@ open class Uploader(
                 val geni = gson.fromJson(raw, GeniUnion::class.java)
                 val result = threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!)
                 result.conflicts.map { it.name }.ifEmpty {
-                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java), result.local) { null }
+                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java), result.local, personFor = GeniMapper.peopleByGeniId(gedcom))
                         emptyList()
                     }
             }
