@@ -1,7 +1,9 @@
 package app.familygem.geni
 
+import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.RadioButton
@@ -9,9 +11,13 @@ import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import app.familygem.DateEditorLayout
 import app.familygem.PersonEditorActivity
+import androidx.appcompat.app.AlertDialog
+import app.familygem.geni.map.GeniLocales
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.GeniParams
 import app.familygem.geni.map.GivenNameParts
+import app.familygem.geni.map.LocaleName
+import app.familygem.geni.map.LocaleNames
 import app.familygem.geni.map.LocationParts
 import app.familygem.geni.map.ProfileFields
 import app.familygem.util.cleanUpFields
@@ -33,7 +39,29 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     companion object {
         /** Opens the form with "Dead" switched on, in the form only: nothing is saved until Done. */
         const val EXTRA_DEAD = "app.familygem.geni.dead"
+
+        /** Key of the unsaved language rows in the activity's saved state. */
+        private const val LOCALES_STATE = "app.familygem.geni.locales"
+
+        /** The row fields by the key of the name field they edit. */
+        private val LOCALE_FIELDS = listOf(
+            LocaleName.FIRST to AppR.id.editor_locale_first, LocaleName.MIDDLE to AppR.id.editor_locale_middle,
+            LocaleName.LAST to AppR.id.editor_locale_last, LocaleName.MAIDEN to AppR.id.editor_locale_maiden,
+            LocaleName.SUFFIX to AppR.id.editor_locale_suffix, LocaleName.NICKNAMES to AppR.id.editor_locale_nicknames,
+            LocaleName.TITLE to AppR.id.editor_locale_title, LocaleName.DISPLAY to AppR.id.editor_locale_display
+        )
     }
+
+    /** A row of the language list: its view and its fields by name field key. */
+    private class LocaleRow(val view: View, val fields: Map<String, EditText>) {
+        fun value(): LocaleName = LocaleName.of(fields.mapValues { it.value.text.toString() })
+    }
+
+    /** The language rows in the order shown, by locale code. */
+    private val localeRows = linkedMapOf<String, LocaleRow>()
+
+    /** The person's names in other languages when the form was filled; null while the list is not offered (a new person). */
+    private var initialLocales: Map<String, LocaleName>? = null
 
     private var enabled = false
     private var bound = false
@@ -121,9 +149,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         set(AppR.id.editor_displayName, GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG))
         set(AppR.id.editor_nameTitle, GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG))
 
-        val names = person.names.orEmpty()
-        val main = names.firstOrNull { it.type != "birth" }
-        set(AppR.id.editor_birthSurname, surname(names.firstOrNull { it.type == "birth" }?.value))
+        val main = LocaleNames.main(person)
+        set(AppR.id.editor_birthSurname, surname(LocaleNames.birth(person)?.value))
         set(AppR.id.editor_suffix, main?.suffix)
         set(AppR.id.editor_nicknames, main?.nickname)
         val baptism = first(person, "BAPM")
@@ -156,6 +183,75 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
         bindPrivacy(person, snapshot) // After the Dead switch has its final state
+        bindLocales(person)
+    }
+
+    /**
+     * The list of names in other languages: a row per language of the person, or the unsaved rows of the form before a rotation.
+     * Not offered for a new person (a profile is created without them). Nothing is stored before Done.
+     */
+    private fun bindLocales(person: Person) {
+        if (isNew) return
+        val stored = LocaleNames.read(person)
+        initialLocales = stored
+        view<View>(AppR.id.editor_geniLocalesSection).visibility = View.VISIBLE
+        val state = activity.savedStateRegistry.consumeRestoredStateForKey(LOCALES_STATE)
+        val codes = state?.getStringArrayList("codes")
+        if (codes != null) {
+            for (code in codes) addLocaleRow(code, state.getStringArray("fields:$code")?.let { texts ->
+                LocaleName(LOCALE_FIELDS.mapIndexedNotNull { i, (key, _) -> texts.getOrNull(i)?.let { key to it } }.toMap())
+            } ?: LocaleName.EMPTY)
+        } else stored.forEach { (code, parts) -> addLocaleRow(code, parts) }
+        activity.savedStateRegistry.registerSavedStateProvider(LOCALES_STATE) {
+            Bundle().apply {
+                putStringArrayList("codes", ArrayList(localeRows.keys))
+                localeRows.forEach { (code, row) -> putStringArray("fields:$code", LOCALE_FIELDS.map { row.fields.getValue(it.first).text.toString() }.toTypedArray()) }
+            }
+        }
+        view<Button>(AppR.id.editor_geniAddLocale).setOnClickListener { chooseLocale() }
+    }
+
+    /** Asks which language to add: the catalog's, less the ones the list has. */
+    private fun chooseLocale() {
+        val codes = GeniLocales.CHOICES.filter { it !in localeRows }
+        AlertDialog.Builder(activity).setTitle(R.string.geni_locales_add)
+            .setItems(codes.map { GeniLocales.label(it) }.toTypedArray()) { _, which ->
+                addLocaleRow(codes[which], LocaleName.EMPTY).fields.getValue(LocaleName.FIRST).requestFocus()
+            }.show()
+    }
+
+    /** Adds the row of [code] to the list, its fields filled from [parts] as they are (a rotation brings the form's own texts back). */
+    private fun addLocaleRow(code: String, parts: LocaleName): LocaleRow {
+        val container = view<ViewGroup>(AppR.id.editor_geniLocales)
+        val row = activity.layoutInflater.inflate(AppR.layout.geni_editor_locale, container, false)
+        row.findViewById<TextView>(AppR.id.editor_locale_header).text = GeniLocales.label(code)
+        val noSlash = view<EditText>(AppR.id.editor_name).filters // No "/" in names
+        val fields = LOCALE_FIELDS.associate { (key, id) ->
+            key to row.findViewById<EditText>(id).apply {
+                filters = noSlash
+                isSaveEnabled = false // The rows share their IDs: the form keeps them itself, see LOCALES_STATE
+                setText(parts[key].orEmpty())
+            }
+        }
+        container.addView(row)
+        val entry = LocaleRow(row, fields)
+        localeRows[code] = entry
+        row.findViewById<Button>(AppR.id.editor_locale_remove).setOnClickListener {
+            container.removeView(row)
+            localeRows.remove(code)
+        }
+        return entry
+    }
+
+    /**
+     * Writes the language list: a language the user changed is set, one that is gone or has no field left is removed
+     * (Geni drops a language when all its fields are emptied), and an untouched one is not written, so saving again changes nothing.
+     */
+    private fun saveLocales(person: Person) {
+        val initial = initialLocales ?: return
+        val current = localeRows.mapValues { it.value.value() }.filterValues { !it.isEmpty }
+        for ((code, parts) in current) if (parts != initial[code]) LocaleNames.set(person, code, parts)
+        for (code in initial.keys - current.keys) LocaleNames.remove(person, code)
     }
 
     /** Shows the privacy of the person; a living person is always private on Geni, so the switch only works with Dead on. */
@@ -255,10 +351,10 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         // An empty override is kept as an empty tag: it tells Geni to remove the display name
         if (changed(AppR.id.editor_displayName)) GeniMapper.setTag(person, GeniMapper.DISPLAY_NAME_TAG, text(AppR.id.editor_displayName))
         if (changed(AppR.id.editor_nameTitle)) GeniMapper.setTag(person, GeniMapper.NAME_TITLE_TAG, text(AppR.id.editor_nameTitle))
-        val names = person.names.orEmpty()
+        saveLocales(person)
         if (changed(AppR.id.editor_birthSurname)) setBirthSurname(person, text(AppR.id.editor_birthSurname))
         if (changed(AppR.id.editor_suffix) || changed(AppR.id.editor_nicknames)) {
-            val main = names.firstOrNull { it.type != "birth" } ?: Name().also { person.addName(it) }
+            val main = LocaleNames.main(person) ?: Name().also { person.addName(it) }
             if (changed(AppR.id.editor_suffix)) main.suffix = text(AppR.id.editor_suffix).ifEmpty { null }
             if (changed(AppR.id.editor_nicknames)) main.nickname = text(AppR.id.editor_nicknames).ifEmpty { null }
         }
@@ -292,8 +388,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     private fun setBirthSurname(person: Person, surname: String) {
         val names = person.names.orEmpty()
-        val birth = names.firstOrNull { it.type == "birth" }
-        val given = given(names.firstOrNull { it.type != "birth" }?.value)
+        val birth = LocaleNames.birth(person)
+        val given = given(LocaleNames.main(person)?.value)
         when {
             surname.isNotEmpty() -> {
                 val value = "$given /$surname/".trim()

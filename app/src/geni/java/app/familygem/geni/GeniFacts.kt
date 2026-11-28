@@ -7,7 +7,9 @@ import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.Toast
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.GeniLocales
 import app.familygem.geni.map.GeniParams
+import app.familygem.geni.map.LocaleNames
 import app.familygem.geni.map.LocationParts
 import org.folg.gedcom.model.Family
 import app.familygem.DetailActivity
@@ -121,9 +123,12 @@ object GeniFacts {
         return true
     }
 
-    /** In a Geni tree the main name is edited in the Modify form, with first, middle and display names. True if opened. */
+    /**
+     * In a Geni tree the main name and the names in other languages are edited in the Modify form, with first, middle and display
+     * names and the language list. True if opened.
+     */
     fun editName(activity: Activity, person: Person?, name: Any?): Boolean {
-        if (person == null || !isGeniTree() || name !== person.names.orEmpty().firstOrNull { it.type != "birth" }) return false
+        if (person == null || !isGeniTree() || (name !== LocaleNames.main(person) && !isLocaleName(name))) return false
         activity.startActivity(Intent(activity, PersonEditorActivity::class.java).putExtra(Extra.PERSON_ID, person.id))
         return true
     }
@@ -131,7 +136,28 @@ object GeniFacts {
     /** The name the person editor edits: in a Geni tree the main name (the mapper's), else upstream's first name. */
     fun editedName(person: Person): Name {
         val names = person.names
-        return if (isGeniTree()) names.firstOrNull { it.type != "birth" } ?: names[0] else names[0]
+        return if (isGeniTree()) LocaleNames.main(person) ?: names[0] else names[0]
+    }
+
+    /** True for a name of a Geni tree that is the person's name in another language. */
+    fun isLocaleName(name: Any?): Boolean = isGeniTree() && name is Name && LocaleNames.isLocalized(name)
+
+    /** The title of a name row in Facts: the language of a name in another language, null for any other name (upstream's title). */
+    fun nameTitle(context: android.content.Context, name: Name): String? {
+        if (!isGeniTree()) return null
+        val code = LocaleNames.localeOf(name) ?: return null
+        return context.getString(R.string.geni_locale_name_title, GeniLocales.label(code))
+    }
+
+    /**
+     * Whether the Facts menu may swap [name] with its neighbour in [direction]: a name in another language never moves, and
+     * nothing moves past one, so the main name stays the first (the title of the card and the name every list shows).
+     */
+    fun canMoveName(person: Person, name: Name, direction: Int): Boolean {
+        if (!isGeniTree()) return true
+        val names = person.names
+        val neighbour = names.getOrNull(names.indexOf(name) + direction) ?: return false
+        return !LocaleNames.isLocalized(name) && !LocaleNames.isLocalized(neighbour)
     }
 
     /** True for a piece of the event screen that edits one part of the structured location. */

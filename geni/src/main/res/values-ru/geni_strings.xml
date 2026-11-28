@@ -195,4 +195,9 @@
     <string name="geni_group_DISPLAY_NAME">Отображаемое имя</string>
     <string name="geni_name_title">Титул</string>
     <string name="geni_group_TITLE">Титул</string>
+    <string name="geni_locales_title">Имена на других языках</string>
+    <string name="geni_locales_add">Добавить язык</string>
+    <string name="geni_locale_remove">Удалить</string>
+    <string name="geni_locale_name_title">Имя (%1$s)</string>
+    <string name="geni_group_locale">Имя: %1$s</string>
 </resources>

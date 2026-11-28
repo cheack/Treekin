@@ -59,6 +59,22 @@ class UploadPlannerTest {
     }
 
     @Test
+    fun aNewLanguageMakesAnUpdateWithItsFieldsOnly() {
+        val changed = ivan.copy(locales = mapOf("de" to app.familygem.geni.map.LocaleName.of(mapOf("first_name" to "Iwan", "last_name" to "Benutzer"))))
+        val job = plan(couple(ivanFields = changed)).upserts.single()
+        assertEquals(JobKind.UPDATE_PROFILE, job.kind)
+        assertEquals(listOf("names[de][first_name]" to "Iwan", "names[de][last_name]" to "Benutzer"), job.params)
+    }
+
+    @Test
+    fun aPersonWithLanguagesAndNoChangeQueuesNothing() {
+        val json = ivanJson.removeSuffix("}") + ""","names":{"en-US":{"first_name":"Ivan","last_name":"User"},"de":{"first_name":"Iwan"}}}"""
+        val fields = ProfileFields.ofSnapshot(json)!!
+        val links = listOf(link("profile-1", "I1", json), link("profile-2", "I2", annaJson), link("union-1", "F1", unionJson))
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = fields), links).upserts)
+    }
+
+    @Test
     fun changedMarriageMakesUnionUpdate() {
         val local = couple().let { it.copy(families = listOf(it.families[0].copy(fields = UnionFields(EventFields("2012", null), null)))) }
         val job = plan(local).upserts.single()

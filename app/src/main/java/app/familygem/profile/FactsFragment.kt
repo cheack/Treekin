@@ -40,7 +40,7 @@ class FactsFragment : BaseFragment() {
 
     override fun createContent() {
         if (prepareContent()) {
-            person.names.forEach { placeEvent(layout, it.writeTitle(), U.firstAndLastName(it, " "), it) }
+            person.names.forEach { placeEvent(layout, app.familygem.geni.GeniFacts.nameTitle(requireContext(), it) ?: it.writeTitle(), U.firstAndLastName(it, " "), it) } // GENI-HOOK: a name in another language names its language
             person.eventsFacts.forEach { placeEvent(layout, it.writeTitle(), it.writeContent(), it) }
             U.findExtensions(person).forEach { placeEvent(layout, it.name, it.text, it.gedcomTag) }
             NoteUtil.placeNotes(layout, person)
@@ -152,11 +152,12 @@ class FactsFragment : BaseFragment() {
         when (pieceObject) {
             is Name -> {
                 menu.add(0, 200, 0, R.string.copy)
-                if (person.names.indexOf(pieceObject) > 0)
+                if (person.names.indexOf(pieceObject) > 0 && app.familygem.geni.GeniFacts.canMoveName(person, pieceObject as Name, -1)) // GENI-HOOK
                     menu.add(0, 201, 0, R.string.move_up)
-                if (person.names.indexOf(pieceObject) < person.names.size - 1)
+                if (person.names.indexOf(pieceObject) < person.names.size - 1 && app.familygem.geni.GeniFacts.canMoveName(person, pieceObject as Name, 1)) // GENI-HOOK
                     menu.add(0, 202, 0, R.string.move_down)
-                menu.add(0, 203, 0, R.string.delete)
+                if (!app.familygem.geni.GeniFacts.isLocaleName(pieceObject)) // GENI-HOOK: a name in another language is removed in Modify
+                    menu.add(0, 203, 0, R.string.delete)
             }
             is EventFact -> {
                 if (view.findViewById<View>(R.id.profileFact_text).isVisible)

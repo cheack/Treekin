@@ -76,14 +76,29 @@ What the user gets: a profile can be made public or private, sex can be unknown,
 - [x] Unit tests and 8 new Espresso tests (privacy on, explicit Private, living, Dead off and on, ordinary tree, unknown sex, legacy placeholder); CodeRabbit rounds fixed the switch across recreation: Android does not restore the Privacy switch, the form is rebuilt from the person
 - [ ] Curator fields: need a verified account role signal (a curator account); hidden until then. To finish: sign in with a curator account on the sandbox (or Geni itself), check whether `curator`, `locked` and `merge_note` are returned and writable, then show and edit them only for that role
 
-### 3. Names in other languages
+### 3. Names in other languages (done: PR pending)
 
 What the user gets: the same names in another language or script (e.g. Cyrillic and Latin), like the site's language tabs.
 
-- API: `names` is a hash of locale → name fields (`first_name`, `middle_name`, `last_name`, `maiden_name`, `display_name`, … — check the field list, since the locales page did not load).
-- Mapping: one extra GEDCOM `NAME` per locale, with `_GENI_LOCALE` (and `LANG` for export), kept out of the main-name logic. Only changed locales are sent, as `names[de][last_name]=…`.
-- Verify first: which fields a locale accepts, how a locale is removed, and how `name` / `display_name` change with the viewer's language.
-- UI: a language list under the names in Modify ("Add a language").
+- API: `names` is a hash of locale → name fields, written as `names[<locale>][<field>]=…` on `profile-X/update`.
+- Mapping: one extra GEDCOM `NAME` per locale after the main and birth names, marked `_GENI_LOCALE` (GEDCOM 5.5.1 has no language for a `NAME`), its parts in tags like the main name's. Kept out of the main-name logic (`LocaleNames.main` / `birth`). Only changed locales and fields are sent.
+- UI: a language list under the names in Modify ("Add a language"), for people that already exist; the Facts row of a language opens Modify and cannot be moved or deleted there.
+
+**Sandbox results (2026-11-28, disposable profile-36543; sanitized fixtures `profile-names-*.json`):**
+
+- Every field round-trips per locale: `first_name`, `middle_name`, `last_name`, `maiden_name`, `suffix`, `display_name`, `nicknames` (a comma separated text) and `title`. A write of one field (`names[de][last_name]`) keeps every other field of that locale and the other locales.
+- An empty value clears one field. Clearing every field of a locale removes the locale; with no other locale left `names` is omitted from the response (the client then stores `"names":{}`, so a stored version without `names` means one from before they were read).
+- `names[en-US]` is the primary name (the top-level fields); it is returned only while another locale exists. The `locale` query parameter on a GET changes nothing. Top-level `maiden_name`, `display_name`, `nicknames` and `title` fall back to another locale while the primary has none (known limit: clearing such a primary field cannot stick).
+- An unsupported locale (`xx`, `DE`, `de-AT`, `pt-BR`) fails the whole request with 400 "Unsupported locale". The accepted codes are the catalog of `/platform/developer/help/locales` (138, `pt-BZ` for Brazilian Portuguese, `zh-CN`, `zh-TW`, `en-UK`): built into `GeniLocales`, never sent for a code outside it.
+- The batch `profile?ids=…&fields=…,names` returns the same `names`.
+
+**Status of stage 3:**
+
+- [x] Sandbox checks: fields, partial update, clearing, removal of a locale and of the last one, viewer locale, case and unsupported codes, batch read
+- [x] Read and store: `names` in the field mask and the model, `LocaleNames` (one tagged `NAME` per locale), main and birth name selection skips them everywhere (mapper, projection, editor, Facts, gone-profile check), a removed locale with notes or sources stays as an ordinary name, an old snapshot never removes anything, JSON save/reload and GEDCOM export/reimport checked
+- [x] Sync by locale: `GeniParams` sends only the changed fields of the changed locales, a removed locale sends every field empty, `SnapshotOverlay` follows (keeps an empty `names`, keeps the primary entry in step), each locale is its own conflict group (`LOCALE:de`, labeled with the language) in the merger, uploader and conflict resolver
+- [x] Modify: language list with Add (catalog), edit and Remove, drafts survive a rotation, Cancel stores nothing; Facts rows of a language open Modify, show their language and cannot be moved or deleted
+- [ ] Names of a new relative in other languages: a profile is created without them, and the next save sends them (the form is not offered for a person not saved yet)
 
 ### 4. Read-only profile data, shown like the site
 

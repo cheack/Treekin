@@ -73,10 +73,58 @@ class ConflictResolverTest {
         resolver.resolve(job, keepMine = setOf("OCCUPATION"))
         assertEquals("Driver", person.eventsFacts.single { it.tag == "OCCU" }.value)
         assertEquals("1961", person.eventsFacts.single { it.tag == "BIRT" }.date) // Geni's other change is taken
-        assertEquals(geni, store.link(1, "profile-1")!!.snapshot)
+        assertEquals(withNames(geni), store.link(1, "profile-1")!!.snapshot)
         val pending = store.jobs(1).single()
         assertEquals(JobState.PENDING, pending.state)
         assertEquals(listOf("occupation" to "Driver"), pending.params)
+    }
+
+    /** Two languages: de was changed here and on Geni, ru only on Geni. */
+    private val localesBase = """{"id":"profile-1","first_name":"Ivan","names":{"en-US":{"first_name":"Ivan"},"de":{"first_name":"Iwan"},"ru":{"first_name":"Иван"}}}"""
+    private val localesGeni = """{"id":"profile-1","first_name":"Ivan","names":{"en-US":{"first_name":"Ivan"},"de":{"first_name":"Iwan","last_name":"Geni"},"ru":{"first_name":"Ваня"}}}"""
+
+    private suspend fun TestScope.setUpLocaleConflict(): Pair<ConflictResolver, UploadJob> {
+        val gedcom = Gedcom()
+        GeniMapper.applyProfile(gedcom, person, com.google.gson.Gson().fromJson(localesBase, app.familygem.geni.api.GeniProfile::class.java))
+        person.eventsFacts.removeAll { it.tag == "OCCU" || it.tag == "BIRT" }
+        app.familygem.geni.map.LocaleNames.set(person, "de", app.familygem.geni.map.LocaleName.of(mapOf("first_name" to "Iwan", "last_name" to "Mine")))
+        host.trees[1] = Gedcom().apply { addPerson(person) }
+        store.saveLinks(listOf(GeniLink(1, "profile-1", "I1", true, null, localesBase, 0)))
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        val uploader = Uploader(client, store, host)
+        val queue = SyncQueue(store, uploader)
+        uploader.onTreeEdited = queue::setLocal
+        queue.onSaved(1, LocalTree.capture(host.trees.getValue(1)))
+        val job = store.jobs(1).single().copy(state = JobState.CONFLICT, error = "changed on Geni meanwhile: LOCALE:de")
+        store.saveJob(job)
+        return ConflictResolver(client, store, host, queue) to job
+    }
+
+    @Test
+    fun aLanguageConflictIsLabeledAndOnlyThatLanguageConflicts() = runTest {
+        val (resolver, job) = setUpLocaleConflict()
+        server.enqueue(ok(localesGeni))
+        assertEquals(listOf(FieldConflict("LOCALE:de", "Iwan Mine", "Iwan Geni")), resolver.details(job))
+    }
+
+    @Test
+    fun keepingMyLanguageSendsItAndTakesGenisOtherOne() = runTest {
+        val (resolver, job) = setUpLocaleConflict()
+        server.enqueue(ok(localesGeni))
+        resolver.resolve(job, keepMine = setOf("LOCALE:de"), shown = setOf("LOCALE:de"))
+        val fields = ProfileFields.of(person)
+        assertEquals("Mine", fields.locales.getValue("de")["last_name"])
+        assertEquals("Ваня", fields.locales.getValue("ru")["first_name"])
+        assertEquals(listOf("names[de][last_name]" to "Mine"), store.jobs(1).single().params)
+    }
+
+    @Test
+    fun takingGenisLanguageLeavesNothingToSend() = runTest {
+        val (resolver, job) = setUpLocaleConflict()
+        server.enqueue(ok(localesGeni))
+        resolver.resolve(job, keepMine = emptySet(), shown = setOf("LOCALE:de"))
+        assertEquals("Geni", ProfileFields.of(person).locales.getValue("de")["last_name"])
+        assertEquals(emptyList<UploadJob>(), store.jobs(1))
     }
 
     @Test
@@ -187,4 +235,6 @@ class ConflictResolverTest {
         assertEquals("Geni changed again meanwhile; open the conflict again", error?.message)
         assertEquals(listOf(person, other), host.trees.getValue(1).people)
     }
+    /** The client adds an empty `names` to a stored profile that has none (Geni omits it). */
+    private fun withNames(json: String) = json.removeSuffix("}") + ""","names":{}}"""
 }

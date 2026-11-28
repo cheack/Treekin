@@ -3,6 +3,7 @@ package app.familygem.geni.api
 import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.TokenStore
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,7 +50,7 @@ class GeniApiException(val code: Int, message: String) : Exception(message)
 /** Profile fields requested for mapping. */
 const val PROFILE_FIELDS = "id,guid,first_name,middle_name,last_name,maiden_name,suffix,display_name,title,name,gender,is_alive," +
         "occupation,about_me,cause_of_death,nicknames,birth,death,baptism,burial,updated_at,created_at,deleted,merged_into,mugshot_urls," +
-        "public,locked,merge_note"
+        "public,locked,merge_note,names"
 
 /** IDs per batch request. */
 private const val BATCH_SIZE = 50
@@ -122,9 +123,18 @@ class GeniClient(
     /** IDs in the immediate family of a profile. */
     suspend fun immediateFamily(profileId: String): ImmediateFamily = ImmediateFamily.parse(getJson("$profileId/immediate-family"))
 
-    /** Profiles with the mapped fields, each with its raw JSON, by Geni ID. */
+    /**
+     * Profiles with the mapped fields, each with its raw JSON, by Geni ID. Geni leaves `names` out while a profile has no name in
+     * another language, so the raw JSON gets an empty one: a stored version without `names` is then one from before they were read.
+     */
     suspend fun profiles(ids: List<String>): Map<String, Pair<GeniProfile, String>> =
         batch(ids, GeniProfile::class.java, { it.id }) { "profile?ids=$it&fields=$PROFILE_FIELDS" }
+            .mapValues { (_, value) -> value.first to withNames(value.second) }
+
+    private fun withNames(raw: String): String = runCatching {
+        val root = JsonParser.parseString(raw).asJsonObject
+        if (root.has("names")) raw else root.also { it.add("names", JsonObject()) }.toString()
+    }.getOrDefault(raw)
 
     /** Unions, each with its raw JSON, by Geni ID. */
     suspend fun unions(ids: List<String>): Map<String, Pair<GeniUnion, String>> =
