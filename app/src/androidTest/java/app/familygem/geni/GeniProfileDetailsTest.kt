@@ -57,7 +57,12 @@ class GeniProfileDetailsTest {
         wasGeni = GeniTrees.isGeni(treeId)
         autoSave = Global.settings.autoSave
         Global.settings.autoSave = false
-        pendingEmails = runBlocking { Geni.store(context).newEmails(treeId) }
+        // The test starts with none, so a new person's ID cannot meet a pending email of the user; tearDown puts them back
+        runBlocking {
+            val store = Geni.store(context)
+            pendingEmails = store.newEmails(treeId)
+            pendingEmails.keys.forEach { store.saveNewEmail(treeId, it, null) }
+        }
     }
 
     @After
@@ -187,7 +192,7 @@ class GeniProfileDetailsTest {
             onView(withId(R.id.editor_save)).perform(click())
         }
         val kid = Global.gc.people.single { it.id != "I1" }
-        assertEquals(pendingEmails + (kid.id to "kid@example.com"), runBlocking { Geni.store(context).newEmails(treeId) })
+        assertEquals(mapOf(kid.id to "kid@example.com"), runBlocking { Geni.store(context).newEmails(treeId) })
 
         runBlocking { Geni.store(context).saveNewEmail(treeId, kid.id, null) }
         newRelativeEditor().use {
@@ -195,7 +200,7 @@ class GeniProfileDetailsTest {
             scrollToEnd()
             onView(withId(R.id.editor_save)).perform(click())
         }
-        assertEquals(pendingEmails, runBlocking { Geni.store(context).newEmails(treeId) })
+        assertTrue(runBlocking { Geni.store(context).newEmails(treeId) }.isEmpty())
     }
 
     private companion object {
