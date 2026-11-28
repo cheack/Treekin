@@ -177,7 +177,7 @@ What the user gets: documents (scans, certificates, text) and videos of a profil
 - [x] Sandbox checks: documents (add, read, update, tag, untag, delete, limits, text) and a video probe
 - [x] PR 1 ([#44](https://github.com/cheack/Treekin/pull/44)): documents: list, download on demand, open, upload (queued, offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
 - [x] Sandbox checks for videos (list, update, tag, untag, delete, size) in [the stage plan](2026-11-28-geni-videos.md)
-- [x] PR 2 (videos): list, download on demand, play, upload (MP4 up to 2.5 MB, queued offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
+- [x] PR 2 ([#45](https://github.com/cheack/Treekin/pull/45), videos): list, download on demand, play, upload (MP4 up to 2.5 MB, queued offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
 
 ### 8. Merging duplicates, following, projects
 
