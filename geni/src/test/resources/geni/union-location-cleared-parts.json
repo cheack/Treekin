@@ -1,0 +1,17 @@
+{
+  "id": "union-10107",
+  "marriage": {
+    "name": "Marriage of Nikolai P and Anna Orlova",
+    "date": {
+      "year": 2000,
+      "formatted_date": "2000"
+    },
+    "location": {
+      "city": "Tula",
+      "country": "Russia",
+      "country_code": "RU",
+      "formatted_location": "Tula, Russia (Russian Federation)"
+    }
+  },
+  "status": "spouse"
+}

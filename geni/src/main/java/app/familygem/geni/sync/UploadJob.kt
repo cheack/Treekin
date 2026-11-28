@@ -18,6 +18,8 @@ enum class JobState {
  * @param localHash Hash of the local projection the job was planned from
  * @param confirmedByProfileId For deletes: the Geni account (its profile ID) that confirmed it; null for jobs from before this was recorded
  * @param version Increased on every change of the job, so a finished upload does not delete a newer version
+ * @param paramsFormat How the params were made: 0 for jobs queued before places were structured, whose `place_name` change also
+ *  carries empty city, county, state and country; [CURRENT_PARAMS_FORMAT] for jobs that send only the parts that changed
  */
 data class UploadJob(
     val id: Long = 0,
@@ -34,5 +36,20 @@ data class UploadJob(
     val state: JobState = JobState.PENDING,
     val error: String? = null,
     val version: Int = 0,
-    val confirmedByProfileId: String? = null
-)
+    val confirmedByProfileId: String? = null,
+    val paramsFormat: Int = CURRENT_PARAMS_FORMAT
+) {
+    /** The params to send: a job of format 0 does not clear the structured parts its place edit never meant to clear. */
+    fun paramsToSend(): List<Pair<String, String>> {
+        if (paramsFormat >= CURRENT_PARAMS_FORMAT) return params
+        val renamed = params.filter { it.first.endsWith("[location][place_name]") }.map { it.first.removeSuffix("[location][place_name]") }.toSet()
+        return params.filterNot { (key, value) ->
+            value.isEmpty() && LEGACY_CLEARS.any { part -> renamed.any { key == "$it[location][$part]" } }
+        }
+    }
+
+    companion object {
+        const val CURRENT_PARAMS_FORMAT = 1
+        private val LEGACY_CLEARS = listOf("city", "county", "state", "country")
+    }
+}

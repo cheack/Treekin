@@ -1,0 +1,32 @@
+{
+  "id": "profile-36543",
+  "first_name": "Mary Ann",
+  "last_name": "P",
+  "is_alive": true,
+  "birth": {
+    "name": "Birth of Mary Ann Offline P",
+    "date": {
+      "year": 1960,
+      "formatted_date": "1960"
+    },
+    "location": {
+      "place_name": "Hospital",
+      "street_address1": "Main1",
+      "street_address2": "Flat2",
+      "street_address3": "Block3",
+      "city": "Kazan",
+      "country": "Russia",
+      "country_code": "RU",
+      "latitude": 55.79,
+      "longitude": 0.0,
+      "formatted_location": "Hospital, Main1, Flat2, Kazan, Russia (Russian Federation)"
+    }
+  },
+  "baptism": {
+    "name": "Baptism of Mary Ann Offline P",
+    "location": {
+      "street_address1": "Church1",
+      "formatted_location": "Church1"
+    }
+  }
+}

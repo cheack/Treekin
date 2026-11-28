@@ -25,7 +25,12 @@ data class GeniLocation(
     val city: String?,
     val county: String?,
     val state: String?,
-    val country: String?
+    val country: String?,
+    @SerializedName("street_address1") val streetAddress1: String? = null,
+    @SerializedName("street_address2") val streetAddress2: String? = null,
+    @SerializedName("street_address3") val streetAddress3: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 data class GeniEvent(val date: GeniDate?, val location: GeniLocation?)

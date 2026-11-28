@@ -1,0 +1,21 @@
+{
+  "id": "union-10107",
+  "marriage": {
+    "name": "Marriage of Nikolai P and Anna Orlova",
+    "date": {
+      "year": 2000,
+      "formatted_date": "2000"
+    },
+    "location": {
+      "place_name": "Hall",
+      "street_address1": "Church2",
+      "city": "Tula",
+      "country": "Russia",
+      "country_code": "RU",
+      "latitude": 54.2,
+      "longitude": 0.0,
+      "formatted_location": "Hall, Church2, Tula, Russia (Russian Federation)"
+    }
+  },
+  "status": "spouse"
+}

@@ -100,13 +100,14 @@ open class Uploader(
      */
     private suspend fun update(job: UploadJob): Outcome {
         val geniId = job.geniId ?: return Outcome.Failed("no Geni ID")
-        if (job.params.isEmpty()) return refreshOnly(job.treeId, geniId)
+        val params = job.paramsToSend() // A job queued before structured places must not clear parts it never changed
+        if (params.isEmpty()) return refreshOnly(job.treeId, geniId)
         mergeGeniChanges(job.treeId, geniId)?.let { return it }
         // A save during the check replaced the params: never post the old ones
         val current = store.jobs(job.treeId).firstOrNull { it.id == job.id }
         if (current == null || current.version != job.version) return Outcome.Superseded
         val before = store.link(job.treeId, geniId)?.snapshot
-        client.post("$geniId/update", job.params)
+        client.post("$geniId/update", params)
         // Geni took the change. Without its new version, the old snapshot would make this change look like someone else's:
         // the snapshot becomes the old one with the sent fields written over it
         return try {
@@ -118,7 +119,7 @@ open class Uploader(
             Outcome.Retry(e.message!!) // Loads keep storing other versions: send again later, that is safe
         } catch (e: Exception) {
             val link = store.link(job.treeId, geniId)
-            if (before != null) store.updateSnapshot(job.treeId, geniId, before, SnapshotOverlay.apply(before, job.params, geniId), link?.geniUpdatedAt)
+            if (before != null) store.updateSnapshot(job.treeId, geniId, before, SnapshotOverlay.apply(before, params, geniId), link?.geniUpdatedAt)
             Outcome.Done
         }
     }
@@ -196,7 +197,7 @@ open class Uploader(
 
         // From here Geni may have created the profile even when the request fails: never retry automatically
         val response = try {
-            client.post(path, job.params)
+            client.post(path, job.paramsToSend())
         } catch (e: CancellationException) {
             throw e
         } catch (e: GeniAuthRequiredException) {
@@ -222,7 +223,7 @@ open class Uploader(
 
         // Links first: once stored, this person can never be added again; the tags in the tree follow
         // What was sent stands for Geni's version until the full one is fetched: an edit made meanwhile goes as an update
-        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.params, profileId), 0))
+        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.paramsToSend(), profileId), 0))
         if (linkFamily) links += GeniLink(treeId, unionId!!, familyId!!, true, null, null, now())
         try {
             store.saveLinks(links)

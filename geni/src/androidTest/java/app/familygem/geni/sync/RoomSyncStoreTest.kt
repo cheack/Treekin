@@ -98,6 +98,11 @@ class RoomSyncStoreTest {
             assertEquals(listOf(GeniLink(1, "profile-1", "I1", true, "170", """{"id":"profile-1"}""", 5, null, orphaned = false)), migratedStore.links(1))
             val id = migratedStore.saveJob(job("profile:profile-1"))
             assertEquals(id, migratedStore.jobs(1).single().id)
+            assertEquals(UploadJob.CURRENT_PARAMS_FORMAT, migratedStore.jobs(1).single().paramsFormat)
+            // A job row written before the column existed reads as format 0: its params still carry the old implicit clears
+            migrated.openHelper.writableDatabase.execSQL("INSERT INTO job (treeId, `key`, kind, anchors, params, label, localHash, state, version) " +
+                    "VALUES (1, 'profile:old', 'UPDATE_PROFILE', '[]', '[]', 'old', 0, 'PENDING', 0)")
+            assertEquals(0, migratedStore.jobs(1).single { it.key == "profile:old" }.paramsFormat)
             migratedStore.savePhotoLink(photoLink("profile-1", "photo-1"))
             assertEquals(1, migratedStore.photoLinks(1).size)
         } finally {

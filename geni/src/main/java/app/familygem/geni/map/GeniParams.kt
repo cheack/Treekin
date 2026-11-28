@@ -41,8 +41,6 @@ object GeniParams {
         return GeniDate(yearNumber, month, dayNumber, prefix.isNotEmpty())
     }
 
-    private val LOCATION_PARTS = listOf("city", "county", "state", "country")
-
     /**
      * Form parameters that bring a Geni profile from [old] to [new], only for the field groups that differ.
      * With [isNew] the profile is being created: every non-empty group is sent, and `is_alive` always
@@ -95,7 +93,9 @@ object GeniParams {
     /**
      * Date parameters if the date changed (all four parts: Geni replaces the date as a whole; the range parts only when
      * the old or the new date has a range, so a switch to a single date clears the stale end parts),
-     * location parameters if the place changed (the structured parts are cleared, the place goes to place_name).
+     * and one location parameter for each structured part that changed (an empty value for a part cleared on purpose),
+     * the others stay as Geni has them. Resolved events (see [EventFields.resolvedAgainst]) are expected; a legacy one is taken
+     * as a place name.
      */
     private fun event(params: MutableList<Pair<String, String>>, name: String, old: EventFields?, new: EventFields?) {
         val newDate = new?.date
@@ -113,9 +113,10 @@ object GeniParams {
                 params += "$name[date][end_circa]" to (date?.range == "between" && date.endCirca == true).toString()
             }
         }
-        if (new?.place != old?.place) {
-            params += "$name[location][place_name]" to (new?.place ?: "")
-            LOCATION_PARTS.forEach { params += "$name[location][$it]" to "" }
+        val oldLocation = old?.locationParts ?: LocationParts.EMPTY
+        val newLocation = (new?.locationParts ?: LocationParts.EMPTY).storable // Geni drops coordinates that stand alone
+        for (key in LocationParts.KEYS) {
+            if (newLocation[key] != oldLocation[key]) params += "$name[location][$key]" to (newLocation[key] ?: "")
         }
     }
 }

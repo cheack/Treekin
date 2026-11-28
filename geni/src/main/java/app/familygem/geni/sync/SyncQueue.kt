@@ -203,7 +203,8 @@ class SyncQueue(
     }
 
     private fun UploadJob.sameChange(other: UploadJob) = params == other.params && kind == other.kind && geniId == other.geniId &&
-            personGedcomId == other.personGedcomId && familyGedcomId == other.familyGedcomId && anchors == other.anchors
+            personGedcomId == other.personGedcomId && familyGedcomId == other.familyGedcomId && anchors == other.anchors &&
+            paramsFormat == other.paramsFormat
 
     /** Stores verified hashes, but only on links whose snapshot is still the one the hash was checked against. */
     internal suspend fun saveVerified(verified: List<GeniLink>) = verified.forEach {

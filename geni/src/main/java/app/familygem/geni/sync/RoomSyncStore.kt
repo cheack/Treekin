@@ -52,7 +52,8 @@ data class UploadJobEntity(
     val state: String,
     val error: String?,
     val version: Int,
-    val confirmedByProfileId: String?
+    val confirmedByProfileId: String?,
+    @ColumnInfo(defaultValue = "0") val paramsFormat: Int
 )
 
 @Entity(tableName = "photo_link", primaryKeys = ["treeId", "geniProfileId", "geniPhotoId"])
@@ -166,7 +167,7 @@ interface SyncDao {
     suspend fun deleteFeedRecords(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class, FeedRecordEntity::class], version = 7, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class, FeedRecordEntity::class], version = 8, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -228,8 +229,15 @@ abstract class SyncDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 8: how an upload job's params were made; jobs queued before places were structured are format 0. */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("ALTER TABLE `job` ADD COLUMN `paramsFormat` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** Every migration, in order: the app and the tests open the database with this same list. */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
     }
 }
 
@@ -329,13 +337,13 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
     private fun UploadJob.toEntity() = UploadJobEntity(
         id, treeId, key, kind.name, geniId, personGedcomId, familyGedcomId,
         gson.toJson(anchors), gson.toJson(params.map { listOf(it.first, it.second) }),
-        label, localHash, state.name, error, version, confirmedByProfileId
+        label, localHash, state.name, error, version, confirmedByProfileId, paramsFormat
     )
 
     private fun UploadJobEntity.toJob() = UploadJob(
         id, treeId, key, JobKind.valueOf(kind), geniId, personGedcomId, familyGedcomId,
         gson.fromJson<List<String>>(anchors, anchorsType),
         gson.fromJson<List<List<String>>>(params, paramsType).map { it[0] to it[1] },
-        label, localHash, JobState.valueOf(state), error, version, confirmedByProfileId
+        label, localHash, JobState.valueOf(state), error, version, confirmedByProfileId, paramsFormat
     )
 }

@@ -12,10 +12,10 @@
 |---|---|---|
 | Names | first, middle, last, maiden, suffix, nicknames, display name, title | localized `names` per language |
 | Sex | male, female | unknown / clear not verified |
-| Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location as `place_name` only | structured location (`city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`), event `description` |
+| Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location in parts (`place_name`, `city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`; each part alone) | event `description` (Geni drops it) |
 | Other profile fields | is_alive, cause of death, occupation, about me | `public`, `locked`, `merge_note` |
 | Contact data | — | `email` (writable only when a relative is created), `phone_numbers` and `current_residence` (read-only) |
-| Unions | marriage, divorce incl. date ranges (same limits as profile events) | structured location; `adopted_children` / `foster_children` read |
+| Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | `adopted_children` / `foster_children` read |
 | Relatives | add parent/partner/child/sibling | `relationship_modifier` (adopt / foster) when adding a child or sibling; merge duplicates |
 | Photos | add, delete, read main and album | title / description / date edit, tag and untag profiles, set an existing photo as main (`add-mugshot` with `photo_id`), albums |
 | Documents, videos | — | everything (add, update, tag, untag, delete) |
@@ -40,6 +40,7 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - Date keys `<event>[date][range|year|month|day|circa|end_year|end_month|end_day|end_circa]` work on `profile/update`, `union/update` and `add-child`. GET returns `range`, `end_*` and `formatted_date`; `circa` and `end_circa` are omitted when false. `between`, `before` and `after` round-trip, also with `circa` on `before`, and with only an approximate end.
 - A single date replaces the whole date: sending only `year` and `circa` also removes `range` and `end_*`; sending the range keys empty works too (the app sends them). Clearing year plus the other parts removes the event.
 - Location keys `<event>[location][place_name|city|county|state|country|street_address1-3|latitude|longitude]` are independent: setting or clearing one leaves the others. GET adds `country_code` and `formatted_location`. The old behaviour (clear city, county, state and country when `place_name` changes) was never needed.
+- Second pass (2026-11-28, disposable profile-36543 and union-10107; sanitized GETs in `geni/src/test/resources/geni/*location*.json`): a location of city and country only is stored. Street lines come back as `street_address1-3` and are part of `formatted_location`; coordinates come back as numbers (`longitude: 0.0` is a value, kept). Several keys cleared in one POST (`street_address3` and `latitude`) work, and each clear removes only its own key; `place_name` edited or cleared leaves city, country, street and coordinates. Union events have the same keys under `marriage[location]` (the union JSON also repeats them as top-level `marriage_date` / `marriage_location`, which the app does not read). A street-only event with no date is stored. **Coordinates alone are not stored** (a POST of only latitude and longitude returns no event; clearing the last text part of a location drops the coordinates with it), so the app treats coordinates without a text part as none (`LocationParts.storable`). A burial on a living profile is not stored (Geni ignores it), like death.
 - `<event>[description]` is accepted and silently dropped (a profile `GET` never returns it, single line or multiline): not synced.
 
 **Status of stage 1:**
@@ -47,8 +48,8 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - [x] Sandbox checks for dates (all ranges, approximate ends, replacement, clear; profile, union and add-child) and for locations and descriptions
 - [x] Date ranges round-trip: `GeniDate`, `parseDate`, `gedcomDate`, `EventFields`, `SnapshotOverlay`, legacy start-of-range records left alone (PR #35)
 - [x] Same date rules in Modify and in the event screens, marriage and divorce included; date pickers keep `ABT` on each end (PR #35)
-- [ ] Structured places: `_GENI_LOCATION` extension, a place text edit changes only `place_name`, legacy joined-text places safe (second PR)
-- [ ] Verified structured fields shown in the event screen
+- [x] Structured places: `_GENI_LOCATION` extension (JSON of the location keys on the fact, `PLAC` keeps the joined text), a place text edit changes only `place_name`, legacy joined-text places inherit Geni's parts without a write, queued jobs from before upgrade do not replay the old implicit clears (second PR)
+- [x] Verified structured fields shown in the event screen: place name, city, county, state, country, street lines and coordinates for birth, baptism, death, burial, marriage and divorce; editable, each part saved and cleared alone
 - [x] Event descriptions: not synced, Geni drops them (decided from the sandbox)
 
 ### 2. Privacy, sex and the remaining profile flags

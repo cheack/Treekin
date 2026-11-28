@@ -14,7 +14,7 @@ class SnapshotOverlayTest {
     @Test
     fun paramsOfANewProfileGiveItsFields() {
         val json = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, olga, isNew = true), "profile-5")
-        assertEquals(olga.asGeni(), ProfileFields.ofSnapshot(json))
+        assertEquals(olga.asGeni(), fieldsOf(json))
         assertEquals("profile-5", com.google.gson.JsonParser.parseString(json).asJsonObject.get("id").asString)
     }
 
@@ -22,17 +22,19 @@ class SnapshotOverlayTest {
     fun paramsOfAnUpdateGiveTheNewFields() {
         val before = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, olga, isNew = true), "profile-5")
         val after = olga.copy(given = "Olga", birth = EventFields("1960", null), death = null, dead = false, causeOfDeath = null, occupation = null)
-        assertEquals(after.asGeni(), ProfileFields.ofSnapshot(SnapshotOverlay.apply(before, GeniParams.profile(olga, after), "profile-5")))
+        assertEquals(after.asGeni(), fieldsOf(SnapshotOverlay.apply(before, GeniParams.profile(olga, after), "profile-5")))
     }
 
     /** As Geni's version projects: name parts split at the first space, no display name, no title. */
-    private fun ProfileFields.asGeni() = copy(givenParts = GivenNameParts.split(given), displayName = "", title = "")
+    private fun ProfileFields.asGeni() = copy(givenParts = GivenNameParts.split(given), displayName = "", title = "").withPlacesResolved()
+
+    private fun fieldsOf(json: String) = ProfileFields.ofSnapshot(json)?.withPlacesResolved()
 
     @Test
     fun unionParams() {
         val married = UnionFields(EventFields("2000", "Kazan"), EventFields("2010", null), divorced = true)
         val json = SnapshotOverlay.apply("""{"id":"union-1","status":"spouse"}""", GeniParams.union(UnionFields.EMPTY, married), "union-1")
-        assertEquals(married, UnionFields.ofSnapshot(json))
+        assertEquals(married.withPlacesResolved(), UnionFields.ofSnapshot(json)?.withPlacesResolved())
     }
 
     private fun overlay(base: ProfileFields, after: ProfileFields): ProfileFields? {
@@ -43,7 +45,7 @@ class SnapshotOverlayTest {
     @Test
     fun rangeWithApproximateEndsRoundTrips() {
         val ranged = olga.copy(birth = EventFields("BET ABT 1840 AND 1845", "Kyiv"), death = EventFields("BEF 3 MAY 1900", null))
-        assertEquals(ranged.asGeni(), ProfileFields.ofSnapshot(SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, ranged, isNew = true), "profile-5")))
+        assertEquals(ranged.asGeni(), fieldsOf(SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, ranged, isNew = true), "profile-5")))
     }
 
     @Test
@@ -51,7 +53,7 @@ class SnapshotOverlayTest {
         val ranged = olga.copy(birth = EventFields("BET ABT 1840 AND ABT 1845", null))
         val json = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, ranged, isNew = true), "profile-5")
         val replaced = SnapshotOverlay.apply(json, GeniParams.profile(ranged, ranged.copy(birth = EventFields("1841", null))), "profile-5")
-        assertEquals(EventFields("1841", null), ProfileFields.ofSnapshot(replaced)!!.birth)
+        assertEquals(EventFields("1841", null, LocationParts.EMPTY), fieldsOf(replaced)!!.birth)
         val date = com.google.gson.JsonParser.parseString(replaced).asJsonObject.getAsJsonObject("birth").getAsJsonObject("date")
         assertEquals(setOf("year", "circa"), date.keySet().toSet().minus(setOf("end_circa")))
         assertEquals(false, date.has("range"))
@@ -68,6 +70,6 @@ class SnapshotOverlayTest {
     fun unionRange() {
         val married = UnionFields(EventFields("BET 1900 AND ABT 1902", "Kazan"), null)
         val json = SnapshotOverlay.apply("""{"id":"union-1","status":"spouse"}""", GeniParams.union(UnionFields.EMPTY, married), "union-1")
-        assertEquals(married, UnionFields.ofSnapshot(json))
+        assertEquals(married.withPlacesResolved(), UnionFields.ofSnapshot(json)?.withPlacesResolved())
     }
 }

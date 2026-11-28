@@ -45,9 +45,9 @@ private fun <G, F> threeWay(groups: Array<G>, snapshot: F, local: F, geni: F, va
     return ThreeWay(localChanged, geniChanged, conflicts)
 }
 
-/** A legacy local record takes the name parts, display name and title it lacks from the snapshot (see [ProfileFields.resolvedAgainst]). */
+/** A legacy local record takes the name parts, display name, title and structured places it lacks from the snapshot (see [ProfileFields.resolvedAgainst]). */
 fun threeWay(snapshot: ProfileFields, local: ProfileFields, geni: ProfileFields): ThreeWay<ProfileGroup> =
     threeWay(ProfileGroup.values(), snapshot.resolvedAgainst(snapshot), local.resolvedAgainst(snapshot), geni.resolvedAgainst(geni)) { value(it) }
 
 fun threeWay(snapshot: UnionFields, local: UnionFields, geni: UnionFields): ThreeWay<UnionGroup> =
-    threeWay(UnionGroup.values(), snapshot, local.resolvedAgainst(snapshot), geni) { value(it) }
+    threeWay(UnionGroup.values(), snapshot.withPlacesResolved(), local.resolvedAgainst(snapshot), geni.withPlacesResolved()) { value(it) }
