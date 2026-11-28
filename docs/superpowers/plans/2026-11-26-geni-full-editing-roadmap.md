@@ -173,8 +173,8 @@ What the user gets: documents (scans, certificates, text) and videos of a profil
 **Status of stage 7:**
 
 - [x] Sandbox checks: documents (add, read, update, tag, untag, delete, limits, text) and a video probe
-- [x] PR 1: documents: list, download on demand, open, upload (queued, offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
-- [ ] PR 2: videos (`add-video`, tag, untag, delete, play the downloaded `.mp4`)
+- [x] PR 1 ([#44](https://github.com/cheack/Treekin/pull/44)): documents: list, download on demand, open, upload (queued, offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
+- [ ] PR 2: videos, probed 2026-11-28: `profile-X/add-video` takes the same base64 form and tags the profile, `sizes.video` is a playable mp4 (`add-video`, tag, untag, delete, play the downloaded `.mp4`)
 
 ### 8. Merging duplicates, following, projects
 
@@ -187,6 +187,7 @@ What the user gets: a duplicate found in the app can be merged on Geni (or a mer
 
 ## What the API cannot do (stays on the website)
 
+- Read the text of a text document (Geni returns only its details; stage 7 checked), keep `labels` removable or read `source_url` of a document.
 - Change `email`, `phone_numbers` or `current_residence` of an existing profile (read-only in the API).
 - Create or edit custom timeline events (`events` is read-only, and there is no event resource).
 - Remove a relationship (no call; the app keeps blocking it).

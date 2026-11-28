@@ -294,7 +294,8 @@ Roadmap: [2026-11-26-geni-full-editing-roadmap.md](2026-11-26-geni-full-editing-
 - [ ] Read-only Geni data on the card (email, phones, current residence, custom events, managers)
 - [ ] Adopted and foster children (`relationship_modifier`, `adopted_children`, `foster_children`)
 - [ ] Photo details, tags and main photo (`photo/update`, `tag`, `untag`, `add-mugshot` with `photo_id`, albums)
-- [ ] Documents and videos
+- [x] Documents ([#44](https://github.com/cheack/Treekin/pull/44), [plan](2026-11-28-geni-documents.md))
+- [ ] Videos (stage 7 PR 2: `add-video` works in the sandbox and gives a playable mp4)
 - [ ] Merge duplicates on Geni, follow, projects
 
 ## 12. Modern UI (own screens, one at a time)
