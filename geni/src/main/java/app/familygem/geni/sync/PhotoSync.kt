@@ -146,17 +146,22 @@ class PhotoSync(
     suspend fun refreshDetails(treeId: Int, photos: List<GeniPhoto>): Int {
         var changed = 0
         for (photo in photos) {
-            val details = detailsToApply(treeId, photo) ?: continue
-            if (applyToMedia(treeId, photo.id) { PhotoDetails.apply(it, details) }) changed++
+            if (!photo.detailsKnown) continue
+            val details = PhotoDetails.of(photo)
+            // The queued-edit check is made under the tree's lock, with the write
+            if (applyToMedia(treeId, photo.id, skipIfEditQueued = true) { PhotoDetails.apply(it, details) }) changed++
         }
         return changed
     }
 
-    /** Geni confirmed [photo] after an edit sent from here: its details replace the local ones, titles included. */
-    suspend fun applyConfirmed(treeId: Int, photo: GeniPhoto): Boolean {
+    /**
+     * Geni confirmed [photo] after an edit of [sent] fields from here: its details replace the local ones. Geni's title
+     * replaces the media's own only when the title was among the [sent] fields; otherwise a local title stays.
+     */
+    suspend fun applyConfirmed(treeId: Int, photo: GeniPhoto, sent: Collection<PhotoField>): Boolean {
         if (!photo.detailsKnown) return false
         val details = PhotoDetails.of(photo)
-        return applyToMedia(treeId, photo.id) { PhotoDetails.apply(it, details, force = true) }
+        return applyToMedia(treeId, photo.id) { PhotoDetails.apply(it, details, force = PhotoField.TITLE in sent) }
     }
 
     /** The user's edit of [fields], shown at once on every media of the photo in the tree (the job to Geni is queued apart). */
@@ -164,8 +169,11 @@ class PhotoSync(
         applyToMedia(treeId, geniPhotoId) { PhotoDetails.applyOwn(it, details, fields) }
 
     /** Runs [change] on every inline media of a person that carries [geniPhotoId], under the tree's lock; true if one changed. */
-    private suspend fun applyToMedia(treeId: Int, geniPhotoId: String, change: (Media) -> Boolean): Boolean = guard.withTree(treeId) {
+    private suspend fun applyToMedia(
+        treeId: Int, geniPhotoId: String, skipIfEditQueued: Boolean = false, change: (Media) -> Boolean
+    ): Boolean = guard.withTree(treeId) {
         if (guard.isDeleted(treeId, geniPhotoId)) return@withTree false
+        if (skipIfEditQueued && editQueued(treeId, geniPhotoId)) return@withTree false
         host.edit(treeId) { gedcom ->
             var any = false
             for (person in gedcom.people.orEmpty()) for (media in person.media.orEmpty()) {
@@ -176,12 +184,12 @@ class PhotoSync(
     }
 
     /** The details to store for [photo], or null: it has none, Geni deleted it, or the user's edit of it is still queued. */
-    private suspend fun detailsToApply(treeId: Int, photo: GeniPhoto): PhotoDetails? {
-        if (!photo.detailsKnown || guard.isDeleted(treeId, photo.id)) return null
-        val pending = store.jobs(treeId).any {
-            it.kind == JobKind.UPDATE_PHOTO && it.geniId == photo.id && it.state != JobState.DISMISSED
-        }
-        return if (pending) null else PhotoDetails.of(photo)
+    private suspend fun detailsToApply(treeId: Int, photo: GeniPhoto): PhotoDetails? =
+        if (!photo.detailsKnown || guard.isDeleted(treeId, photo.id) || editQueued(treeId, photo.id)) null else PhotoDetails.of(photo)
+
+    /** True while a queued edit of the photo's details has not been given up (a dismissed one has). */
+    private suspend fun editQueued(treeId: Int, photoId: String) = store.jobs(treeId).any {
+        it.kind == JobKind.UPDATE_PHOTO && it.geniId == photoId && it.state != JobState.DISMISSED
     }
 
     private suspend fun remove(treeId: Int, profile: GeniProfile, personGedcomId: String, link: PhotoLink): Boolean {

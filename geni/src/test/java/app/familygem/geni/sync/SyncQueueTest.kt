@@ -973,4 +973,27 @@ class SyncQueueTest {
         assertEquals("Access denied", job.error)
         assertEquals("New", PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX).title)
     }
+
+    @Test
+    fun aDismissedPhotoEditIsNotCarriedIntoANewOne() = runTest {
+        linkBoth()
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "Given up", description = "Given up"), PhotoField.entries)
+        store.saveJob(store.jobs(1).single().copy(state = JobState.DISMISSED))
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(date = "1960"), listOf(PhotoField.DATE))
+        val job = store.jobs(1).single()
+        assertEquals(JobState.PENDING, job.state)
+        assertEquals(oldDetails.copy(date = "1960"), PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX))
+    }
+
+    @Test
+    fun revertingAnEditBeingSentQueuesTheRevert() = runTest {
+        linkBoth()
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "New"), listOf(PhotoField.TITLE))
+        store.saveJob(store.jobs(1).single().copy(state = JobState.SENDING))
+        assertTrue(queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails, listOf(PhotoField.TITLE)))
+        val job = store.jobs(1).single()
+        // The send may reach Geni: it is the starting point, and the revert is the wish
+        assertEquals("New", PhotoDetails.fromParams(job.params, UploadJob.BASE_PREFIX).title)
+        assertEquals("Old", PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX).title)
+    }
 }

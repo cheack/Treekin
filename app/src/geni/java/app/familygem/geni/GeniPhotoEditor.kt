@@ -37,7 +37,8 @@ object GeniPhotoEditor {
         val treeId = Global.settings.openTree
         val geniId = GeniMapper.getGeniId(person)
         val photoId = GeniMapper.getTag(media, PhotoSync.PHOTO_TAG)
-        if (!GeniTrees.isGeni(treeId) || geniId == null || photoId == null) return
+        // Only inline media: the photos synced from Geni are never shared media records
+        if (!GeniTrees.isGeni(treeId) || geniId == null || photoId == null || media.id != null) return
         menu.add(0, MENU_ID, 0, R.string.geni_photo_edit).setOnMenuItemClickListener {
             show(context, treeId, person, media, photoId, onDone)
             true
@@ -49,6 +50,8 @@ object GeniPhotoEditor {
     private fun show(context: Context, treeId: Int, person: Person, media: Media, photoId: String, onDone: () -> Unit) {
         val owner = context as? LifecycleOwner ?: return
         val shown = PhotoDetails.shown(media)
+        // Taken when the dialog opens: a refresh while it is open must not change the starting point of this edit
+        val base = if (PhotoDetails.isSynced(media)) PhotoDetails(PhotoDetails.syncedTitle(media), shown.description, shown.date) else shown
         val pad = (16 * context.resources.displayMetrics.density).toInt()
         fun field(hint: Int, text: String?, multiline: Boolean) = EditText(context).apply {
             setHint(hint)
@@ -83,7 +86,6 @@ object GeniPhotoEditor {
                 val fields = shown.differences(wanted)
                 dialog.dismiss()
                 if (fields.isEmpty()) return@setOnClickListener // Unchanged: nothing is queued
-                val base = if (PhotoDetails.isSynced(media)) PhotoDetails(PhotoDetails.syncedTitle(media), shown.description, shown.date) else shown
                 val label = "Photo details: ${U.properName(person)}"
                 owner.lifecycleScope.launch {
                     val queued = try {

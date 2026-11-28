@@ -200,7 +200,14 @@ open class Uploader(
         }
         // Geni took the change: from now a failure of the local follow-up must not post it again
         bestEffort {
-            photos.applyConfirmed(job.treeId, latest)
+            val newer = store.jobs(job.treeId).firstOrNull { it.id == job.id }?.takeIf { it.version != job.version }
+            if (newer == null) photos.applyConfirmed(job.treeId, latest, fields)
+            else {
+                // Edited again while this was sent: the newer draft stays on screen and starts from what Geni has now
+                val confirmed = PhotoDetails.of(latest)
+                val start = fields.fold(PhotoDetails.fromParams(newer.params, UploadJob.BASE_PREFIX)) { details, field -> details.with(field, confirmed) }
+                store.saveJob(newer.copy(params = start.toParams(UploadJob.BASE_PREFIX) + PhotoDetails.fromParams(newer.params, UploadJob.WANT_PREFIX).toParams(UploadJob.WANT_PREFIX)))
+            }
             host.refreshScreens()
         }
         return Outcome.Done

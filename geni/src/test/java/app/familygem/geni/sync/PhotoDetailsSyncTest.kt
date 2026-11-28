@@ -169,12 +169,12 @@ class PhotoDetailsSyncTest {
     fun confirmedValuesReplaceTheLocalOnesOnBothProfiles() = runTest {
         downloadedForBoth(photo(title = "Before"))
         sync.applyOwnEdit(treeId, "photo-2243", PhotoDetails("Typed  ", null, null), listOf(PhotoField.TITLE))
-        assertTrue(sync.applyConfirmed(treeId, photo(title = "Typed", description = "Confirmed")))
+        assertTrue(sync.applyConfirmed(treeId, photo(title = "Typed", description = "Confirmed"), listOf(PhotoField.TITLE)))
         for (id in listOf("I1", "I2")) {
             assertEquals(PhotoDetails("Typed", "Confirmed", null), PhotoDetails.shown(mediaOf(id)))
             assertFalse(PhotoDetails.hasOwnTitle(mediaOf(id)))
         }
-        assertFalse(sync.applyConfirmed(treeId, photo(known = false)))
+        assertFalse(sync.applyConfirmed(treeId, photo(known = false), PhotoField.entries))
     }
 
     @Test
@@ -182,7 +182,7 @@ class PhotoDetailsSyncTest {
         downloadedForBoth(photo(title = "T"))
         sync.guard.confirm(treeId, "photo-2243")
         assertEquals(0, sync.refreshDetails(treeId, listOf(photo(title = "Changed"))))
-        assertFalse(sync.applyConfirmed(treeId, photo(title = "Changed")))
+        assertFalse(sync.applyConfirmed(treeId, photo(title = "Changed"), PhotoField.entries))
         assertEquals("T", mediaOf("I1").title)
     }
 
@@ -203,5 +203,14 @@ class PhotoDetailsSyncTest {
         person("I1").addMedia(Media().apply { file = "own.jpg"; title = "Own" })
         sync.refreshDetails(treeId, listOf(photo(title = "Other")))
         assertEquals("Own", person("I1").media.single().title)
+    }
+
+    @Test
+    fun aConfirmationKeepsTheOwnTitleWhenTheTitleWasNotSent() = runTest {
+        downloadedForBoth(photo(title = "Geni title", description = "D"))
+        mediaOf("I1").title = "Own title"
+        assertTrue(sync.applyConfirmed(treeId, photo(title = "Geni title", description = "Confirmed"), listOf(PhotoField.DESCRIPTION)))
+        assertEquals("Own title", mediaOf("I1").title)
+        assertEquals("Confirmed", PhotoDetails.shown(mediaOf("I1")).description)
     }
 }

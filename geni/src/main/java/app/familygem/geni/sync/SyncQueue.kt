@@ -189,9 +189,16 @@ class SyncQueue(
         treeId: Int, photoId: String, personGedcomId: String, label: String, base: PhotoDetails, wanted: PhotoDetails, fields: Collection<PhotoField>
     ): Boolean = lock(treeId).withLock {
         val key = "updphoto:$photoId"
-        val existing = store.jobs(treeId).firstOrNull { it.key == key }
-        val start = existing?.let { PhotoDetails.fromParams(it.params, UploadJob.BASE_PREFIX) } ?: base
-        var want = existing?.let { PhotoDetails.fromParams(it.params, UploadJob.WANT_PREFIX) } ?: base
+        // A dismissed job was given up: this edit starts from the current values. A sending one may still reach Geni, so what it
+        // sends is the starting point: reverting it then sends the revert instead of dropping the job
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }?.takeIf { it.state != JobState.DISMISSED }
+        val drafted = existing?.let { PhotoDetails.fromParams(it.params, UploadJob.WANT_PREFIX) }
+        val start = when {
+            existing == null -> base
+            existing.state == JobState.SENDING -> drafted!!
+            else -> PhotoDetails.fromParams(existing.params, UploadJob.BASE_PREFIX)
+        }
+        var want = drafted ?: base
         for (field in fields) want = want.with(field, wanted)
         if (start == want) {
             existing?.let { store.deleteJob(it.id) }
@@ -200,7 +207,7 @@ class SyncQueue(
         val params = start.toParams(UploadJob.BASE_PREFIX) + want.toParams(UploadJob.WANT_PREFIX)
         val job = UploadJob(treeId = treeId, key = key, kind = JobKind.UPDATE_PHOTO, geniId = photoId, personGedcomId = personGedcomId,
             params = params, label = label, localHash = 0)
-        store.saveJob(if (existing == null) job else job.copy(id = existing.id, version = existing.version + 1))
+        store.saveJob(if (existing == null) store.jobs(treeId).firstOrNull { it.key == key }?.let { job.copy(id = it.id, version = it.version + 1) } ?: job else job.copy(id = existing.id, version = existing.version + 1))
         true
     }
 
