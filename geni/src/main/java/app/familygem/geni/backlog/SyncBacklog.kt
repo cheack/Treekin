@@ -16,7 +16,8 @@ enum class BacklogSection { IN_PROGRESS, WAITING, NEEDS_ATTENTION }
 /** What a backlog row does, as the user reads it. */
 enum class BacklogOperation {
     UPDATE_PROFILE, UPDATE_RELATIONSHIP, ADD_PERSON, DELETE_PERSON, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO, TAG_PHOTO, UNTAG_PHOTO, SET_MAIN_PHOTO,
-    PREFETCH, KEEP_OFFLINE, DAILY_REFRESH, PERSON_REFRESH, ROOT_LOAD, ALBUM_LIST, ALBUM_DOWNLOAD, PHOTO_DOWNLOAD;
+    ADD_DOCUMENT, DELETE_DOCUMENT, UPDATE_DOCUMENT, TAG_DOCUMENT, UNTAG_DOCUMENT,
+    PREFETCH, KEEP_OFFLINE, DAILY_REFRESH, PERSON_REFRESH, ROOT_LOAD, ALBUM_LIST, ALBUM_DOWNLOAD, PHOTO_DOWNLOAD, DOCUMENT_LIST, DOCUMENT_DOWNLOAD;
 
     companion object {
         fun of(kind: JobKind) = when (kind) {
@@ -30,6 +31,11 @@ enum class BacklogOperation {
             JobKind.TAG_PHOTO -> TAG_PHOTO
             JobKind.UNTAG_PHOTO -> UNTAG_PHOTO
             JobKind.SET_MAIN_PHOTO -> SET_MAIN_PHOTO
+            JobKind.ADD_DOCUMENT -> ADD_DOCUMENT
+            JobKind.DELETE_DOCUMENT -> DELETE_DOCUMENT
+            JobKind.UPDATE_DOCUMENT -> UPDATE_DOCUMENT
+            JobKind.TAG_DOCUMENT -> TAG_DOCUMENT
+            JobKind.UNTAG_DOCUMENT -> UNTAG_DOCUMENT
         }
 
         fun of(kind: DownloadKind) = when (kind) {
@@ -41,6 +47,8 @@ enum class BacklogOperation {
             DownloadKind.ALBUM_LIST -> ALBUM_LIST
             DownloadKind.ALBUM_DOWNLOAD -> ALBUM_DOWNLOAD
             DownloadKind.PHOTO -> PHOTO_DOWNLOAD
+            DownloadKind.DOCUMENT -> DOCUMENT_DOWNLOAD
+            DownloadKind.DOCUMENT_LIST -> DOCUMENT_LIST
         }
     }
 }

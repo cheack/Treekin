@@ -209,6 +209,57 @@ class GeniClient(
         post("$photoId/delete", emptyList())
     }
 
+    /** All documents of a profile, newest first; pages are read until one is empty or adds nothing new. Any failure throws: the list is never partial. */
+    suspend fun documents(profileId: String): List<GeniDocument> {
+        val documents = linkedMapOf<String, GeniDocument>()
+        var page = 1
+        while (true) {
+            val batch = parseDocuments(getJson("$profileId/documents?page=$page"))
+            if (batch.isEmpty()) break
+            var added = false
+            batch.forEach { if (documents.put(it.id, it) == null) added = true }
+            if (!added) break
+            page++
+        }
+        return documents.values.toList()
+    }
+
+    /** A single document by ID like "document-11416"; null when Geni no longer has it (a deleted one answers an empty list). */
+    suspend fun document(documentId: String): GeniDocument? = parseDocument(getJson(documentId))
+
+    /**
+     * Uploads a file as a document of the profile; Geni tags the profile itself. Geni needs both [fileName] and [contentType]
+     * (checked in the sandbox: either one missing fails the request).
+     */
+    suspend fun addDocument(profileId: String, fileName: String, contentType: String, title: String?, description: String?, bytes: ByteArray,
+        beforeSend: (suspend () -> Boolean)? = null): GeniDocument {
+        val encoded = withContext(Dispatchers.IO) { bytes.toByteString().base64() }
+        val params = mutableListOf("file" to encoded, "file_name" to fileName, "content_type" to contentType)
+        if (title != null) params.add("title" to title)
+        if (description != null) params.add("description" to description)
+        return parseDocument(post("$profileId/add-document", params, PHOTO_READ_TIMEOUT_SECONDS, beforeSend))
+            ?: throw GeniApiException(200, "document without id")
+    }
+
+    /** Changes title, description or date of a document ([params] from `GeniParams.photo`) and returns it as Geni stores it now. */
+    suspend fun updateDocument(documentId: String, params: List<Pair<String, String>>): GeniDocument =
+        parseDocument(post("$documentId/update", params)) ?: throw GeniApiException(200, "document without id")
+
+    /** Tags [profileId] in the document, so it shows in that profile's documents. Repeating it is safe. */
+    suspend fun tagDocument(documentId: String, profileId: String) {
+        post("$documentId/tag/$profileId", emptyList())
+    }
+
+    /** Removes [profileId] from the document's tags; the document stays on Geni for its other tags. Repeating it is safe. */
+    suspend fun untagDocument(documentId: String, profileId: String) {
+        post("$documentId/untag/$profileId", emptyList())
+    }
+
+    /** Deletes a document from Geni. */
+    suspend fun deleteDocument(documentId: String) {
+        post("$documentId/delete", emptyList())
+    }
+
     /**
      * Deletes a profile on Geni, only under the account that confirmed it ([confirmedBy], a profile ID; null for none).
      * The account is read and the POST sent with one captured login, rechecked right before every dispatch:

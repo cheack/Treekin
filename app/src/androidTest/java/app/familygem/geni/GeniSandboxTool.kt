@@ -18,6 +18,8 @@ import org.junit.runner.RunWith
  * `adb shell am instrument -w -e class app.familygem.geni.GeniSandboxTool -e geniGet "profile-1"
  *  net.cheack.treekin.test/androidx.test.runner.AndroidJUnitRunner`;
  * `-e geniPost "profile-1/update" -e geniParams "occupation=Pilot"` posts form parameters (pairs joined by `&`, `\n` in a value is a line break).
+ * `-e geniFile /sdcard/Android/data/net.cheack.treekin/files/x.pdf` adds the file's bytes, base64, as the `file` parameter
+ * (`-e geniFileParam name` changes the key), for the document and video upload probes.
  */
 @RunWith(AndroidJUnit4::class)
 class GeniSandboxTool {
@@ -33,7 +35,10 @@ class GeniSandboxTool {
         val response = if (get != null) client.getJson(get) else {
             val params = args.getString("geniParams").orEmpty().split('&').filter { it.isNotEmpty() }
                 .map { it.substringBefore('=') to it.substringAfter('=', "").replace("\\n", "\n") }
-            client.post(post!!, params)
+            val file = args.getString("geniFile")?.let { java.io.File(it).readBytes() }
+            val withFile = if (file == null) params else
+                params + ((args.getString("geniFileParam") ?: "file") to android.util.Base64.encodeToString(file, android.util.Base64.NO_WRAP))
+            client.post(post!!, withFile, 120)
         }
         response.chunked(3000).forEach { Log.i("GeniTool", it) }
     }

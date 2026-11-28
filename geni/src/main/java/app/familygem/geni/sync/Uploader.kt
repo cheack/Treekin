@@ -8,6 +8,8 @@ import app.familygem.geni.api.GeniSendRejectedException
 import app.familygem.geni.api.GeniSessionChangedException
 import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
+import app.familygem.geni.api.DocumentTypes
+import app.familygem.geni.api.GeniDocument
 import app.familygem.geni.api.GeniPhoto
 import app.familygem.geni.api.geniId
 import app.familygem.geni.api.GeniProfile
@@ -22,6 +24,8 @@ import app.familygem.geni.map.threeWay
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.net.ConnectException
@@ -67,7 +71,8 @@ open class Uploader(
     private val now: () -> Long = System::currentTimeMillis,
     /** The bytes to send for a photo file (a place to shrink big photos); the file as it is by default. */
     private val prepare: suspend (File) -> ByteArray = { it.readBytes() },
-    private val photos: PhotoSync = PhotoSync(store, host)
+    private val photos: PhotoSync = PhotoSync(store, host),
+    private val documents: DocumentSync = DocumentSync(store, host, photos.guard)
 ) {
 
     /** Told about the tree after every edit the uploader makes, so plans never use a tree saved before it. */
@@ -84,6 +89,11 @@ open class Uploader(
             JobKind.TAG_PHOTO -> tagPhoto(job)
             JobKind.UNTAG_PHOTO -> untagPhoto(job)
             JobKind.SET_MAIN_PHOTO -> setMainPhoto(job)
+            JobKind.ADD_DOCUMENT -> addDocument(job)
+            JobKind.DELETE_DOCUMENT -> deleteDocument(job)
+            JobKind.UPDATE_DOCUMENT -> updatePhoto(job)
+            JobKind.TAG_DOCUMENT -> tagDocument(job)
+            JobKind.UNTAG_DOCUMENT -> untagDocument(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -173,17 +183,24 @@ open class Uploader(
      */
     private suspend fun updatePhoto(job: UploadJob): Outcome {
         val photoId = job.geniId ?: return Outcome.Failed("no Geni photo ID")
+        val isDocument = job.kind == JobKind.UPDATE_DOCUMENT // A document has the same three details; its ID stands in [photoId]
         val base = PhotoDetails.fromParams(job.params, UploadJob.BASE_PREFIX)
         val want = PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX)
         val fields = base.differences(want)
         if (fields.isEmpty()) return Outcome.Done
-        val remote = try {
-            client.photo(photoId)
+        var latestPhoto: GeniPhoto? = null
+        var latestDocument: GeniDocument? = null
+        val now = try {
+            if (isDocument) {
+                latestDocument = client.document(photoId) ?: return Outcome.Failed("the document is gone from Geni; dismiss this change")
+                DocumentSync.details(latestDocument)
+            } else {
+                latestPhoto = client.photo(photoId)
+                PhotoDetails.of(latestPhoto)
+            }
         } catch (e: GeniApiException) {
-            if (e.code == 404) return Outcome.Failed("the photo is gone from Geni; dismiss this change") else throw e
+            if (e.code == 404) return Outcome.Failed("the ${if (isDocument) "document" else "photo"} is gone from Geni; dismiss this change") else throw e
         }
-        var latest = remote
-        val now = PhotoDetails.of(remote)
         val send = fields.filter { now[it] != want[it] }
         if (send.isNotEmpty()) {
             val moved = send.filter { now[it] != base[it] }
@@ -199,15 +216,16 @@ open class Uploader(
             val current = store.jobs(job.treeId).firstOrNull { it.id == job.id }
             if (current == null || current.version != job.version) return Outcome.Superseded
             val params = GeniParams.photo(now, now.let { details -> send.fold(details) { acc, field -> acc.with(field, want) } })
-            latest = client.updatePhoto(photoId, params)
+            if (isDocument) latestDocument = client.updateDocument(photoId, params) else latestPhoto = client.updatePhoto(photoId, params)
         }
         // Geni took the change: from now a failure of the local follow-up must not post it again
         bestEffort {
             val newer = store.jobs(job.treeId).firstOrNull { it.id == job.id }?.takeIf { it.version != job.version }
-            if (newer == null) photos.applyConfirmed(job.treeId, latest, fields)
-            else {
+            if (newer == null) {
+                if (isDocument) documents.applyConfirmed(job.treeId, latestDocument!!, fields) else photos.applyConfirmed(job.treeId, latestPhoto!!, fields)
+            } else {
                 // Edited again while this was sent: the newer draft stays on screen and starts from what Geni has now
-                val confirmed = PhotoDetails.of(latest)
+                val confirmed = if (isDocument) DocumentSync.details(latestDocument!!) else PhotoDetails.of(latestPhoto!!)
                 val start = fields.fold(PhotoDetails.fromParams(newer.params, UploadJob.BASE_PREFIX)) { details, field -> details.with(field, confirmed) }
                 store.saveJob(newer.copy(params = start.toParams(UploadJob.BASE_PREFIX) + PhotoDetails.fromParams(newer.params, UploadJob.WANT_PREFIX).toParams(UploadJob.WANT_PREFIX)))
             }
@@ -434,6 +452,147 @@ open class Uploader(
         return Outcome.Done
     }
 
+
+    /** Message when the answer to a document upload was lost: Geni may or may not have stored it. */
+    private val checkDocument = "check on Geni whether the document was added, then retry or dismiss"
+
+    /**
+     * Sends the document file of a person to its Geni profile (Geni tags the profile itself), then links it and tags the media in the tree.
+     * Like a photo or an add, once the request may have reached Geni it is never sent again by itself.
+     */
+    private suspend fun addDocument(job: UploadJob): Outcome {
+        val treeId = job.treeId
+        val profileId = job.geniId ?: return Outcome.Failed("no Geni ID")
+        val personId = job.personGedcomId ?: return Outcome.Failed("no person")
+        val fileName = job.params.firstOrNull { it.first == "file" }?.second
+        if (fileName.isNullOrEmpty() || fileName == "." || fileName == ".." || '/' in fileName || '\\' in fileName)
+            return Outcome.Failed("the document file name is not a plain file name")
+        val contentType = job.params.firstOrNull { it.first == "content_type" }?.second ?: DocumentTypes.contentTypeFor(fileName)
+            ?: return Outcome.Failed("Geni takes only PDF, JPEG, PNG, GIF and TIFF documents")
+        // Already uploaded (a finished job run again): never send a second copy
+        if (store.photoLinks(treeId, profileId).any { it.fileName == fileName && DocumentSync.isDocumentId(it.geniPhotoId) }) return Outcome.Done
+        if (!documentOwnerMatches(treeId, profileId, personId)) return Outcome.Deferred
+        // The user may have removed the media meanwhile: the file is no longer wanted on Geni
+        val wanted = host.edit(treeId) { gedcom ->
+            gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+                .any { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, DocumentSync.QUEUED_TAG) != null }
+        }
+        if (!wanted) return Outcome.Failed("the document was removed from this device before it was sent; dismiss this change")
+        val file = File(host.mediaDir(treeId), fileName)
+        if (!file.isFile) return Outcome.Failed("the document file is missing: $fileName")
+        if (file.length() > DocumentTypes.MAX_UPLOAD_BYTES) return Outcome.Failed("the document is larger than ${DocumentTypes.MAX_UPLOAD_BYTES / 1_000_000} MB, which Geni does not take; dismiss this change")
+        val title = job.params.firstOrNull { it.first == "title" }?.second
+        val description = job.params.firstOrNull { it.first == "description" }?.second
+        val bytes = try {
+            withContext(Dispatchers.IO) { file.readBytes() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (e is Error && e !is OutOfMemoryError) throw e
+            return Outcome.Failed("cannot read the document: ${e.message ?: e.javaClass.simpleName}")
+        }
+        val document: GeniDocument = try {
+            client.addDocument(profileId, fileName, contentType, title, description, bytes) { documentOwnerMatches(treeId, profileId, personId) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GeniSendRejectedException) {
+            return Outcome.Deferred
+        } catch (e: GeniAuthRequiredException) {
+            return Outcome.NeedsLogin
+        } catch (e: GeniApiException) {
+            if (e.code == 429) return Outcome.Retry("HTTP 429")
+            return Outcome.Failed("${geniMessage(e.message)}; $checkDocument")
+        } catch (e: UnknownHostException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: ConnectException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: NoRouteToHostException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: Exception) {
+            return Outcome.Failed("connection lost while sending the document; $checkDocument")
+        }
+        // The link first: once stored, this file is never sent again; the tag in the tree follows
+        try {
+            store.savePhotoLink(PhotoLink(treeId, profileId, document.id, null, false, DocumentSync.marker(document), fileName, PhotoState.DOWNLOADED))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Outcome.Failed("Geni stored ${document.id} but the app could not save the link (${e.message}); $checkDocument")
+        }
+        bestEffort {
+            val details = DocumentSync.details(document)
+            host.edit(treeId) { gedcom ->
+                val media = gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+                    .firstOrNull { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, DocumentSync.QUEUED_TAG) != null }
+                if (media != null) {
+                    GeniMapper.setTag(media, DocumentSync.DOCUMENT_TAG, document.id)
+                    GeniMapper.setTag(media, DocumentSync.QUEUED_TAG, null)
+                    PhotoDetails.apply(media, details)
+                }
+                onTreeEdited(treeId, LocalTree.capture(gedcom))
+            }
+            host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** True if the link rules still resolve the person (as the tree is saved) to [profileId]; anything that cannot be verified counts as no. */
+    private suspend fun documentOwnerMatches(treeId: Int, profileId: String, personId: String): Boolean {
+        val person = try {
+            host.savedPerson(treeId, personId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        } ?: return false
+        return resolvesTo(treeId, profileId, person)
+    }
+
+    /** Deletes the document on Geni; already gone there counts as done. A repeat is safe. */
+    private suspend fun deleteDocument(job: UploadJob): Outcome {
+        val documentId = job.geniId ?: return Outcome.Failed("no Geni document ID")
+        try {
+            client.deleteDocument(documentId)
+        } catch (e: GeniApiException) {
+            if (e.code != 404) throw e
+        }
+        // Geni has deleted it: from now no listing or download may attach it again
+        documents.guard.confirm(job.treeId, documentId)
+        bestEffort {
+            if (documents.deletedOnGeni(job.treeId, documentId) > 0) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** Tags the profile in the document, then downloads it for that person (never a second time for a file already there). */
+    private suspend fun tagDocument(job: UploadJob): Outcome {
+        val documentId = job.geniId ?: return Outcome.Failed("no Geni document ID")
+        val profileId = job.params.firstOrNull { it.first == "profile" }?.second ?: return Outcome.Failed("no Geni profile ID")
+        client.tagDocument(documentId, profileId)
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            val document = client.document(documentId) ?: return@bestEffort
+            if (documents.attach(job.treeId, profileId, personId, document)) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** Removes the profile from the document's tags; a document or tag already gone counts as done. The document stays on Geni for its other tags. */
+    private suspend fun untagDocument(job: UploadJob): Outcome {
+        val documentId = job.geniId ?: return Outcome.Failed("no Geni document ID")
+        val profileId = job.params.firstOrNull { it.first == "profile" }?.second ?: return Outcome.Failed("no Geni profile ID")
+        try {
+            client.untagDocument(documentId, profileId)
+        } catch (e: GeniApiException) {
+            if (e.code != 404) throw e
+        }
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            if (documents.removeLocal(job.treeId, profileId, personId, documentId)) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
     /**
      * True if the saved tree still gives the photo to the person, and the link rules still resolve that person to [profileId].
      * Anything that cannot be verified (unreadable tree, missing person, ambiguous or other link) counts as no.
@@ -447,6 +606,12 @@ open class Uploader(
             null
         } ?: return false
         if (person.media.none { it.file == fileName && it.geniPhotoId == null }) return false
+        return resolvesTo(treeId, profileId, person)
+    }
+
+    /** True if the link rules resolve [person] to [profileId] without doubt; anything that cannot be verified counts as no. */
+    private suspend fun resolvesTo(treeId: Int, profileId: String, person: LocalPerson): Boolean {
+        val personId = person.gedcomId
         val (tagged, untagged) = try {
             person.geniId?.let { store.link(treeId, it) } to (if (person.geniId == null) store.linkByGedcomId(treeId, personId) else null)
         } catch (e: CancellationException) {

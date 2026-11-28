@@ -11,6 +11,8 @@ import app.familygem.geni.sync.DownloadFeed
 import app.familygem.geni.sync.GeniLoader
 import app.familygem.geni.sync.PhotoDeletionGuard
 import app.familygem.geni.sync.PhotoScaler
+import app.familygem.geni.sync.DocumentLoader
+import app.familygem.geni.sync.DocumentSync
 import app.familygem.geni.sync.PhotoSync
 import app.familygem.geni.sync.RoomSyncStore
 import app.familygem.geni.sync.SyncQueue
@@ -79,7 +81,8 @@ object Geni {
     @Synchronized
     fun queue(context: Context): SyncQueue = queue ?: run {
         val uploader = Uploader(client(context), store(context), host ?: error("Geni tree host not installed"),
-            prepare = PhotoScaler::scaled, photos = PhotoSync(store(context), host ?: error("Geni tree host not installed"), photoGuard, feed = downloads))
+            prepare = PhotoScaler::scaled, photos = PhotoSync(store(context), host ?: error("Geni tree host not installed"), photoGuard, feed = downloads),
+            documents = DocumentSync(store(context), host ?: error("Geni tree host not installed"), photoGuard, feed = downloads))
         SyncQueue(store(context), uploader, { GeniSettings.uploadPhotos(context) }) { job, outcome -> Log.d("GeniSync", "Tree ${job.treeId} ${job.kind} ${job.key}: $outcome") }
             .also { queue -> uploader.onTreeEdited = queue::setLocal }
     }.also { queue = it }
@@ -99,6 +102,12 @@ object Geni {
             onPhotoError = { profileId, e -> Log.w("GeniSync", "Photo of $profileId not synced", e) },
             feed = downloads
         )
+    }
+
+    fun documentLoader(context: Context): DocumentLoader {
+        val treeHost = host ?: error("Geni tree host not installed")
+        val store = store(context)
+        return DocumentLoader(client(context), store, DocumentSync(store, treeHost, photoGuard, feed = downloads), treeHost::mediaDir, downloads)
     }
 
     fun albumLoader(context: Context): AlbumLoader {

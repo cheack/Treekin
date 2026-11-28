@@ -296,5 +296,12 @@ class GeniSyncBacklogActivity : AppCompatActivity() {
         BacklogOperation.ALBUM_LIST -> R.string.geni_backlog_op_album_list
         BacklogOperation.ALBUM_DOWNLOAD -> R.string.geni_backlog_op_album_download
         BacklogOperation.PHOTO_DOWNLOAD -> R.string.geni_backlog_op_photo_download
+        BacklogOperation.ADD_DOCUMENT -> R.string.geni_backlog_op_add_document
+        BacklogOperation.DELETE_DOCUMENT -> R.string.geni_backlog_op_delete_document
+        BacklogOperation.UPDATE_DOCUMENT -> R.string.geni_backlog_op_update_document
+        BacklogOperation.TAG_DOCUMENT -> R.string.geni_backlog_op_tag_document
+        BacklogOperation.UNTAG_DOCUMENT -> R.string.geni_backlog_op_untag_document
+        BacklogOperation.DOCUMENT_LIST -> R.string.geni_backlog_op_document_list
+        BacklogOperation.DOCUMENT_DOWNLOAD -> R.string.geni_backlog_op_document_download
     }
 }
