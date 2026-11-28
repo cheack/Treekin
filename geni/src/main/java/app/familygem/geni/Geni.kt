@@ -104,6 +104,9 @@ object Geni {
         )
     }
 
+    /** Document sync over the process-wide deletion guard, for the app's own removals and edits. */
+    fun documents(context: Context): DocumentSync = DocumentSync(store(context), host ?: error("Geni tree host not installed"), photoGuard, feed = downloads)
+
     fun documentLoader(context: Context): DocumentLoader {
         val treeHost = host ?: error("Geni tree host not installed")
         val store = store(context)

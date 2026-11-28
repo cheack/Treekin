@@ -173,7 +173,7 @@ object GeniPhotoEditor {
                             // The job is stored first so a failure in the local update cannot lose the edit
                             Geni.queue(context).enqueueUpdatePhoto(treeId, photoId, person.id, label, base, wanted, fields,
                                 if (document) JobKind.UPDATE_DOCUMENT else JobKind.UPDATE_PHOTO)
-                            if (document) DocumentSync(Geni.store(context), AppTreeHost).applyOwnEdit(treeId, photoId, wanted, fields)
+                            if (document) Geni.documents(context).applyOwnEdit(treeId, photoId, wanted, fields)
                             else PhotoSync(Geni.store(context), AppTreeHost).applyOwnEdit(treeId, photoId, wanted, fields)
                         }
                         true

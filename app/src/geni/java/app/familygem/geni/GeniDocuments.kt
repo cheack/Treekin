@@ -159,7 +159,15 @@ object GeniDocuments {
         val owner = activity as? LifecycleOwner ?: return
         // The provider may be slow: its answers are read off the main thread
         owner.lifecycleScope.launch {
-            val (name, size, contentType) = withContext(Dispatchers.IO) { readMeta(activity, uri) }
+            val (name, size, contentType) = try {
+                withContext(Dispatchers.IO) { readMeta(activity, uri) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("GeniSync", "Reading the chosen document failed", e)
+                Toast.makeText(activity, activity.getString(R.string.geni_document_upload_failed, e.message ?: e.javaClass.simpleName), Toast.LENGTH_LONG).show()
+                return@launch
+            }
             confirm(activity, treeId, geniId, personGedcomId, uri, name, size, contentType, onDone)
         }
     }
@@ -385,7 +393,7 @@ object GeniDocuments {
                     // Stored first, so a failure in the local cleanup cannot lose the untag; the document leaves this person at once
                     q.enqueueDocumentTag(treeId, docId, geniId, personId, false, label)
                     try {
-                        DocumentSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, docId, detachIfEdited = true)
+                        Geni.documents(context).removeLocal(treeId, geniId, personId, docId, detachIfEdited = true)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -429,7 +437,7 @@ object GeniDocuments {
     private fun removeHere(context: Context, owner: LifecycleOwner, treeId: Int, geniId: String, personId: String, docId: String, onDone: () -> Unit) {
         owner.lifecycleScope.launch {
             try {
-                val removed = withContext(Dispatchers.IO) { DocumentSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, docId) }
+                val removed = withContext(Dispatchers.IO) { Geni.documents(context).removeLocal(treeId, geniId, personId, docId) }
                 if (removed) {
                     Toast.makeText(context, R.string.geni_document_removed_local, Toast.LENGTH_SHORT).show()
                     onDone()
