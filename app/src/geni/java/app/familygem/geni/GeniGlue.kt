@@ -195,6 +195,20 @@ object GeniGlue {
         return true
     }
 
+    /** A parent-family link of its own to the same family: the pivot and a new sibling must not share one, or a lineage would land on both. */
+    fun ownParentRef(ref: org.folg.gedcom.model.ParentFamilyRef) = org.folg.gedcom.model.ParentFamilyRef().also { it.ref = ref.ref }
+
+    /**
+     * In a Geni tree the lineage of a person who is on Geni is read-only: Geni's API cannot change it for an existing child
+     * (checked on the sandbox), so the site's value is shown. True when the caller must not offer the choice.
+     */
+    fun blockLineage(context: android.content.Context, person: Person): Boolean {
+        install()
+        if (!GeniTrees.isGeni(Global.settings.openTree) || GeniMapper.getGeniId(person) == null) return false
+        AlertDialog.Builder(context).setMessage(R.string.geni_lineage_blocked).setPositiveButton(android.R.string.ok, null).show()
+        return true
+    }
+
     /**
      * Deleting a person in a Geni tree: handled here instead of upstream's delete. Returns true when the caller must stop
      * (a dialog follows); false for a person that is not on Geni, which upstream deletes as usual.

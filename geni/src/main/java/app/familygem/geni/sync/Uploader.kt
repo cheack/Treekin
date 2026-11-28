@@ -235,7 +235,7 @@ open class Uploader(
 
         // Links first: once stored, this person can never be added again; the tags in the tree follow
         // What was sent stands for Geni's version until the full one is fetched: an edit made meanwhile goes as an update
-        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.paramsToSend(), profileId), 0))
+        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.profileParams(), profileId), 0))
         if (linkFamily) links += GeniLink(treeId, unionId!!, familyId!!, true, null, null, now())
         try {
             store.saveLinks(links)
@@ -383,7 +383,7 @@ open class Uploader(
                 val geni = gson.fromJson(raw, GeniUnion::class.java)
                 val result = threeWay(UnionFields.ofSnapshot(snapshot)!!, UnionFields.of(family), UnionFields.ofSnapshot(raw)!!)
                 result.conflicts.map { it.name }.ifEmpty {
-                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java), result.local) { null }
+                        GeniMapper.applyUnion(gedcom, family, geni, gson.fromJson(snapshot, GeniUnion::class.java), result.local, personFor = GeniMapper.peopleByGeniId(gedcom))
                         emptyList()
                     }
             }

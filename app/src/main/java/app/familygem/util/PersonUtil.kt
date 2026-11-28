@@ -199,9 +199,11 @@ object PersonUtil {
 
     /** Displays an alert dialog to choose the lineage of one person. */
     fun chooseLineage(context: Context, person: Person, family: Family) {
+        if (app.familygem.geni.GeniGlue.blockLineage(context, person)) return // GENI-HOOK
         person.parentFamilyRefs.firstOrNull { it.ref == family.id }?.apply {
             lineageTypes.indexOf(relationshipType).let {
                 AlertDialog.Builder(context).setSingleChoiceItems(lineageTexts, it) { dialog, selected ->
+                    if (app.familygem.geni.GeniGlue.blockLineage(context, person)) { dialog.dismiss(); return@setSingleChoiceItems } // GENI-HOOK
                     relationshipType = lineageTypes[selected]
                     dialog.dismiss()
                     if (context is ProfileActivity) context.refresh()

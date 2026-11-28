@@ -162,19 +162,20 @@ object UploadPlanner {
             for (family in local.families) {
                 val members = family.partners + family.children
                 if (members.none { it in linkedPeople || it in planned }) continue
-                fun add(gedcomId: String, kind: JobKind, anchors: List<String>) {
+                fun add(gedcomId: String, kind: JobKind, anchors: List<String>, modifier: String? = null) {
                     val person = newPeople[gedcomId] ?: return
                     if (gedcomId in planned) return
                     planned[gedcomId] = UploadJob(
                         treeId = treeId, key = "add:$gedcomId", kind = kind, personGedcomId = gedcomId, familyGedcomId = family.gedcomId,
-                        anchors = anchors, params = GeniParams.profile(ProfileFields.EMPTY, person.fields, isNew = true),
+                        anchors = anchors, params = GeniParams.profile(ProfileFields.EMPTY, person.fields, isNew = true) +
+                            listOfNotNull(modifier?.let { UploadJob.MODIFIER_PARAM to it }),
                         label = person.label, localHash = person.fields.hashCode()
                     )
                     changed = true
                 }
                 for (partner in family.partners) add(partner, JobKind.ADD_PARTNER,
                     family.children.map { "child:$it" } + family.partners.filter { it != partner }.map { "partner:$it" })
-                for (child in family.children) add(child, JobKind.ADD_CHILD, family.partners.map { "partner:$it" })
+                for (child in family.children) add(child, JobKind.ADD_CHILD, family.partners.map { "partner:$it" }, family.lineages[child])
             }
         } while (changed)
         upserts += planned.values

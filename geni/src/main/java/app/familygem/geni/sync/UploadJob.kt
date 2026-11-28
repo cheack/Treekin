@@ -13,7 +13,7 @@ enum class JobState {
  * A change waiting to be uploaded to Geni. One job per record, identified by [key] within the tree:
  * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>` or `photo:<personGedcomId>:<fileName>`.
  * @param anchors For adds: relatives to attach the new profile to, as "child:<gedcomId>" or "partner:<gedcomId>"
- * @param params Form parameters for Geni
+ * @param params Form parameters for Geni; an add of an adopted or foster child also has [MODIFIER_PARAM]
  * @param label What the user sees in the list of failed changes
  * @param localHash Hash of the local projection the job was planned from
  * @param confirmedByProfileId For deletes: the Geni account (its profile ID) that confirmed it; null for jobs from before this was recorded
@@ -48,7 +48,12 @@ data class UploadJob(
         }
     }
 
+    /** The params that describe the profile: without the modifier, which only tells Geni how the add links the child. */
+    fun profileParams(): List<Pair<String, String>> = paramsToSend().filter { it.first != MODIFIER_PARAM }
+
     companion object {
+        /** Geni's lineage of a new child ("adopt" or "foster"), sent with the add only; a birth child has none. */
+        const val MODIFIER_PARAM = "relationship_modifier"
         const val CURRENT_PARAMS_FORMAT = 1
         private val LEGACY_CLEARS = listOf("city", "county", "state", "country")
     }

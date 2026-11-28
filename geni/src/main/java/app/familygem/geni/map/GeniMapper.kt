@@ -49,6 +49,8 @@ object GeniMapper {
      */
     const val LOCATION_TAG = "_GENI_LOCATION"
 
+    private val GENI_LINEAGES = setOf("adopted", "foster")
+
     private val locationGson = com.google.gson.GsonBuilder().disableHtmlEscaping().create()
     private val locationType = object : com.google.gson.reflect.TypeToken<Map<String, String?>>() {}.type
 
@@ -296,6 +298,7 @@ object GeniMapper {
             if (child.parentFamilyRefs.orEmpty().none { it.ref == family.id })
                 child.addParentFamilyRef(ParentFamilyRef().apply { ref = family.id })
         }
+        applyLineage(family, union, personFor)
         if (UnionGroup.MARRIAGE !in keep && (previous == null || previous.marriage != union.marriage)) setEvent(family, "MARR", union.marriage)
         if (UnionGroup.DIVORCE !in keep && (previous == null || previous.divorce != union.divorce || previous.status != union.status)) {
             val date = gedcomDate(union.divorce?.date)
@@ -304,6 +307,34 @@ object GeniMapper {
             else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y", location = location)
             else removeFacts(family, "DIV")
         }
+    }
+
+    /**
+     * Lineage of each child in this union on the child's own link to the family (`PEDI`): adopted and foster children of the response
+     * get it. A child listed in `children` but in neither list is a birth child (Geni omits an empty list), so a previous
+     * adopted or foster mark goes; a response without `children` changes nothing. Other marks stay.
+     */
+    private fun applyLineage(family: Family, union: GeniUnion, personFor: (String) -> Person?) {
+        if (union.children == null) return
+        val adopted = union.adoptedChildren.orEmpty().map { geniId(it) }.toSet()
+        val foster = union.fosterChildren.orEmpty().map { geniId(it) }.toSet()
+        val listed = union.children.map { geniId(it) }.toSet()
+        for (id in adopted + foster + listed) {
+            val ref = personFor(id)?.parentFamilyRefs.orEmpty().firstOrNull { it.ref == family.id } ?: continue
+            val type = when (id) {
+                in adopted -> "adopted"
+                in foster -> "foster"
+                else -> null
+            }
+            if (type != null) ref.relationshipType = type
+            else if (ref.relationshipType in GENI_LINEAGES) ref.relationshipType = null
+        }
+    }
+
+    /** The people of the tree by their Geni ID, for [applyUnion] outside a load. */
+    fun peopleByGeniId(gedcom: Gedcom): (String) -> Person? {
+        val byId = gedcom.people.orEmpty().mapNotNull { p -> getGeniId(p)?.let { it to p } }.toMap()
+        return { byId[it] }
     }
 
     /** First and middle names stored apart, or null for a person without them. */

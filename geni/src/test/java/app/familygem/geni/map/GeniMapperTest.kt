@@ -137,6 +137,71 @@ class GeniMapperTest {
         assertEquals(1, people.getValue("profile-36434").parentFamilyRefs.size)
     }
 
+    private fun lineageUnion(children: List<String>?, adopted: List<String>? = null, foster: List<String>? = null) =
+        GeniUnion("union-1", "spouse", null, children, null, null, adopted, foster)
+
+    private fun lineageTree(): Triple<Family, Map<String, Person>, (String) -> Person?> {
+        val people = listOf("a", "b", "c").associateWith { Person().apply { id = "I$it" } }.mapKeys { "profile-${it.key}" }
+        val family = Family().apply { id = "F1" }
+        return Triple(family, people) { people[it] }
+    }
+
+    @Test
+    fun unionMarksAdoptedAndFosterChildren() {
+        val (family, people, find) = lineageTree()
+        val url = "https://api.sandbox.geni.com/"
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("${url}profile-a", "${url}profile-b", "${url}profile-c"),
+            adopted = listOf("${url}profile-a"), foster = listOf("${url}profile-b")), personFor = find)
+        assertEquals("adopted", people.getValue("profile-a").parentFamilyRefs.single().relationshipType)
+        assertEquals("foster", people.getValue("profile-b").parentFamilyRefs.single().relationshipType)
+        assertEquals(null, people.getValue("profile-c").parentFamilyRefs.single().relationshipType)
+        // Again: same refs, no duplicates
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a", "profile-b", "profile-c"), listOf("profile-a"), listOf("profile-b")), personFor = find)
+        assertEquals(1, people.getValue("profile-a").parentFamilyRefs.size)
+        assertEquals("adopted", people.getValue("profile-a").parentFamilyRefs.single().relationshipType)
+    }
+
+    @Test
+    fun lineageIsPerFamilyLink() {
+        val (family, people, find) = lineageTree()
+        val other = Family().apply { id = "F2" }
+        val child = people.getValue("profile-a")
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a"), adopted = listOf("profile-a")), personFor = find)
+        GeniMapper.applyUnion(Gedcom(), other, lineageUnion(listOf("profile-a")), personFor = find)
+        assertEquals(listOf("adopted", null), child.parentFamilyRefs.map { it.relationshipType })
+        assertEquals(listOf("F1", "F2"), child.parentFamilyRefs.map { it.ref })
+    }
+
+    @Test
+    fun lineageChangesWhenGeniChangesIt() {
+        val (family, people, find) = lineageTree()
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a", "profile-b"), adopted = listOf("profile-a"), foster = listOf("profile-b")), personFor = find)
+        // Geni now says a is a birth child and b is adopted
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a", "profile-b"), adopted = listOf("profile-b")), personFor = find)
+        assertEquals(null, people.getValue("profile-a").parentFamilyRefs.single().relationshipType)
+        assertEquals("adopted", people.getValue("profile-b").parentFamilyRefs.single().relationshipType)
+    }
+
+    @Test
+    fun partialUnionKeepsLoadedLineage() {
+        val (family, people, find) = lineageTree()
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a"), adopted = listOf("profile-a")), personFor = find)
+        // A response without the child lists says nothing about lineage
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(null), personFor = find)
+        assertEquals("adopted", people.getValue("profile-a").parentFamilyRefs.single().relationshipType)
+    }
+
+    @Test
+    fun lineageKeepsLocalOnlyMarksAndIgnoresMarriageConflicts() {
+        val (family, people, find) = lineageTree()
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a", "profile-b")), personFor = find)
+        people.getValue("profile-a").parentFamilyRefs.single().relationshipType = "sealing"
+        GeniMapper.applyUnion(Gedcom(), family, lineageUnion(listOf("profile-a", "profile-b"), foster = listOf("profile-b")),
+            keep = setOf(UnionGroup.MARRIAGE, UnionGroup.DIVORCE), personFor = find)
+        assertEquals("sealing", people.getValue("profile-a").parentFamilyRefs.single().relationshipType)
+        assertEquals("foster", people.getValue("profile-b").parentFamilyRefs.single().relationshipType)
+    }
+
     @Test
     fun unknownGenderPartnerTakesFreeSlot() {
         val gedcom = Gedcom()

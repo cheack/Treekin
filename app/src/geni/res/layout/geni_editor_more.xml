@@ -120,4 +120,44 @@
         android:text="@string/geni_new_email_note"
         android:textAppearance="?attr/textAppearanceBodySmall"
         android:visibility="gone" />
+    <TextView
+        android:id="@+id/editor_lineageTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="8dp"
+        android:text="@string/lineage"
+        android:textAppearance="?attr/textAppearanceTitleSmall"
+        android:visibility="gone" />
+    <RadioGroup
+        android:id="@+id/editor_lineageGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <RadioButton
+            android:id="@+id/editor_lineageBirth"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checked="true"
+            android:text="@string/birth" />
+        <RadioButton
+            android:id="@+id/editor_lineageAdopted"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/adopted" />
+        <RadioButton
+            android:id="@+id/editor_lineageFoster"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/foster" />
+    </RadioGroup>
+    <TextView
+        android:id="@+id/editor_lineageNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="8dp"
+        android:text="@string/geni_lineage_note"
+        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:visibility="gone" />
 </merge>

@@ -124,6 +124,30 @@ class UploadPlannerTest {
     }
 
     @Test
+    fun adoptedChildCarriesTheModifier() {
+        val local = couple(person("I3", null, newFields), children = listOf("I3"))
+        val withLineage = local.copy(families = listOf(local.families[0].copy(lineages = mapOf("I3" to "adopt"))))
+        val job = plan(withLineage).upserts.single()
+        assertEquals("adopt", job.params.toMap()[UploadJob.MODIFIER_PARAM])
+        assertEquals(1, job.params.count { it.first == UploadJob.MODIFIER_PARAM })
+        // The modifier tells Geni how to link the child: it never describes the profile
+        assertEquals(null, job.profileParams().toMap()[UploadJob.MODIFIER_PARAM])
+    }
+
+    @Test
+    fun birthChildHasNoModifier() {
+        val job = plan(couple(person("I3", null, newFields), children = listOf("I3"))).upserts.single()
+        assertEquals(null, job.params.toMap()[UploadJob.MODIFIER_PARAM])
+    }
+
+    @Test
+    fun lineageOfAnotherFamilyIsNotUsed() {
+        val local = couple(person("I3", null, newFields), children = listOf("I3"))
+        val other = local.copy(families = listOf(local.families[0], family("F2", null, listOf("I1"), emptyList()).copy(lineages = mapOf("I3" to "foster"))))
+        assertEquals(null, plan(other).upserts.single().params.toMap()[UploadJob.MODIFIER_PARAM])
+    }
+
+    @Test
     fun newParentOfGeniPersonMakesAddPartnerWithChildAnchor() {
         val local = couple(person("I5", null, newFields), extraFamilies = listOf(family("F2", null, listOf("I5"), listOf("I1"))))
         val job = plan(local).upserts.single()

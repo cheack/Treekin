@@ -1,0 +1,61 @@
+{
+ "results": [
+  {
+   "id": "union-10105",
+   "status": "spouse",
+   "partners": [
+    "https://api.sandbox.geni.com/profile-36431",
+    "https://api.sandbox.geni.com/profile-36432"
+   ],
+   "children": [
+    "https://api.sandbox.geni.com/profile-36435",
+    "https://api.sandbox.geni.com/profile-36430"
+   ]
+  },
+  {
+   "id": "union-10107",
+   "status": "spouse",
+   "partners": [
+    "https://api.sandbox.geni.com/profile-36438",
+    "https://api.sandbox.geni.com/profile-36439"
+   ],
+   "children": [
+    "https://api.sandbox.geni.com/profile-36543",
+    "https://api.sandbox.geni.com/profile-36566",
+    "https://api.sandbox.geni.com/profile-36567"
+   ],
+   "adopted_children": [
+    "https://api.sandbox.geni.com/profile-36566"
+   ],
+   "foster_children": [
+    "https://api.sandbox.geni.com/profile-36567"
+   ]
+  },
+  {
+   "id": "union-10170",
+   "status": "spouse",
+   "partners": [
+    "https://api.sandbox.geni.com/profile-36439"
+   ],
+   "children": [
+    "https://api.sandbox.geni.com/profile-36569"
+   ],
+   "adopted_children": [
+    "https://api.sandbox.geni.com/profile-36569"
+   ]
+  },
+  {
+   "id": "union-10171",
+   "status": "spouse",
+   "partners": [
+    "https://api.sandbox.geni.com/profile-36439"
+   ],
+   "children": [
+    "https://api.sandbox.geni.com/profile-36570"
+   ],
+   "foster_children": [
+    "https://api.sandbox.geni.com/profile-36570"
+   ]
+  }
+ ]
+}

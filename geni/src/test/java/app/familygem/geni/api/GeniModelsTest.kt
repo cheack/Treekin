@@ -52,6 +52,19 @@ class GeniModelsTest {
     }
 
     @Test
+    fun parsesLineageLists() {
+        val unions = parseResults(Fixtures.read("unions-lineage-batch.json"), GeniUnion::class.java).associateBy { it.id }
+        // Geni leaves an empty list out; the adopted and foster children are also in `children`
+        assertEquals(null, unions.getValue("union-10105").adoptedChildren)
+        assertEquals(null, unions.getValue("union-10105").fosterChildren)
+        assertEquals(listOf("https://api.sandbox.geni.com/profile-36566"), unions.getValue("union-10107").adoptedChildren)
+        assertEquals(listOf("https://api.sandbox.geni.com/profile-36567"), unions.getValue("union-10107").fosterChildren)
+        assertEquals(true, unions.getValue("union-10107").children!!.containsAll(unions.getValue("union-10107").adoptedChildren!!))
+        assertEquals(null, unions.getValue("union-10170").fosterChildren)
+        assertEquals(null, unions.getValue("union-10171").adoptedChildren)
+    }
+
+    @Test
     fun geniIdFromUrl() = assertEquals("profile-36431", geniId("https://api.sandbox.geni.com/profile-36431"))
 
     @Test
