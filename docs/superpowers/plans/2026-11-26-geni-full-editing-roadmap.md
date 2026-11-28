@@ -181,7 +181,10 @@ What the user gets: documents (scans, certificates, text) and videos of a profil
 
 ### 8. Merging duplicates, following, projects
 
-**Status of stage 8:** PR 1 (merge on Geni) is in progress, see [the stage plan](2026-11-28-geni-merge.md). Following and projects are not started.
+**Status of stage 8:**
+
+- [x] PR 1 ([#46](https://github.com/cheack/Treekin/pull/46)): merge on Geni from the profile menu, with a verified "Merge requested" ([the stage plan](2026-11-28-geni-merge.md))
+- [ ] Follow / unfollow and projects: not started, only if the user asks
 
 What the user gets: a duplicate found in the app can be merged on Geni (or a merge requested). People can be followed, and profiles added to a Geni project.
 
