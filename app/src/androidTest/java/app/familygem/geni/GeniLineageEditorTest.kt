@@ -45,6 +45,7 @@ class GeniLineageEditorTest {
     private var treeId = 0
     private var wasGeni = false
     private var autoSave = true
+    private var ready = false
 
     @Before
     fun setUp() {
@@ -53,6 +54,7 @@ class GeniLineageEditorTest {
         assumeTrue("needs an open tree", Global.settings.currentTree != null)
         wasGeni = GeniTrees.isGeni(treeId)
         autoSave = Global.settings.autoSave
+        ready = true
         Global.settings.autoSave = false
         GeniTrees.add(treeId)
         val gedcom = Gedcom()
@@ -66,6 +68,7 @@ class GeniLineageEditorTest {
 
     @After
     fun tearDown() {
+        if (!ready) return // Setup was skipped: nothing of the settings was changed
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             val monitor = androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry.getInstance()
