@@ -76,7 +76,7 @@ What the user gets: a profile can be made public or private, sex can be unknown,
 - [x] Unit tests and 8 new Espresso tests (privacy on, explicit Private, living, Dead off and on, ordinary tree, unknown sex, legacy placeholder); CodeRabbit rounds fixed the switch across recreation: Android does not restore the Privacy switch, the form is rebuilt from the person
 - [ ] Curator fields: need a verified account role signal (a curator account); hidden until then. To finish: sign in with a curator account on the sandbox (or Geni itself), check whether `curator`, `locked` and `merge_note` are returned and writable, then show and edit them only for that role
 
-### 3. Names in other languages (done: PR pending)
+### 3. Names in other languages (done: PR #38)
 
 What the user gets: the same names in another language or script (e.g. Cyrillic and Latin), like the site's language tabs.
 
