@@ -53,7 +53,13 @@ open class InMemorySyncStore : SyncStore {
         feedMap.values.removeAll { it.atMillis < keepSinceMillis }
     }
     override suspend fun feedRecords(treeId: Int, sinceMillis: Long) = feedMap.values.filter { it.treeId == treeId && it.atMillis >= sinceMillis }
+    val emailMap = linkedMapOf<Pair<Int, String>, String>()
+    override suspend fun newEmails(treeId: Int) = emailMap.filterKeys { it.first == treeId }.mapKeys { it.key.second }
+    override suspend fun saveNewEmail(treeId: Int, gedcomId: String, email: String?) {
+        if (email.isNullOrBlank()) emailMap.remove(treeId to gedcomId) else emailMap[treeId to gedcomId] = email
+    }
     override suspend fun deleteTree(treeId: Int) {
+        emailMap.keys.removeAll { it.first == treeId }
         feedMap.keys.removeAll { it.first == treeId }
         photoLinkMap.keys.removeAll { it.first == treeId }
         trees.remove(treeId)

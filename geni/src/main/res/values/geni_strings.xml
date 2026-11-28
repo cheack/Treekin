@@ -192,4 +192,24 @@
     <string name="geni_locale_remove">Remove</string>
     <string name="geni_locale_name_title">Name (%1$s)</string>
     <string name="geni_group_locale">Name in %1$s</string>
+    <string name="geni_on_geni">On Geni</string>
+    <string name="geni_on_geni_note">Read-only: this comes from Geni and can only be changed there.</string>
+    <string name="geni_detail_email">Email</string>
+    <string name="geni_detail_phones">Phone</string>
+    <string name="geni_detail_residence">Current residence</string>
+    <string name="geni_detail_managers">Managed by</string>
+    <plurals name="geni_detail_managers_count">
+        <item quantity="one">%1$d profile</item>
+        <item quantity="other">%1$d profiles</item>
+    </plurals>
+    <string name="geni_detail_claimed">Claimed by its owner</string>
+    <string name="geni_detail_curator">Geni curator</string>
+    <string name="geni_detail_big_tree">In a big tree</string>
+    <string name="geni_detail_merge_pending">Merge pending</string>
+    <string name="geni_detail_relationship">Relationship to you</string>
+    <string name="geni_open_on_geni">Open on Geni</string>
+    <string name="geni_new_email">Email (optional)</string>
+    <string name="geni_new_email_note">Geni may email this person an invitation to join. The email can only be changed on Geni afterwards.</string>
+    <string name="geni_email_invalid">Enter a valid email or leave it empty</string>
+    <string name="geni_email_not_saved">The email could not be saved. Try again, or clear the email field.</string>
 </resources>

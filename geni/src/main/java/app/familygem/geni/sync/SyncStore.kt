@@ -101,6 +101,10 @@ interface SyncStore {
     suspend fun saveFeedRecords(records: List<FeedRecord>, keepSinceMillis: Long)
     /** Feed records of a tree at or after [sinceMillis]. */
     suspend fun feedRecords(treeId: Int, sinceMillis: Long): List<FeedRecord>
+    /** Emails typed for new relatives that are not created on Geni yet, by GEDCOM ID of the person. */
+    suspend fun newEmails(treeId: Int): Map<String, String>
+    /** Keeps the [email] of a new person until its add is sent; a null or blank one forgets it. */
+    suspend fun saveNewEmail(treeId: Int, gedcomId: String, email: String?)
     /** Deletes the tree with its links, photo links, jobs and feed records. */
     suspend fun deleteTree(treeId: Int)
 

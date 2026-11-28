@@ -286,6 +286,59 @@ class UploaderTest {
         assertEquals("I3", store.link(1, "profile-50")!!.gedcomId)
     }
 
+    @Test
+    fun emailOfANewRelativeGoesWithTheOneAddOnly() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        store.saveNewEmail(1, "I3", "kid@example.com")
+        server.enqueue(ok("""{"id":"profile-50","unions":["https://api.sandbox.geni.com/union-10106"]}"""))
+        server.enqueue(error(503)) // No full snapshot: the one made from what was sent stays
+        assertEquals(Outcome.Done, uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))))
+        val post = server.takeRequest()
+        assertEquals("first_name=New&is_alive=true&email=kid%40example.com", post.body!!.utf8())
+        assertFalse(store.link(1, "profile-50")!!.snapshot!!.contains("kid@example.com"))
+        assertTrue(store.newEmails(1).isEmpty())
+        // A later update of the linked profile never carries it
+        var taken = server.requestCount.coerceAtMost(1) // The add POST is taken
+        server.enqueue(ok("""{"id":"profile-50"}"""))
+        server.enqueue(ok("""{"id":"profile-50"}"""))
+        uploader().run(stored(updateProfile.copy(key = "profile:profile-50", geniId = "profile-50", params = listOf("occupation" to "Pilot"))))
+        val update = generateSequence { if (server.requestCount > taken) server.takeRequest().also { taken++ } else null }.first { it.method == "POST" }
+        assertEquals("/api/profile-50/update", update.url.encodedPath)
+        assertFalse(update.body!!.utf8().contains("email"))
+    }
+
+    @Test
+    fun blankEmailSendsNoKey() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        store.saveNewEmail(1, "I3", "  ")
+        server.enqueue(ok("""{"id":"profile-50","unions":["https://api.sandbox.geni.com/union-10106"]}"""))
+        server.enqueue(error(503))
+        uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1")))
+        assertEquals("first_name=New&is_alive=true", server.takeRequest().body!!.utf8())
+    }
+
+    @Test
+    fun emailStaysWhileTheAddIsNotDone() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        store.saveNewEmail(1, "I3", "kid@example.com")
+        server.close() // Nothing reached Geni: the next try sends it
+        assertTrue(uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))) is Outcome.Retry)
+        assertEquals(mapOf("I3" to "kid@example.com"), store.newEmails(1))
+    }
+
+    @Test
+    fun alreadyLinkedPersonDropsItsEmail() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-50", "I3"), link("union-10106", "F1")))
+        store.saveNewEmail(1, "I3", "kid@example.com")
+        assertEquals(Outcome.Done, uploader().run(job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))))
+        assertEquals(0, server.requestCount)
+        assertTrue(store.newEmails(1).isEmpty())
+    }
+
     private val addI3 get() = job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1", "partner:I2"))
 
     @Test

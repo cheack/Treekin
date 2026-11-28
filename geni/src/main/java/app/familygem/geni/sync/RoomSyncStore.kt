@@ -56,6 +56,10 @@ data class UploadJobEntity(
     @ColumnInfo(defaultValue = "0") val paramsFormat: Int
 )
 
+/** An email typed for a new relative in the form, sent once with the add that creates the profile; never part of the tree. */
+@Entity(tableName = "new_email", primaryKeys = ["treeId", "gedcomId"])
+data class NewEmailEntity(val treeId: Int, val gedcomId: String, val email: String)
+
 @Entity(tableName = "photo_link", primaryKeys = ["treeId", "geniProfileId", "geniPhotoId"])
 data class PhotoLinkEntity(
     val treeId: Int,
@@ -165,9 +169,21 @@ interface SyncDao {
 
     @Query("DELETE FROM feed_event WHERE treeId = :treeId")
     suspend fun deleteFeedRecords(treeId: Int)
+
+    @Query("SELECT * FROM new_email WHERE treeId = :treeId")
+    suspend fun newEmails(treeId: Int): List<NewEmailEntity>
+
+    @Upsert
+    suspend fun saveNewEmail(entity: NewEmailEntity)
+
+    @Query("DELETE FROM new_email WHERE treeId = :treeId AND gedcomId = :gedcomId")
+    suspend fun deleteNewEmail(treeId: Int, gedcomId: String)
+
+    @Query("DELETE FROM new_email WHERE treeId = :treeId")
+    suspend fun deleteNewEmails(treeId: Int)
 }
 
-@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class, FeedRecordEntity::class], version = 8, exportSchema = false)
+@Database(entities = [GeniTreeEntity::class, GeniLinkEntity::class, UploadJobEntity::class, PhotoLinkEntity::class, FeedRecordEntity::class, NewEmailEntity::class], version = 9, exportSchema = false)
 abstract class SyncDatabase : RoomDatabase() {
     abstract fun dao(): SyncDao
 
@@ -236,8 +252,18 @@ abstract class SyncDatabase : RoomDatabase() {
             }
         }
 
+        /** Version 9: the email typed for a new relative waits here until the add that creates the profile is sent. */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `new_email` (`treeId` INTEGER NOT NULL, `gedcomId` TEXT NOT NULL, `email` TEXT NOT NULL, " +
+                            "PRIMARY KEY(`treeId`, `gedcomId`))"
+                )
+            }
+        }
+
         /** Every migration, in order: the app and the tests open the database with this same list. */
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
     }
 }
 
@@ -299,7 +325,14 @@ class RoomSyncStore(private val dao: SyncDao) : SyncStore {
         FeedRecordKind.entries.firstOrNull { it.name == row.kind }?.let { FeedRecord(row.treeId, it, row.geniId, row.gedcomId, row.name, row.atMillis) }
     }
 
+    override suspend fun newEmails(treeId: Int) = dao.newEmails(treeId).associate { it.gedcomId to it.email }
+
+    override suspend fun saveNewEmail(treeId: Int, gedcomId: String, email: String?) {
+        if (email.isNullOrBlank()) dao.deleteNewEmail(treeId, gedcomId) else dao.saveNewEmail(NewEmailEntity(treeId, gedcomId, email))
+    }
+
     override suspend fun deleteTree(treeId: Int) {
+        dao.deleteNewEmails(treeId)
         dao.deleteFeedRecords(treeId)
         dao.deletePhotoLinks(treeId)
         dao.deleteJobs(treeId)

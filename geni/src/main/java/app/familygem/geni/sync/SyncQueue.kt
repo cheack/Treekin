@@ -196,6 +196,9 @@ class SyncQueue(
         // The job being uploaded is neither deleted nor verified: its upload may change Geni after this plan
         val runningKey = synchronized(running) { running[treeId] }
         plan.deleteKeys.filter { it != runningKey }.mapNotNull { existing[it] }.forEach { store.deleteJob(it.id) }
+        // An email typed for a person who is no longer in the tree must not go to a later person with the same GEDCOM ID
+        val present = local.people.map { it.gedcomId }.toSet()
+        store.newEmails(treeId).keys.filter { it !in present }.forEach { store.saveNewEmail(treeId, it, null) }
         plan.staleLinks.forEach { store.deleteLink(treeId, it) }
         plan.orphaned.forEach { store.setOrphaned(treeId, it, true) }
         plan.unorphaned.forEach { store.setOrphaned(treeId, it, false) }
