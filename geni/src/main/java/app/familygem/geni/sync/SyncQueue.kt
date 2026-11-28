@@ -211,6 +211,24 @@ class SyncQueue(
         true
     }
 
+    /** Queues tagging ([tag] true) or untagging a linked profile in a photo; the latest wish for the pair replaces an earlier one. */
+    suspend fun enqueuePhotoTag(treeId: Int, photoId: String, profileId: String, personGedcomId: String, tag: Boolean, label: String) = lock(treeId).withLock {
+        val key = "tags:$photoId:$profileId"
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }
+        val job = UploadJob(treeId = treeId, key = key, kind = if (tag) JobKind.TAG_PHOTO else JobKind.UNTAG_PHOTO, geniId = photoId,
+            personGedcomId = personGedcomId, params = listOf("profile" to profileId), label = label, localHash = 0)
+        store.saveJob(if (existing == null) job else job.copy(id = existing.id, version = existing.version + 1))
+    }
+
+    /** Queues making [photoId] the main photo of [profileId] (one job per profile; the latest choice wins). */
+    suspend fun enqueueSetMainPhoto(treeId: Int, profileId: String, photoId: String, personGedcomId: String, label: String) = lock(treeId).withLock {
+        val key = "mainphoto:$profileId"
+        val existing = store.jobs(treeId).firstOrNull { it.key == key }
+        val job = UploadJob(treeId = treeId, key = key, kind = JobKind.SET_MAIN_PHOTO, geniId = profileId, personGedcomId = personGedcomId,
+            params = listOf("photo_id" to photoId), label = label, localHash = 0)
+        store.saveJob(if (existing == null) job else job.copy(id = existing.id, version = existing.version + 1))
+    }
+
     /** Called with the tree lock held. */
     private suspend fun plan(treeId: Int, local: LocalTree) {
         synchronized(planned) { planned[treeId] = local.stamp }

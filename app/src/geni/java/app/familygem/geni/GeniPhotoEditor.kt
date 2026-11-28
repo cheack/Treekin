@@ -43,9 +43,67 @@ object GeniPhotoEditor {
             show(context, treeId, person, media, photoId, onDone)
             true
         }
+        if (media.primary == null) menu.add(0, MENU_ID + 1, 0, R.string.geni_photo_set_main).setOnMenuItemClickListener {
+            queue(context, treeId, R.string.geni_photo_set_main_queued, onDone) { q ->
+                q.enqueueSetMainPhoto(treeId, geniId, photoId, person.id, "Main photo: ${U.properName(person)}")
+            }
+            true
+        }
+        menu.add(0, MENU_ID + 2, 0, R.string.geni_photo_tag).setOnMenuItemClickListener {
+            chooseToTag(context, treeId, person, photoId, onDone)
+            true
+        }
+        menu.add(0, MENU_ID + 3, 0, R.string.geni_photo_untag).setOnMenuItemClickListener {
+            AlertDialog.Builder(context).setMessage(R.string.geni_photo_untag_confirm).setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.geni_photo_untag) { _, _ ->
+                    queue(context, treeId, R.string.geni_photo_untag_queued, onDone) { q ->
+                        q.enqueuePhotoTag(treeId, photoId, geniId, person.id, false, "Untag: ${U.properName(person)}")
+                        // A main photo goes when Geni has chosen another; any other leaves this person at once
+                        if (media.primary == null) PhotoSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, person.id, photoId)
+                    }
+                }.show()
+            true
+        }
     }
 
     private const val MENU_ID = 9
+
+    /** Runs [work] with the queue off the main thread, then kicks the upload and shows [done]; a failure shows the failed message. */
+    private fun queue(context: Context, treeId: Int, done: Int, onDone: () -> Unit, work: suspend (app.familygem.geni.sync.SyncQueue) -> Unit) {
+        val owner = context as? LifecycleOwner ?: return
+        owner.lifecycleScope.launch {
+            val ok = try {
+                withContext(Dispatchers.IO) { work(Geni.queue(context)) }
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("GeniSync", "Queueing a photo change failed", e)
+                false
+            }
+            if (ok) {
+                GeniSync.kick(context, treeId)
+                Toast.makeText(context, done, Toast.LENGTH_LONG).show()
+                onDone()
+            } else Toast.makeText(context, R.string.geni_photo_edit_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Lists the other people of the tree who are on Geni; the chosen one is tagged in the photo on Geni. */
+    private fun chooseToTag(context: Context, treeId: Int, person: Person, photoId: String, onDone: () -> Unit) {
+        val others = Global.gc.people.orEmpty().filter { it.id != person.id && GeniMapper.getGeniId(it)?.startsWith("profile-") == true }
+        if (others.isEmpty()) {
+            Toast.makeText(context, R.string.geni_photo_tag_none, Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(context).setTitle(R.string.geni_photo_tag).setNegativeButton(android.R.string.cancel, null)
+            .setItems(others.map { U.properName(it) }.toTypedArray()) { _, which ->
+                val chosen = others[which]
+                queue(context, treeId, R.string.geni_photo_tag_queued, onDone) { q ->
+                    q.enqueuePhotoTag(treeId, photoId, GeniMapper.getGeniId(chosen)!!, chosen.id, true, "Tag: ${U.properName(chosen)}")
+                }
+            }.show()
+    }
 
     private fun show(context: Context, treeId: Int, person: Person, media: Media, photoId: String, onDone: () -> Unit) {
         val owner = context as? LifecycleOwner ?: return

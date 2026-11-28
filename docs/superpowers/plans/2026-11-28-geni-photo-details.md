@@ -45,8 +45,9 @@ Sandbox leftovers: profile-36580 `PhA Probe` (photos 2241 and 2243, main 2242 af
 - [x] Unit tests (`PhotoDetailsSyncTest`, `UploadPhotoDetailsTest`, queue, client, params, parse, album)
 - [x] Emulator check: edit offline, reconnect, value on Geni, restart, conflict with an earlier edit shown in the backlog and replaced by Retry
 
-**PR 2 (not started):**
+**PR 2:**
 
-- [ ] Tag and untag from linked profiles (`photo-X/tag/profile-Y`, `untag`), distinct from removing from the device and deleting on Geni
-- [ ] Set as main on Geni (`add-mugshot` with `photo_id`)
+- [x] Tag and untag (`TAG_PHOTO` / `UNTAG_PHOTO`, key `tags:<photoId>:<profileId>`, latest wish wins): "Tag a person on Geni" lists the other Geni people of the tree; the photo is downloaded for them after Geni confirms. "Untag on Geni" removes only that person's attachment (a non-main one at once, the main one when Geni names a replacement); the file stays while another person uses it, the photo stays on Geni. A queued untag stops an album download of the photo for that profile. "Remove from this device" and "Delete on Geni" are unchanged.
+- [x] Set as main on Geni (`SET_MAIN_PHOTO`, key `mainphoto:<profileId>`, `add-mugshot` with `photo_id`): shown for a photo that is not primary; after Geni confirms, `PhotoSync.sync` makes it primary from the cached file, the former main stays as a plain photo. `add-mugshot` answers `null` (and changes nothing) when the photo is already main (fixture `photo-add-mugshot-already-main.json`).
 - [x] ~~Album create and rename~~: no API route (see the table)
+- [x] Emulator check: set main, tag a second person, untag a non-main photo, each confirmed by a fresh API read. An unsaved change to the open tree is lost when the app is stopped (autosave off, as upstream).

@@ -43,12 +43,13 @@ class AlbumLoader(
 
     /**
      * Downloads one photo into the person's media.
-     * A photo whose deletion on Geni is still queued is skipped, as Geni may keep listing it until the delete runs.
+     * A photo whose deletion on Geni, or untagging of this profile, is still queued is skipped, as Geni may keep listing it until the job runs.
      * @return true if it was added
      */
     suspend fun download(treeId: Int, geniProfileId: String, personGedcomId: String, photo: GeniPhoto): Boolean {
         val deleting = store.jobs(treeId).any {
-            it.kind == JobKind.DELETE_PHOTO && it.geniId == photo.id && (it.state == JobState.PENDING || it.state == JobState.SENDING)
+            (it.state == JobState.PENDING || it.state == JobState.SENDING) && it.geniId == photo.id &&
+                (it.kind == JobKind.DELETE_PHOTO || (it.kind == JobKind.UNTAG_PHOTO && it.params.any { p -> p.first == "profile" && p.second == geniProfileId }))
         }
         return !deleting && photos.addAlbumPhoto(treeId, geniProfileId, personGedcomId, photo)
     }

@@ -996,4 +996,32 @@ class SyncQueueTest {
         assertEquals("New", PhotoDetails.fromParams(job.params, UploadJob.BASE_PREFIX).title)
         assertEquals("Old", PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX).title)
     }
+
+    @Test
+    fun photoTagJobsAreOnePerPairAndTheLatestWishWins() = runTest {
+        linkBoth()
+        queue.enqueuePhotoTag(1, "photo-5", "profile-2", "I2", true, "Tag")
+        queue.enqueuePhotoTag(1, "photo-5", "profile-2", "I2", false, "Untag")
+        val job = store.jobs(1).single()
+        assertEquals("tags:photo-5:profile-2", job.key)
+        assertEquals(JobKind.UNTAG_PHOTO, job.kind)
+        assertEquals("photo-5", job.geniId)
+        assertEquals(listOf("profile" to "profile-2"), job.params)
+        queue.enqueuePhotoTag(1, "photo-5", "profile-1", "I1", false, "Untag")
+        assertEquals(2, store.jobs(1).size)
+    }
+
+    @Test
+    fun setMainIsOneJobPerProfileAndSurvivesReplanning() = runTest {
+        linkBoth()
+        queue.enqueueSetMainPhoto(1, "profile-1", "photo-5", "I1", "Main")
+        queue.enqueueSetMainPhoto(1, "profile-1", "photo-6", "I1", "Main")
+        val job = store.jobs(1).single()
+        assertEquals(JobKind.SET_MAIN_PHOTO, job.kind)
+        assertEquals(listOf("photo_id" to "photo-6"), job.params)
+        queue.onSaved(1, tree())
+        queue.enqueuePhotoTag(1, "photo-5", "profile-2", "I2", true, "Tag")
+        queue.replan(1)
+        assertEquals(setOf("mainphoto:profile-1", "tags:photo-5:profile-2"), store.jobs(1).map { it.key }.toSet())
+    }
 }

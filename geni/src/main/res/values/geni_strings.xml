@@ -63,6 +63,14 @@
     <string name="geni_photo_edit_date">Date</string>
     <string name="geni_photo_edit_date_hint">For example 12 MAR 1960, JUL 1948 or ABT 1950</string>
     <string name="geni_photo_edit_date_invalid">Geni keeps one date for a photo: a day with its month, a month or a year, as in the hint. Ranges such as BEF or BET cannot be stored.</string>
+    <string name="geni_photo_set_main">Set as main photo on Geni</string>
+    <string name="geni_photo_set_main_queued">The main photo will be changed on Geni</string>
+    <string name="geni_photo_tag">Tag a person on Geni</string>
+    <string name="geni_photo_tag_none">No other person of this tree is on Geni</string>
+    <string name="geni_photo_tag_queued">The tag will be sent to Geni</string>
+    <string name="geni_photo_untag">Untag on Geni</string>
+    <string name="geni_photo_untag_confirm">Remove this person from the photo on Geni? The photo stays on Geni and in the profiles of the other people tagged in it.</string>
+    <string name="geni_photo_untag_queued">The tag will be removed on Geni</string>
     <string name="geni_photo_edit_queued">Photo details will be sent to Geni</string>
     <string name="geni_photo_edit_failed">Photo details were not saved</string>
     <string name="geni_photo_main">This is the main photo from Geni. Delete it on Geni to remove it.</string>
@@ -107,6 +115,9 @@
     <string name="geni_backlog_op_add_photo">Photo upload</string>
     <string name="geni_backlog_op_delete_photo">Photo deletion on Geni</string>
     <string name="geni_backlog_op_update_photo">Photo details on Geni</string>
+    <string name="geni_backlog_op_tag_photo">Photo tag on Geni</string>
+    <string name="geni_backlog_op_untag_photo">Photo untag on Geni</string>
+    <string name="geni_backlog_op_set_main_photo">Main photo on Geni</string>
     <string name="geni_backlog_op_prefetch">Loading relatives</string>
     <string name="geni_backlog_op_keep_offline">Keep offline</string>
     <string name="geni_backlog_op_daily_refresh">Daily refresh</string>
