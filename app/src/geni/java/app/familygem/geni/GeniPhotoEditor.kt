@@ -20,6 +20,7 @@ import app.familygem.geni.map.PhotoDetails
 import app.familygem.geni.sync.DocumentSync
 import app.familygem.geni.sync.JobKind
 import app.familygem.geni.sync.PhotoSync
+import app.familygem.geni.sync.VideoSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,6 +43,10 @@ object GeniPhotoEditor {
         // Only inline media: the photos synced from Geni are never shared media records
         if (GeniTrees.isGeni(treeId) && geniId != null && media.id == null && GeniMapper.getTag(media, DocumentSync.DOCUMENT_TAG) != null) {
             GeniDocuments.addMenuItems(context, menu, person, media, onDone)
+            return
+        }
+        if (GeniTrees.isGeni(treeId) && geniId != null && media.id == null && GeniMapper.getTag(media, VideoSync.VIDEO_TAG) != null) {
+            GeniVideos.addMenuItems(context, menu, person, media, onDone)
             return
         }
         if (!GeniTrees.isGeni(treeId) || geniId == null || photoId == null || media.id != null) return
@@ -126,8 +131,10 @@ object GeniPhotoEditor {
             }.show()
     }
 
-    /** The details dialog of a photo, or (with [document]) of a document: the same three details, sent as a document job. */
-    internal fun show(context: Context, treeId: Int, person: Person, media: Media, photoId: String, onDone: () -> Unit, document: Boolean = false) {
+    /** The details dialog of a photo, or (with another [kind]) of a document or video: the same three details, sent as a job of that kind. */
+    internal fun show(context: Context, treeId: Int, person: Person, media: Media, photoId: String, onDone: () -> Unit, kind: JobKind = JobKind.UPDATE_PHOTO) {
+        val document = kind != JobKind.UPDATE_PHOTO
+        val video = kind == JobKind.UPDATE_VIDEO
         val owner = context as? LifecycleOwner ?: return
         val shown = PhotoDetails.shown(media)
         // Taken when the dialog opens: a refresh while it is open must not change the starting point of this edit
@@ -150,7 +157,7 @@ object GeniPhotoEditor {
             setPadding(pad, pad / 2, pad, 0)
             listOf(title, description, date, hint).forEach { addView(it) }
         }
-        val dialog = AlertDialog.Builder(context).setTitle(if (document) R.string.geni_document_edit else R.string.geni_photo_edit).setView(ScrollView(context).apply { addView(form) })
+        val dialog = AlertDialog.Builder(context).setTitle(if (video) R.string.geni_video_edit else if (document) R.string.geni_document_edit else R.string.geni_photo_edit).setView(ScrollView(context).apply { addView(form) })
             .setNegativeButton(android.R.string.cancel, null).setPositiveButton(android.R.string.ok, null).create()
         dialog.setOnShowListener {
             // Set here so a date Geni cannot store keeps the dialog open
@@ -159,21 +166,22 @@ object GeniPhotoEditor {
                 val parsed = if (typed.isEmpty()) null else GeniParams.parseDate(typed)
                 // An unchanged date stays as it is, even a range set on the website; a new one must be a single date
                 if (typed.isNotEmpty() && (parsed == null || parsed.range != null) && !typed.equals(shown.date, ignoreCase = true)) {
-                    date.error = context.getString(if (document) R.string.geni_document_edit_date_invalid else R.string.geni_photo_edit_date_invalid)
+                    date.error = context.getString(if (video) R.string.geni_video_edit_date_invalid else if (document) R.string.geni_document_edit_date_invalid else R.string.geni_photo_edit_date_invalid)
                     return@setOnClickListener
                 }
                 val wanted = PhotoDetails(PhotoDetails.clean(title.text.toString()), PhotoDetails.clean(description.text.toString()), if (typed.equals(shown.date, ignoreCase = true)) shown.date else GeniMapper.gedcomDate(parsed))
                 val fields = shown.differences(wanted)
                 dialog.dismiss()
                 if (fields.isEmpty()) return@setOnClickListener // Unchanged: nothing is queued
-                val label = (if (document) "Document details: " else "Photo details: ") + U.properName(person)
+                val label = (if (video) "Video details: " else if (document) "Document details: " else "Photo details: ") + U.properName(person)
                 owner.lifecycleScope.launch {
                     val queued = try {
                         withContext(Dispatchers.IO) {
                             // The job is stored first so a failure in the local update cannot lose the edit
                             Geni.queue(context).enqueueUpdatePhoto(treeId, photoId, person.id, label, base, wanted, fields,
-                                if (document) JobKind.UPDATE_DOCUMENT else JobKind.UPDATE_PHOTO)
-                            if (document) Geni.documents(context).applyOwnEdit(treeId, photoId, wanted, fields)
+                                kind)
+                            if (video) Geni.videos(context).applyOwnEdit(treeId, photoId, wanted, fields)
+                            else if (document) Geni.documents(context).applyOwnEdit(treeId, photoId, wanted, fields)
                             else PhotoSync(Geni.store(context), AppTreeHost).applyOwnEdit(treeId, photoId, wanted, fields)
                         }
                         true
@@ -185,9 +193,9 @@ object GeniPhotoEditor {
                     }
                     if (queued) {
                         GeniSync.kick(context, treeId)
-                        Toast.makeText(context, if (document) R.string.geni_document_edit_queued else R.string.geni_photo_edit_queued, Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, if (video) R.string.geni_video_edit_queued else if (document) R.string.geni_document_edit_queued else R.string.geni_photo_edit_queued, Toast.LENGTH_LONG).show()
                         onDone()
-                    } else Toast.makeText(context, if (document) R.string.geni_document_edit_failed else R.string.geni_photo_edit_failed, Toast.LENGTH_LONG).show()
+                    } else Toast.makeText(context, if (video) R.string.geni_video_edit_failed else if (document) R.string.geni_document_edit_failed else R.string.geni_photo_edit_failed, Toast.LENGTH_LONG).show()
                 }
             }
         }

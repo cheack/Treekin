@@ -1,7 +1,8 @@
 package app.familygem.geni.sync
 
 enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD, DELETE_PROFILE, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO, TAG_PHOTO, UNTAG_PHOTO, SET_MAIN_PHOTO,
-    ADD_DOCUMENT, DELETE_DOCUMENT, UPDATE_DOCUMENT, TAG_DOCUMENT, UNTAG_DOCUMENT }
+    ADD_DOCUMENT, DELETE_DOCUMENT, UPDATE_DOCUMENT, TAG_DOCUMENT, UNTAG_DOCUMENT,
+    ADD_VIDEO, DELETE_VIDEO, UPDATE_VIDEO, TAG_VIDEO, UNTAG_VIDEO }
 
 /** PENDING runs; FAILED waits for the user; DISMISSED is hidden and kept so the same change is not planned again. */
 enum class JobState {
@@ -12,10 +13,10 @@ enum class JobState {
 
 /**
  * A change waiting to be uploaded to Geni. One job per record, identified by [key] within the tree:
- * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>`, `updphoto:<photoId>`, `tags:<photoId>:<profileId>`, `mainphoto:<profileId>`, `photo:<personGedcomId>:<fileName>`, `doc:<personGedcomId>:<fileName>`, `deldoc:<documentId>`, `upddoc:<documentId>` or `doctags:<documentId>:<profileId>`.
+ * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>`, `updphoto:<photoId>`, `tags:<photoId>:<profileId>`, `mainphoto:<profileId>`, `photo:<personGedcomId>:<fileName>`, `doc:<personGedcomId>:<fileName>`, `deldoc:<documentId>`, `upddoc:<documentId>`, `doctags:<documentId>:<profileId>`, `vid:<personGedcomId>:<fileName>`, `delvid:<videoId>`, `updvid:<videoId>` or `vidtags:<videoId>:<profileId>`.
  * @param anchors For adds: relatives to attach the new profile to, as "child:<gedcomId>" or "partner:<gedcomId>"
  * @param params Form parameters for Geni; an UPDATE_PHOTO has the details it started from and the wanted ones as `base:<FIELD>` and `want:<FIELD>` pairs (see [app.familygem.geni.map.PhotoDetails.toParams]); an add of an adopted or foster child also has [MODIFIER_PARAM]
- * An ADD_DOCUMENT has the profile as [geniId] and `file` (plain name in the tree's media folder), `content_type`, `title` and `description` as params; an UPDATE_DOCUMENT works like an UPDATE_PHOTO.
+ * An ADD_DOCUMENT has the profile as [geniId] and `file` (plain name in the tree's media folder), `content_type`, `title` and `description` as params; an UPDATE_DOCUMENT works like an UPDATE_PHOTO. Videos work the same way as documents (ADD_VIDEO has `content_type` video/mp4).
  * A TAG_PHOTO or UNTAG_PHOTO (a TAG_DOCUMENT or UNTAG_DOCUMENT likewise) has the photo as [geniId] and the profile as `profile` param; a SET_MAIN_PHOTO has the profile as [geniId] and `photo_id`.
  * @param label What the user sees in the list of failed changes
  * @param localHash Hash of the local projection the job was planned from

@@ -303,5 +303,12 @@ class GeniSyncBacklogActivity : AppCompatActivity() {
         BacklogOperation.UNTAG_DOCUMENT -> R.string.geni_backlog_op_untag_document
         BacklogOperation.DOCUMENT_LIST -> R.string.geni_backlog_op_document_list
         BacklogOperation.DOCUMENT_DOWNLOAD -> R.string.geni_backlog_op_document_download
+        BacklogOperation.ADD_VIDEO -> R.string.geni_backlog_op_add_video
+        BacklogOperation.DELETE_VIDEO -> R.string.geni_backlog_op_delete_video
+        BacklogOperation.UPDATE_VIDEO -> R.string.geni_backlog_op_update_video
+        BacklogOperation.TAG_VIDEO -> R.string.geni_backlog_op_tag_video
+        BacklogOperation.UNTAG_VIDEO -> R.string.geni_backlog_op_untag_video
+        BacklogOperation.VIDEO_LIST -> R.string.geni_backlog_op_video_list
+        BacklogOperation.VIDEO_DOWNLOAD -> R.string.geni_backlog_op_video_download
     }
 }

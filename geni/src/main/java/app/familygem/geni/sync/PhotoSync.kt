@@ -250,9 +250,9 @@ class PhotoSync(
      */
     suspend fun reconcileAlbum(treeId: Int, geniProfileId: String, personGedcomId: String, album: List<GeniPhoto>): Int {
         val listed = album.map { it.id }.toSet()
-        // Document links share the table: the album never touches them
+        // Document and video links share the table: the album never touches them
         val gone = store.photoLinks(treeId, geniProfileId).filter {
-            !it.isMain && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in listed && !DocumentSync.isDocumentId(it.geniPhotoId)
+            !it.isMain && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in listed && !DocumentSync.isDocumentId(it.geniPhotoId) && !VideoSync.isVideoId(it.geniPhotoId)
         }
         var removed = 0
         for (link in gone) {
