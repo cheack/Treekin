@@ -260,6 +260,57 @@ class GeniClient(
         post("$documentId/delete", emptyList())
     }
 
+    /** All videos of a profile, newest first; pages are read until one is empty or adds nothing new. Any failure throws: the list is never partial. */
+    suspend fun videos(profileId: String): List<GeniVideo> {
+        val videos = linkedMapOf<String, GeniVideo>()
+        var page = 1
+        while (true) {
+            val batch = parseVideos(getJson("$profileId/videos?page=$page"))
+            if (batch.isEmpty()) break
+            var added = false
+            batch.forEach { if (videos.put(it.id, it) == null) added = true }
+            if (!added) break
+            page++
+        }
+        return videos.values.toList()
+    }
+
+    /** A single video by ID like "video-291"; null when Geni no longer has it (a deleted one answers an empty list). */
+    suspend fun video(videoId: String): GeniVideo? = parseVideo(getJson(videoId))
+
+    /**
+     * Uploads an MP4 as a video of the profile; Geni tags the profile itself. The answer already carries `sizes.video`
+     * (checked in the sandbox), but Geni may leave `sizes` out of other answers.
+     */
+    suspend fun addVideo(profileId: String, fileName: String, title: String?, description: String?, bytes: ByteArray,
+        beforeSend: (suspend () -> Boolean)? = null): GeniVideo {
+        val encoded = withContext(Dispatchers.IO) { bytes.toByteString().base64() }
+        val params = mutableListOf("file" to encoded, "file_name" to fileName, "content_type" to "video/mp4")
+        if (title != null) params.add("title" to title)
+        if (description != null) params.add("description" to description)
+        return parseVideo(post("$profileId/add-video", params, PHOTO_READ_TIMEOUT_SECONDS, beforeSend))
+            ?: throw GeniApiException(200, "video without id")
+    }
+
+    /** Changes title, description or date of a video ([params] from `GeniParams.photo`). The answer may lack the playback URL. */
+    suspend fun updateVideo(videoId: String, params: List<Pair<String, String>>): GeniVideo =
+        parseVideo(post("$videoId/update", params)) ?: throw GeniApiException(200, "video without id")
+
+    /** Tags [profileId] in the video, so it shows in that profile's videos. Repeating it is safe. */
+    suspend fun tagVideo(videoId: String, profileId: String) {
+        post("$videoId/tag/$profileId", emptyList())
+    }
+
+    /** Removes [profileId] from the video's tags; the video stays on Geni for its other tags. Repeating it is safe. */
+    suspend fun untagVideo(videoId: String, profileId: String) {
+        post("$videoId/untag/$profileId", emptyList())
+    }
+
+    /** Deletes a video from Geni. */
+    suspend fun deleteVideo(videoId: String) {
+        post("$videoId/delete", emptyList())
+    }
+
     /**
      * Deletes a profile on Geni, only under the account that confirmed it ([confirmedBy], a profile ID; null for none).
      * The account is read and the POST sent with one captured login, rechecked right before every dispatch:

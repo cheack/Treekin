@@ -170,11 +170,14 @@ What the user gets: documents (scans, certificates, text) and videos of a profil
 
 **Sandbox findings (2026-11-28, details in [the stage plan](2026-11-28-geni-documents.md)):** `profile-X/add-document` needs `file_name` and `content_type`, takes PDF, JPEG, PNG, GIF, TIFF and `text/plain`, tags the profile itself and was accepted up to 5 MB (8 MB was cut off). The original of a PDF or image is a complete, token-free signed URL; **a text document's text is not readable through the API** (no shared note is made, text upload is not offered). `labels` only appends and `source_url` is never returned, so only title, description and date are editable. `video/add` and `profile-X/add-video` work and give a playable `.mp4` in `sizes.video`.
 
+**Video findings (2026-11-28, [the video plan](2026-11-28-geni-videos.md)):** uploads of 2.4 MB worked, 4 MB and larger timed out (the app caps at 2.5 MB); the downloaded `.mp4` is a transcoded copy served as `application/octet-stream`; `video/update` sets and clears title, description and date; `tag`, `untag` and `delete` behave like documents; the update answer may lack `sizes`.
+
 **Status of stage 7:**
 
 - [x] Sandbox checks: documents (add, read, update, tag, untag, delete, limits, text) and a video probe
 - [x] PR 1 ([#44](https://github.com/cheack/Treekin/pull/44)): documents: list, download on demand, open, upload (queued, offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
-- [ ] PR 2: videos, probed 2026-11-28: `profile-X/add-video` takes the same base64 form and tags the profile, `sizes.video` is a playable mp4 (`add-video`, tag, untag, delete, play the downloaded `.mp4`)
+- [x] Sandbox checks for videos (list, update, tag, untag, delete, size) in [the stage plan](2026-11-28-geni-videos.md)
+- [x] PR 2 (videos): list, download on demand, play, upload (MP4 up to 2.5 MB, queued offline, restart-safe), edit details, tag, untag, remove from device, delete on Geni (managed only)
 
 ### 8. Merging duplicates, following, projects
 

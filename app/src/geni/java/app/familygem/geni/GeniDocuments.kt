@@ -335,7 +335,7 @@ object GeniDocuments {
         val docId = GeniMapper.getTag(media, DocumentSync.DOCUMENT_TAG) ?: return
         val geniId = GeniMapper.getGeniId(person) ?: return
         menu.add(0, MENU_ID, 0, R.string.geni_document_edit).setOnMenuItemClickListener {
-            GeniPhotoEditor.show(context, treeId, person, media, docId, onDone, document = true)
+            GeniPhotoEditor.show(context, treeId, person, media, docId, onDone, kind = app.familygem.geni.sync.JobKind.UPDATE_DOCUMENT)
             true
         }
         menu.add(0, MENU_ID + 1, 0, R.string.geni_document_tag).setOnMenuItemClickListener {

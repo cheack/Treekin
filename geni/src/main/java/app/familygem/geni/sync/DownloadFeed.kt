@@ -27,7 +27,11 @@ enum class DownloadKind {
     /** One document file. */
     DOCUMENT,
     /** The documents of a profile, listed from Geni. */
-    DOCUMENT_LIST
+    DOCUMENT_LIST,
+    /** One video file. */
+    VIDEO,
+    /** The videos of a profile, listed from Geni. */
+    VIDEO_LIST
 }
 
 /** Work done inside a running download, shown with it instead of as a task of its own. */

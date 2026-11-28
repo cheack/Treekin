@@ -283,7 +283,7 @@ class GeniLoginActivity : AppCompatActivity() {
                 .setMessage(text)
                 .setPositiveButton(R.string.geni_retry_all) { _, _ ->
                     val ids = failed.map { it.id }.toSet() // Only the jobs shown here, also after confirmation
-                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER || it.kind == JobKind.ADD_PHOTO || it.kind == JobKind.ADD_DOCUMENT }) confirmRetryAdds(ids) else retryAll(ids)
+                    if (failed.any { it.kind == JobKind.ADD_CHILD || it.kind == JobKind.ADD_PARTNER || it.kind == JobKind.ADD_PHOTO || it.kind == JobKind.ADD_DOCUMENT || it.kind == JobKind.ADD_VIDEO }) confirmRetryAdds(ids) else retryAll(ids)
                 }
                 .setNegativeButton(R.string.geni_dismiss_all) { _, _ -> queueAction { dismissFailed(failed.map { it.id }.toSet()) } }
                 .setNeutralButton(R.string.geni_close, null)

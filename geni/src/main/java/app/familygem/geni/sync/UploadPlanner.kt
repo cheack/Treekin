@@ -185,7 +185,9 @@ object UploadPlanner {
             if (job.kind == JobKind.DELETE_PROFILE || job.kind == JobKind.DELETE_PHOTO || job.kind == JobKind.UPDATE_PHOTO ||
                 job.kind == JobKind.TAG_PHOTO || job.kind == JobKind.UNTAG_PHOTO || job.kind == JobKind.SET_MAIN_PHOTO ||
                 job.kind == JobKind.ADD_DOCUMENT || job.kind == JobKind.DELETE_DOCUMENT || job.kind == JobKind.UPDATE_DOCUMENT ||
-                job.kind == JobKind.TAG_DOCUMENT || job.kind == JobKind.UNTAG_DOCUMENT) continue // The record is gone on purpose, or the job was queued by the user
+                job.kind == JobKind.TAG_DOCUMENT || job.kind == JobKind.UNTAG_DOCUMENT ||
+                job.kind == JobKind.ADD_VIDEO || job.kind == JobKind.DELETE_VIDEO || job.kind == JobKind.UPDATE_VIDEO ||
+                job.kind == JobKind.TAG_VIDEO || job.kind == JobKind.UNTAG_VIDEO) continue // The record is gone on purpose, or the job was queued by the user
             val gone = when {
                 job.key.startsWith("add:") -> job.key.removePrefix("add:") !in planned
                 // With the setting off only the waiting ones go; a failed or dismissed one stays, so it is not planned and sent again later

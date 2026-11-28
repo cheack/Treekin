@@ -10,6 +10,8 @@ import app.familygem.geni.api.GeniAuthRequiredException
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.DocumentTypes
 import app.familygem.geni.api.GeniDocument
+import app.familygem.geni.api.GeniVideo
+import app.familygem.geni.api.VideoTypes
 import app.familygem.geni.api.GeniPhoto
 import app.familygem.geni.api.geniId
 import app.familygem.geni.api.GeniProfile
@@ -72,7 +74,8 @@ open class Uploader(
     /** The bytes to send for a photo file (a place to shrink big photos); the file as it is by default. */
     private val prepare: suspend (File) -> ByteArray = { it.readBytes() },
     private val photos: PhotoSync = PhotoSync(store, host),
-    private val documents: DocumentSync = DocumentSync(store, host, photos.guard)
+    private val documents: DocumentSync = DocumentSync(store, host, photos.guard),
+    private val videos: VideoSync = VideoSync(store, host, photos.guard)
 ) {
 
     /** Told about the tree after every edit the uploader makes, so plans never use a tree saved before it. */
@@ -94,6 +97,11 @@ open class Uploader(
             JobKind.UPDATE_DOCUMENT -> updatePhoto(job)
             JobKind.TAG_DOCUMENT -> tagDocument(job)
             JobKind.UNTAG_DOCUMENT -> untagDocument(job)
+            JobKind.ADD_VIDEO -> addVideo(job)
+            JobKind.DELETE_VIDEO -> deleteVideo(job)
+            JobKind.UPDATE_VIDEO -> updatePhoto(job)
+            JobKind.TAG_VIDEO -> tagVideo(job)
+            JobKind.UNTAG_VIDEO -> untagVideo(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -183,15 +191,20 @@ open class Uploader(
      */
     private suspend fun updatePhoto(job: UploadJob): Outcome {
         val photoId = job.geniId ?: return Outcome.Failed("no Geni photo ID")
-        val isDocument = job.kind == JobKind.UPDATE_DOCUMENT // A document has the same three details; its ID stands in [photoId]
+        val isDocument = job.kind == JobKind.UPDATE_DOCUMENT // A document or video has the same three details; its ID stands in [photoId]
+        val isVideo = job.kind == JobKind.UPDATE_VIDEO
         val base = PhotoDetails.fromParams(job.params, UploadJob.BASE_PREFIX)
         val want = PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX)
         val fields = base.differences(want)
         if (fields.isEmpty()) return Outcome.Done
         var latestPhoto: GeniPhoto? = null
         var latestDocument: GeniDocument? = null
+        var latestVideo: GeniVideo? = null
         val now = try {
-            if (isDocument) {
+            if (isVideo) {
+                latestVideo = client.video(photoId) ?: return Outcome.Failed("the video is gone from Geni; dismiss this change")
+                VideoSync.details(latestVideo)
+            } else if (isDocument) {
                 latestDocument = client.document(photoId) ?: return Outcome.Failed("the document is gone from Geni; dismiss this change")
                 DocumentSync.details(latestDocument)
             } else {
@@ -199,7 +212,7 @@ open class Uploader(
                 PhotoDetails.of(latestPhoto)
             }
         } catch (e: GeniApiException) {
-            if (e.code == 404) return Outcome.Failed("the ${if (isDocument) "document" else "photo"} is gone from Geni; dismiss this change") else throw e
+            if (e.code == 404) return Outcome.Failed("the ${if (isVideo) "video" else if (isDocument) "document" else "photo"} is gone from Geni; dismiss this change") else throw e
         }
         val send = fields.filter { now[it] != want[it] }
         if (send.isNotEmpty()) {
@@ -216,16 +229,18 @@ open class Uploader(
             val current = store.jobs(job.treeId).firstOrNull { it.id == job.id }
             if (current == null || current.version != job.version) return Outcome.Superseded
             val params = GeniParams.photo(now, now.let { details -> send.fold(details) { acc, field -> acc.with(field, want) } })
-            if (isDocument) latestDocument = client.updateDocument(photoId, params) else latestPhoto = client.updatePhoto(photoId, params)
+            if (isVideo) latestVideo = client.updateVideo(photoId, params)
+            else if (isDocument) latestDocument = client.updateDocument(photoId, params) else latestPhoto = client.updatePhoto(photoId, params)
         }
         // Geni took the change: from now a failure of the local follow-up must not post it again
         bestEffort {
             val newer = store.jobs(job.treeId).firstOrNull { it.id == job.id }?.takeIf { it.version != job.version }
             if (newer == null) {
-                if (isDocument) documents.applyConfirmed(job.treeId, latestDocument!!, fields) else photos.applyConfirmed(job.treeId, latestPhoto!!, fields)
+                if (isVideo) videos.applyConfirmed(job.treeId, latestVideo!!, fields)
+                else if (isDocument) documents.applyConfirmed(job.treeId, latestDocument!!, fields) else photos.applyConfirmed(job.treeId, latestPhoto!!, fields)
             } else {
                 // Edited again while this was sent: the newer draft stays on screen and starts from what Geni has now
-                val confirmed = if (isDocument) DocumentSync.details(latestDocument!!) else PhotoDetails.of(latestPhoto!!)
+                val confirmed = if (isVideo) VideoSync.details(latestVideo!!) else if (isDocument) DocumentSync.details(latestDocument!!) else PhotoDetails.of(latestPhoto!!)
                 val start = fields.fold(PhotoDetails.fromParams(newer.params, UploadJob.BASE_PREFIX)) { details, field -> details.with(field, confirmed) }
                 store.saveJob(newer.copy(params = start.toParams(UploadJob.BASE_PREFIX) + PhotoDetails.fromParams(newer.params, UploadJob.WANT_PREFIX).toParams(UploadJob.WANT_PREFIX)))
             }
@@ -591,6 +606,135 @@ open class Uploader(
         bestEffort {
             val personId = job.personGedcomId ?: return@bestEffort
             if (documents.removeLocal(job.treeId, profileId, personId, documentId, detachIfEdited = true)) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** Message when the answer to a video upload was lost: Geni may or may not have stored it. */
+    private val checkVideo = "check on Geni whether the video was added, then retry or dismiss"
+
+    /**
+     * Sends the video file of a person to its Geni profile (Geni tags the profile itself), then links it and tags the media in the tree.
+     * Like a photo or an add, once the request may have reached Geni it is never sent again by itself.
+     */
+    private suspend fun addVideo(job: UploadJob): Outcome {
+        val treeId = job.treeId
+        val profileId = job.geniId ?: return Outcome.Failed("no Geni ID")
+        val personId = job.personGedcomId ?: return Outcome.Failed("no person")
+        val fileName = job.params.firstOrNull { it.first == "file" }?.second
+        if (fileName.isNullOrEmpty() || fileName == "." || fileName == ".." || '/' in fileName || '\\' in fileName)
+            return Outcome.Failed("the video file name is not a plain file name")
+        if (VideoTypes.contentTypeFor(fileName) == null) return Outcome.Failed("Geni video upload takes only MP4 files")
+        // Already uploaded (a finished job run again): never send a second copy
+        if (store.photoLinks(treeId, profileId).any { it.fileName == fileName && VideoSync.isVideoId(it.geniPhotoId) }) return Outcome.Done
+        if (!documentOwnerMatches(treeId, profileId, personId)) return Outcome.Deferred
+        // The user may have removed the media meanwhile: the file is no longer wanted on Geni
+        if (!stillQueuedVideo(treeId, personId, fileName)) return Outcome.Failed("the video was removed from this device before it was sent; dismiss this change")
+        val file = File(host.mediaDir(treeId), fileName)
+        if (!file.isFile) return Outcome.Failed("the video file is missing: $fileName")
+        if (file.length() > VideoTypes.MAX_UPLOAD_BYTES) return Outcome.Failed("the video is larger than ${VideoTypes.MAX_UPLOAD_BYTES / 1_000_000.0} MB, which Geni does not take; dismiss this change")
+        val title = job.params.firstOrNull { it.first == "title" }?.second
+        val description = job.params.firstOrNull { it.first == "description" }?.second
+        val bytes = try {
+            withContext(Dispatchers.IO) { file.readBytes() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (e is Error && e !is OutOfMemoryError) throw e
+            return Outcome.Failed("cannot read the video: ${e.message ?: e.javaClass.simpleName}")
+        }
+        val video: GeniVideo = try {
+            client.addVideo(profileId, fileName, title, description, bytes) { documentOwnerMatches(treeId, profileId, personId) && stillQueuedVideo(treeId, personId, fileName) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GeniSendRejectedException) {
+            return Outcome.Deferred
+        } catch (e: GeniAuthRequiredException) {
+            return Outcome.NeedsLogin
+        } catch (e: GeniApiException) {
+            if (e.code == 429) return Outcome.Retry("HTTP 429")
+            return Outcome.Failed("${geniMessage(e.message)}; $checkVideo")
+        } catch (e: UnknownHostException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: ConnectException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: NoRouteToHostException) {
+            return Outcome.Retry("offline: ${e.message}")
+        } catch (e: Exception) {
+            return Outcome.Failed("connection lost while sending the video; $checkVideo")
+        }
+        // The link first: once stored, this file is never sent again; the tag in the tree follows
+        try {
+            store.savePhotoLink(PhotoLink(treeId, profileId, video.id, null, false, VideoSync.marker(video), fileName, PhotoState.DOWNLOADED))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return Outcome.Failed("Geni stored ${video.id} but the app could not save the link (${e.message}); $checkVideo")
+        }
+        bestEffort {
+            val details = VideoSync.details(video)
+            host.edit(treeId) { gedcom ->
+                val media = gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+                    .firstOrNull { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null }
+                if (media != null) {
+                    GeniMapper.setTag(media, VideoSync.VIDEO_TAG, video.id)
+                    GeniMapper.setTag(media, VideoSync.QUEUED_TAG, null)
+                    PhotoDetails.apply(media, details)
+                }
+                onTreeEdited(treeId, LocalTree.capture(gedcom))
+            }
+            host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** True while the person still has the media of the queued video file: the user may remove it before the send. */
+    private suspend fun stillQueuedVideo(treeId: Int, personId: String, fileName: String): Boolean = host.edit(treeId) { gedcom ->
+        gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+            .any { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null }
+    }
+
+    /** Deletes the video on Geni; already gone there counts as done. A repeat is safe. */
+    private suspend fun deleteVideo(job: UploadJob): Outcome {
+        val videoId = job.geniId ?: return Outcome.Failed("no Geni video ID")
+        try {
+            client.deleteVideo(videoId)
+        } catch (e: GeniApiException) {
+            if (e.code != 404) throw e
+        }
+        // Geni has deleted it: from now no listing or download may attach it again
+        videos.guard.confirm(job.treeId, videoId)
+        bestEffort {
+            if (videos.deletedOnGeni(job.treeId, videoId) > 0) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** Tags the profile in the video, then downloads it for that person (never a second time for a file already there). */
+    private suspend fun tagVideo(job: UploadJob): Outcome {
+        val videoId = job.geniId ?: return Outcome.Failed("no Geni video ID")
+        val profileId = job.params.firstOrNull { it.first == "profile" }?.second ?: return Outcome.Failed("no Geni profile ID")
+        client.tagVideo(videoId, profileId)
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            val video = client.video(videoId) ?: return@bestEffort
+            if (videos.attach(job.treeId, profileId, personId, video)) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** Removes the profile from the video's tags; a video or tag already gone counts as done. The video stays on Geni for its other tags. */
+    private suspend fun untagVideo(job: UploadJob): Outcome {
+        val videoId = job.geniId ?: return Outcome.Failed("no Geni video ID")
+        val profileId = job.params.firstOrNull { it.first == "profile" }?.second ?: return Outcome.Failed("no Geni profile ID")
+        try {
+            client.untagVideo(videoId, profileId)
+        } catch (e: GeniApiException) {
+            if (e.code != 404) throw e
+        }
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            if (videos.removeLocal(job.treeId, profileId, personId, videoId, detachIfEdited = true)) host.refreshScreens()
         }
         return Outcome.Done
     }
