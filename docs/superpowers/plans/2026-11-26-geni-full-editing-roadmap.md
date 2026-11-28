@@ -6,14 +6,14 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #36)
+## Where we are (after PR #37)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
 | Names | first, middle, last, maiden, suffix, nicknames, display name, title | localized `names` per language |
-| Sex | male, female | unknown / clear not verified |
+| Sex | male, female, unknown (clears the sex; PR #37) | — |
 | Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location in parts (`place_name`, `city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`; each part alone; PR #36) | event `description` (Geni drops it) |
-| Other profile fields | is_alive, cause of death, occupation, about me | `public`, `locked`, `merge_note` |
+| Other profile fields | is_alive, cause of death, occupation, about me, `public` (PR #37) | `locked` and `merge_note` (read-only, never returned for a basic account), curator controls |
 | Contact data | — | `email` (writable only when a relative is created), `phone_numbers` and `current_residence` (read-only) |
 | Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | `adopted_children` / `foster_children` read |
 | Relatives | add parent/partner/child/sibling | `relationship_modifier` (adopt / foster) when adding a child or sibling; merge duplicates |
@@ -52,7 +52,7 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - [x] Verified structured fields shown in the event screen: place name, city, county, state, country, street lines and coordinates for birth, baptism, death, burial, marriage and divorce; editable, each part saved and cleared alone (PR #36)
 - [x] Event descriptions: not synced, Geni drops them (decided from the sandbox)
 
-### 2. Privacy, sex and the remaining profile flags (privacy and unknown sex done; curator fields hidden)
+### 2. Privacy, sex and the remaining profile flags (done: PR #37; curator fields wait for a curator account)
 
 What the user gets: a profile can be made public or private, sex can be unknown, and curator flags are visible.
 
@@ -69,11 +69,12 @@ What the user gets: a profile can be made public or private, sex can be unknown,
 
 **Status of stage 2:**
 
-- [x] Sandbox checks: gender unknown/empty/restore, `public` on update, add-child (profile and union), add-partner, living and deceased, `locked` / `merge_note` / curator role signal
+- [x] Sandbox checks (PR #37): gender unknown/empty/restore, `public` on update, add-child (profile and union), add-partner, living and deceased, `locked` / `merge_note` / curator role signal
 - [x] `public` read, `_GENI_PUBLIC` extension, own conflict group `PUBLIC`, written only when set and changed (never `true` for a living person, after `is_alive` in the same save); `locked` read into `_GENI_LOCKED`, never written; `merge_note` parsed in the model only
 - [x] Unknown sex: Geni's missing gender is `SEX U`; `gender=unknown` is sent only to clear a sex Geni has; a legacy `SEX U` or a missing SEX fact never writes; Modify and the Facts chooser offer Unknown
 - [x] Modify: Privacy switch (off and explained for a living person, "not known yet" for a linked person whose stored version has no privacy), untouched control keeps Geni's creation default, explicit Private sends `public=false`
-- [ ] Curator fields: need a verified account role signal (a curator account); hidden until then
+- [x] Unit tests and 8 new Espresso tests (privacy on, explicit Private, living, Dead off and on, ordinary tree, unknown sex, legacy placeholder); CodeRabbit rounds fixed the switch across recreation: Android does not restore the Privacy switch, the form is rebuilt from the person
+- [ ] Curator fields: need a verified account role signal (a curator account); hidden until then. To finish: sign in with a curator account on the sandbox (or Geni itself), check whether `curator`, `locked` and `merge_note` are returned and writable, then show and edit them only for that role
 
 ### 3. Names in other languages
 
