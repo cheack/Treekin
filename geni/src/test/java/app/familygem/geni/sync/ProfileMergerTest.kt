@@ -35,6 +35,7 @@ class ProfileMergerTest {
 
     /** What the batch read answers for profile-9: merged into profile-7 by default. */
     private var absorbedAnswer = """{"id":"profile-9","first_name":"Dup","deleted":true,"merged_into":"https://api.sandbox.geni.com/profile-7"}"""
+    private var survivorAnswer = """{"id":"profile-7","first_name":"Kept","is_alive":true}"""
     private var mergePostCode = 200
     private var familyCode = 200
     private val posts = mutableListOf<String>()
@@ -52,7 +53,8 @@ class ProfileMergerTest {
                     path == "/api/profile-9/immediate-family" -> json("""{"focus":{"id":"profile-9"},"nodes":{"profile-9":{"id":"profile-9"}}}""", familyCode)
                     path == "/api/profile-7/immediate-family" -> json("""{"focus":{"id":"profile-7"},"nodes":{"profile-7":{"id":"profile-7"}}}""", familyCode)
                     path == "/api/profile" && ids == "profile-9" -> json("""{"results":[$absorbedAnswer]}""".let { if (absorbedAnswer.isEmpty()) """{"results":[]}""" else it })
-                    path == "/api/profile" && ids == "profile-7" -> json("""{"id":"profile-7","first_name":"Kept","is_alive":true}""")
+                    path == "/api/profile" && ids == "profile-7" -> json(survivorAnswer)
+                    path == "/api/profile" && ids == "profile-9,profile-7" -> json("""{"results":[${listOf(absorbedAnswer, survivorAnswer).filter { it.isNotEmpty() }.joinToString(",")}]}""")
                     else -> json("""{"results":[]}""")
                 }
             }
@@ -121,6 +123,24 @@ class ProfileMergerTest {
         assertEquals(MergeResult.NotCompleted, merger().merge(treeId, "profile-7", "profile-9", "profile-1"))
         assertEquals(2, host.trees.getValue(treeId).people.size)
         assertNotNull(store.link(treeId, "profile-9"))
+    }
+
+    @Test
+    fun requestListedBySurvivorIsRequestedAndNothingChanges() = runTest {
+        absorbedAnswer = """{"id":"profile-9","first_name":"Dup","deleted":false,"merge_pending":true}"""
+        survivorAnswer = """{"id":"profile-7","first_name":"Kept","requested_merges":["https://api.sandbox.geni.com/profile-9"],"merge_pending":true}"""
+        val treeId = tree()
+        assertEquals(MergeResult.Requested, merger().merge(treeId, "profile-7", "profile-9", "profile-1"))
+        assertEquals(1, posts.size)
+        assertEquals(2, host.trees.getValue(treeId).people.size)
+    }
+
+    @Test
+    fun requestForAnotherProfileIsNotThisPair() = runTest {
+        absorbedAnswer = """{"id":"profile-9","first_name":"Dup","deleted":false}"""
+        survivorAnswer = """{"id":"profile-7","first_name":"Kept","requested_merges":["https://api.sandbox.geni.com/profile-8"]}"""
+        val treeId = tree()
+        assertEquals(MergeResult.NotCompleted, merger().merge(treeId, "profile-7", "profile-9", "profile-1"))
     }
 
     @Test

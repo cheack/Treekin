@@ -50,7 +50,7 @@ class GeniApiException(val code: Int, message: String) : Exception(message)
 /** Profile fields requested for mapping. */
 const val PROFILE_FIELDS = "id,guid,first_name,middle_name,last_name,maiden_name,suffix,display_name,title,name,gender,is_alive," +
         "occupation,about_me,cause_of_death,nicknames,birth,death,baptism,burial,updated_at,created_at,deleted,merged_into,mugshot_urls," +
-        "public,locked,merge_note,names," +
+        "public,locked,merge_note,names,requested_merges," +
         // Read-only details for the card (ProfileDetails); `events` must be requested, `curator` is only returned as `is_curator` on the sandbox
         "email,phone_numbers,current_residence,events,managers,claimed,curator,is_curator,big_tree,merge_pending,relationship,profile_url"
 

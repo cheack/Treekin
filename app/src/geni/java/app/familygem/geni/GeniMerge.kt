@@ -91,6 +91,7 @@ object GeniMerge {
         val message = when (result) {
             MergeResult.Merged -> R.string.geni_merge_done
             MergeResult.RefreshNeeded -> R.string.geni_merge_refresh_needed
+            MergeResult.Requested -> R.string.geni_merge_requested
             MergeResult.NotCompleted -> R.string.geni_merge_not_completed
             MergeResult.Unknown -> R.string.geni_merge_unknown
             is MergeResult.Rejected -> R.string.geni_merge_rejected

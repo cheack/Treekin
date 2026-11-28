@@ -330,6 +330,7 @@
     <string name="geni_merge_busy">Это объединение уже выполняется</string>
     <string name="geni_merge_done">Объединено в Geni</string>
     <string name="geni_merge_refresh_needed">Объединено в Geni · нужно обновить. Дерево пока не обновлено.</string>
+    <string name="geni_merge_requested">Объединение запрошено. Geni подал запрос; он выполнится после одобрения куратором. До тех пор оба профиля остаются здесь.</string>
     <string name="geni_merge_not_completed">Geni не объединил профили. Возможно, он подал запрос на объединение: проверьте в Geni. Оба профиля остаются здесь.</string>
     <string name="geni_merge_unknown">Geni не ответил, неизвестно, объединены ли профили. Здесь ничего не изменилось.</string>
     <string name="geni_merge_rejected">Geni отклонил объединение. Возможно, вы не можете редактировать оба профиля.</string>

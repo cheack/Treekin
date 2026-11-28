@@ -17,7 +17,10 @@ sealed interface MergeResult {
     /** Merged on Geni, but the tree could not be refreshed yet: [ProfileMerger.reconcile] retries it with reads only. */
     data object RefreshNeeded : MergeResult
 
-    /** Geni answered, yet the absorbed profile is still there: it may have filed a request or refused. Both records stay. */
+    /** Geni filed a merge request for this pair (the survivor lists the absorbed profile in `requested_merges`). Both records stay. */
+    data object Requested : MergeResult
+
+    /** Geni answered, yet the absorbed profile is still there and no request for the pair shows: both records stay. */
     data object NotCompleted : MergeResult
 
     /** No answer, and the profiles could not be read to tell: nothing is known, so nothing changed here. */
@@ -69,17 +72,23 @@ class ProfileMerger(private val client: GeniClient, private val store: SyncStore
 
     /** Reads both profiles; if the absorbed one is merged away, updates the tree. Reads only, so it is safe to repeat. */
     suspend fun reconcile(treeId: Int, survivorId: String, absorbedId: String): MergeResult {
-        val absorbed = try {
-            client.profiles(listOf(absorbedId))[absorbedId]?.first
+        val read = try {
+            client.profiles(listOf(absorbedId, survivorId))
         } catch (e: CancellationException) {
             throw e
         } catch (e: GeniAuthRequiredException) {
             return MergeResult.NeedsLogin
         } catch (e: Exception) {
             return MergeResult.Unknown
-        } ?: return MergeResult.Unknown
+        }
+        val absorbed = read[absorbedId]?.first ?: return MergeResult.Unknown
+        // Still alive: a request for this very pair, or nothing known
+        if (absorbed.deleted != true) {
+            val requested = read[survivorId]?.first?.requestedMerges.orEmpty().any { geniId(it) == absorbedId }
+            return if (requested) MergeResult.Requested else MergeResult.NotCompleted
+        }
         // Deleted for another reason, or merged into another profile, is not this merge
-        if (absorbed.deleted != true || absorbed.mergedInto?.let { geniId(it) } != survivorId) return MergeResult.NotCompleted
+        if (absorbed.mergedInto?.let { geniId(it) } != survivorId) return MergeResult.NotCompleted
         // The absorbed person leaves the tree (kept when it holds local work), the survivor is refreshed
         val gone = loader.load(treeId, absorbedId)
         if (gone !is LoadResult.Gone) return if (gone == LoadResult.NeedsLogin) MergeResult.NeedsLogin else MergeResult.RefreshNeeded
