@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
  * `gradle :app:installDebug :app:installDebugAndroidTest`, then
  * `adb shell am instrument -w -e class app.familygem.geni.GeniSandboxTool -e geniGet "profile-1"
  *  net.cheack.treekin.test/androidx.test.runner.AndroidJUnitRunner`;
- * `-e geniPost "profile-1/update" -e geniParams "occupation=Pilot"` posts form parameters (pairs joined by `&`).
+ * `-e geniPost "profile-1/update" -e geniParams "occupation=Pilot"` posts form parameters (pairs joined by `&`, `\n` in a value is a line break).
  */
 @RunWith(AndroidJUnit4::class)
 class GeniSandboxTool {
@@ -32,7 +32,7 @@ class GeniSandboxTool {
         val client = Geni.client(InstrumentationRegistry.getInstrumentation().targetContext)
         val response = if (get != null) client.getJson(get) else {
             val params = args.getString("geniParams").orEmpty().split('&').filter { it.isNotEmpty() }
-                .map { it.substringBefore('=') to it.substringAfter('=', "") }
+                .map { it.substringBefore('=') to it.substringAfter('=', "").replace("\\n", "\n") }
             client.post(post!!, params)
         }
         response.chunked(3000).forEach { Log.i("GeniTool", it) }

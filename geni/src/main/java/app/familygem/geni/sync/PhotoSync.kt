@@ -6,6 +6,8 @@ import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.PhotoDownloader
 import app.familygem.geni.api.mugshotToPhoto
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.PhotoDetails
+import app.familygem.geni.map.PhotoField
 import org.folg.gedcom.model.Media
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -105,6 +107,7 @@ class PhotoSync(
             val target = File(host.mediaDir(treeId), fileName)
             if (!staged.file.renameTo(target)) staged.file.copyTo(target, overwrite = true)
         }
+        val details = detailsToApply(treeId, photo)
         // Read under the lock, so a main photo changed since the download is demoted, not a stale one
         val previous = if (asMain) store.photoLinks(treeId, profileId).firstOrNull { it.isMain } else null
         val attached = host.edit(treeId) { gedcom ->
@@ -123,6 +126,7 @@ class PhotoSync(
                 person.addMedia(this)
             }
             if (asMain) media.primary = "Y"
+            if (details != null) PhotoDetails.apply(media, details)
             true
         }
         if (!attached) return@withTree false
@@ -131,6 +135,53 @@ class PhotoSync(
         val stillMain = store.photoLinks(treeId, profileId).any { it.geniPhotoId == photo.id && it.isMain }
         store.savePhotoLink(PhotoLink(treeId, profileId, photo.id, null, asMain || stillMain, marker(photo), fileName, PhotoState.DOWNLOADED))
         true
+    }
+
+    /**
+     * Brings the title, description and date of the media of the listed [photos] in line with Geni, in every person of the tree
+     * that has the photo, so both profiles of a shared photo show the same. No download. A photo whose own edit is
+     * still waiting for Geni, a deleted one and one listed without details are left alone.
+     * @return how many photos changed in the tree
+     */
+    suspend fun refreshDetails(treeId: Int, photos: List<GeniPhoto>): Int {
+        var changed = 0
+        for (photo in photos) {
+            val details = detailsToApply(treeId, photo) ?: continue
+            if (applyToMedia(treeId, photo.id) { PhotoDetails.apply(it, details) }) changed++
+        }
+        return changed
+    }
+
+    /** Geni confirmed [photo] after an edit sent from here: its details replace the local ones, titles included. */
+    suspend fun applyConfirmed(treeId: Int, photo: GeniPhoto): Boolean {
+        if (!photo.detailsKnown) return false
+        val details = PhotoDetails.of(photo)
+        return applyToMedia(treeId, photo.id) { PhotoDetails.apply(it, details, force = true) }
+    }
+
+    /** The user's edit of [fields], shown at once on every media of the photo in the tree (the job to Geni is queued apart). */
+    suspend fun applyOwnEdit(treeId: Int, geniPhotoId: String, details: PhotoDetails, fields: Collection<PhotoField>): Boolean =
+        applyToMedia(treeId, geniPhotoId) { PhotoDetails.applyOwn(it, details, fields) }
+
+    /** Runs [change] on every inline media of a person that carries [geniPhotoId], under the tree's lock; true if one changed. */
+    private suspend fun applyToMedia(treeId: Int, geniPhotoId: String, change: (Media) -> Boolean): Boolean = guard.withTree(treeId) {
+        if (guard.isDeleted(treeId, geniPhotoId)) return@withTree false
+        host.edit(treeId) { gedcom ->
+            var any = false
+            for (person in gedcom.people.orEmpty()) for (media in person.media.orEmpty()) {
+                if (GeniMapper.getTag(media, PHOTO_TAG) == geniPhotoId && change(media)) any = true
+            }
+            any
+        }
+    }
+
+    /** The details to store for [photo], or null: it has none, Geni deleted it, or the user's edit of it is still queued. */
+    private suspend fun detailsToApply(treeId: Int, photo: GeniPhoto): PhotoDetails? {
+        if (!photo.detailsKnown || guard.isDeleted(treeId, photo.id)) return null
+        val pending = store.jobs(treeId).any {
+            it.kind == JobKind.UPDATE_PHOTO && it.geniId == photo.id && it.state != JobState.DISMISSED
+        }
+        return if (pending) null else PhotoDetails.of(photo)
     }
 
     private suspend fun remove(treeId: Int, profile: GeniProfile, personGedcomId: String, link: PhotoLink): Boolean {
@@ -230,9 +281,9 @@ class PhotoSync(
         return changed
     }
 
-    /** A media the user added a title or a note to (a GEDCOM media holds no sources of its own). */
+    /** A media the user gave a title of their own (not the one synced from Geni) or a note (a GEDCOM media holds no sources of its own). */
     private fun isEdited(media: Media) =
-        !media.title.isNullOrBlank() || media.notes.orEmpty().isNotEmpty() || media.noteRefs.orEmpty().isNotEmpty()
+        PhotoDetails.hasOwnTitle(media) || media.notes.orEmpty().isNotEmpty() || media.noteRefs.orEmpty().isNotEmpty()
 
     /**
      * Two profiles can share one Geni photo and so one file: it goes only when no photo link uses it any more

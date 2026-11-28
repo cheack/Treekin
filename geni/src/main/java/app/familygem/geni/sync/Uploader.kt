@@ -13,6 +13,8 @@ import app.familygem.geni.api.geniId
 import app.familygem.geni.api.GeniProfile
 import app.familygem.geni.api.GeniUnion
 import app.familygem.geni.map.GeniMapper
+import app.familygem.geni.map.GeniParams
+import app.familygem.geni.map.PhotoDetails
 import app.familygem.geni.map.ProfileFields
 import app.familygem.geni.map.SnapshotOverlay
 import app.familygem.geni.map.UnionFields
@@ -78,6 +80,7 @@ open class Uploader(
             JobKind.DELETE_PROFILE -> delete(job)
             JobKind.ADD_PHOTO -> addPhoto(job)
             JobKind.DELETE_PHOTO -> deletePhoto(job)
+            JobKind.UPDATE_PHOTO -> updatePhoto(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -155,6 +158,51 @@ open class Uploader(
         photos.guard.confirm(job.treeId, photoId)
         // The local follow-up must never make the job post the delete again
         bestEffort { afterPhotoDeleted(job, photoId) }
+        return Outcome.Done
+    }
+
+    /**
+     * Sends the edited title, description and date of a photo. Geni's photo is read first, which also answers a lost
+     * response: when it already has the wanted values nothing is sent again. A field Geni changed meanwhile to something
+     * else than the wanted value is not overwritten: the job fails with the draft kept, and its starting point moves to
+     * what Geni has now, so a retry from the backlog sends the draft over it. After the write, the values Geni confirms
+     * replace the local ones of every person that has the photo.
+     */
+    private suspend fun updatePhoto(job: UploadJob): Outcome {
+        val photoId = job.geniId ?: return Outcome.Failed("no Geni photo ID")
+        val base = PhotoDetails.fromParams(job.params, UploadJob.BASE_PREFIX)
+        val want = PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX)
+        val fields = base.differences(want)
+        if (fields.isEmpty()) return Outcome.Done
+        val remote = try {
+            client.photo(photoId)
+        } catch (e: GeniApiException) {
+            if (e.code == 404) return Outcome.Failed("the photo is gone from Geni; dismiss this change") else throw e
+        }
+        var latest = remote
+        val now = PhotoDetails.of(remote)
+        val send = fields.filter { now[it] != want[it] }
+        if (send.isNotEmpty()) {
+            val moved = send.filter { now[it] != base[it] }
+            if (moved.isNotEmpty()) {
+                // Keep the draft (same version, so the queue records the failure); a retry takes Geni's current values as its starting point and overwrites them
+                val stored = store.jobs(job.treeId).firstOrNull { it.id == job.id }
+                if (stored != null && stored.version == job.version) {
+                    val rebased = moved.fold(base) { details, field -> details.with(field, now) }
+                    store.saveJob(stored.copy(params = rebased.toParams(UploadJob.BASE_PREFIX) + want.toParams(UploadJob.WANT_PREFIX)))
+                }
+                return Outcome.Failed("changed on Geni meanwhile: ${moved.joinToString(", ") { it.name.lowercase() }}; retry replaces it with your text")
+            }
+            val current = store.jobs(job.treeId).firstOrNull { it.id == job.id }
+            if (current == null || current.version != job.version) return Outcome.Superseded
+            val params = GeniParams.photo(now, now.let { details -> send.fold(details) { acc, field -> acc.with(field, want) } })
+            latest = client.updatePhoto(photoId, params)
+        }
+        // Geni took the change: from now a failure of the local follow-up must not post it again
+        bestEffort {
+            photos.applyConfirmed(job.treeId, latest)
+            host.refreshScreens()
+        }
         return Outcome.Done
     }
 

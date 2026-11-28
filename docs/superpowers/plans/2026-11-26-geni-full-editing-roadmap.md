@@ -149,6 +149,16 @@ What the user gets: photo title, description and date are editable. People can b
 - Verify first: `add-mugshot` with `photo_id` (in 2026-11 it returned `null` without it), what `tags` returns, and whether `photo/update` accepts the same Date JSON as events.
 - The roadmap's "no call found to set an existing photo as main" is solved by this if the sandbox confirms it.
 
+**Sandbox findings (2026-11-28, details in [the stage plan](2026-11-28-geni-photo-details.md)):** `photo/update` takes `title`, `description` and `date[day|month|year|circa]`, empty clears, one field at a time keeps the others; date ranges are accepted but not stored (read back as the first date), so photo dates are single dates. `tag` / `untag` answer the tagged profiles; `add-mugshot` with `photo_id=photo-Y` sets the main photo (also tags the profile). There is no album route: album create and rename are not possible through the API.
+
+**Status of stage 6:**
+
+- [x] Sandbox checks: details, tag, untag, main photo, albums
+- [x] PR 1: read and edit title, description and date of a Geni photo (queued offline, conflict and rejection keep the draft, both profiles of a shared photo show the same, no re-download)
+- [ ] PR 2: tag and untag from the app
+- [ ] PR 2: set an existing photo as main on Geni
+- [ ] Album create and rename: no API route, stays on the site
+
 ### 7. Documents and videos
 
 What the user gets: documents (scans, certificates, text) and videos of a profile, added and tagged like on the site.

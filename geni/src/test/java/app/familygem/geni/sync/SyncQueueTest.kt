@@ -4,6 +4,8 @@ import app.familygem.geni.FakeTreeHost
 import app.familygem.geni.api.GeniClient
 import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.InMemoryTokenStore
+import app.familygem.geni.map.PhotoDetails
+import app.familygem.geni.map.PhotoField
 import app.familygem.geni.map.ProfileFields
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CompletableDeferred
@@ -904,5 +906,71 @@ class SyncQueueTest {
         queue.holds.release(session)
         assertNull(queue.waitReason(photo))
         assertNull(queue.waitReason(photo.copy(state = JobState.FAILED)))
+    }
+
+    private val oldDetails = PhotoDetails("Old", "Old text", "1950")
+
+    @Test
+    fun enqueueUpdatePhotoQueuesOneJobPerPhotoAndMergesLaterEdits() = runTest {
+        linkBoth()
+        assertTrue(queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "New"), listOf(PhotoField.TITLE)))
+        // A second edit, from the other profile of the same photo: one job, the first edit kept, the original starting point kept
+        val shown = oldDetails.copy(title = "New")
+        assertTrue(queue.enqueueUpdatePhoto(1, "photo-5", "I2", "Me", oldDetails, shown.copy(description = "More"), listOf(PhotoField.DESCRIPTION)))
+        val job = store.jobs(1).single()
+        assertEquals("updphoto:photo-5", job.key)
+        assertEquals(JobKind.UPDATE_PHOTO, job.kind)
+        assertEquals("photo-5", job.geniId)
+        assertEquals(1, job.version)
+        assertEquals(oldDetails, PhotoDetails.fromParams(job.params, UploadJob.BASE_PREFIX))
+        assertEquals(PhotoDetails("New", "More", "1950"), PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX))
+    }
+
+    @Test
+    fun enqueueUpdatePhotoWithoutAChangeQueuesNothingAndARevertDropsTheJob() = runTest {
+        linkBoth()
+        assertFalse(queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails, emptyList()))
+        assertTrue(store.jobs(1).isEmpty())
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "New"), listOf(PhotoField.TITLE))
+        assertTrue(queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails, listOf(PhotoField.TITLE)))
+        assertTrue(store.jobs(1).isEmpty())
+    }
+
+    @Test
+    fun aFailedPhotoEditIsAskedForAgainWithItsDraft() = runTest {
+        linkBoth()
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "New"), listOf(PhotoField.TITLE))
+        store.saveJob(store.jobs(1).single().copy(state = JobState.FAILED, error = "Access denied"))
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "Newer"), listOf(PhotoField.TITLE))
+        val job = store.jobs(1).single()
+        assertEquals(JobState.PENDING, job.state)
+        assertNull(job.error)
+        assertEquals("Newer", PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX).title)
+    }
+
+    @Test
+    fun aPhotoEditSurvivesARestartAndReplanningTheTree() = runTest {
+        linkBoth()
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "New"), listOf(PhotoField.TITLE))
+        // A new queue over the same store, as after a restart; saving the tree plans it again
+        val restarted = SyncQueue(store, uploader, { photosOn })
+        restarted.onSaved(1, tree())
+        restarted.replan(1)
+        assertEquals(listOf("updphoto:photo-5"), store.jobs(1).map { it.key })
+        restarted.runPending(1)
+        assertEquals(listOf("updphoto:photo-5"), uploader.ran.map { it.key })
+        assertTrue(store.jobs(1).isEmpty())
+    }
+
+    @Test
+    fun aPhotoEditWaitsAsFailedWhenGeniRejectsItAndOthersStillRun() = runTest {
+        linkBoth()
+        queue.enqueueUpdatePhoto(1, "photo-5", "I1", "Me", oldDetails, oldDetails.copy(title = "New"), listOf(PhotoField.TITLE))
+        uploader.answer = { job -> if (job.kind == JobKind.UPDATE_PHOTO) Outcome.Failed("Access denied") else Outcome.Done }
+        queue.runPending(1)
+        val job = store.jobs(1).single()
+        assertEquals(JobState.FAILED, job.state)
+        assertEquals("Access denied", job.error)
+        assertEquals("New", PhotoDetails.fromParams(job.params, UploadJob.WANT_PREFIX).title)
     }
 }

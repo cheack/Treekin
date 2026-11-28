@@ -1,5 +1,6 @@
 package app.familygem.geni.api
 
+import app.familygem.geni.Fixtures
 import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.InMemoryTokenStore
 import kotlinx.coroutines.async
@@ -351,5 +352,20 @@ class GeniClientTest {
         }.exceptionOrNull()
         assertTrue(error is GeniSessionChangedException)
         assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun updatePhotoPostsTheGivenFieldsAndParsesThePhoto() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(Fixtures.read("photo-details-single.json")))
+        val photo = client().updatePhoto("photo-2243", listOf("title" to "Wedding day", "description" to "First line\nSecond line", "date[year]" to "1950"))
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/api/photo-2243/update", request.url.encodedPath)
+        val form = request.body!!.utf8().split('&').associate { java.net.URLDecoder.decode(it.substringBefore('='), "UTF-8") to java.net.URLDecoder.decode(it.substringAfter('='), "UTF-8") }
+        assertEquals(mapOf("title" to "Wedding day", "description" to "First line\nSecond line", "date[year]" to "1950"), form)
+        assertEquals("Wedding day", photo.title)
+        assertEquals("First line\nSecond line", photo.description)
+        assertEquals(GeniDate(1950, 5, 3, true), photo.date)
     }
 }

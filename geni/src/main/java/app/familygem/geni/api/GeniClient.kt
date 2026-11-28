@@ -183,6 +183,12 @@ class GeniClient(
         return parsePhoto(post("$profileId/add-photo", params, PHOTO_READ_TIMEOUT_SECONDS, beforeSend))
     }
 
+    /**
+     * Changes title, description or date of a photo ([params] from `GeniParams.photo`: only what changed, an empty value clears)
+     * and returns the photo as Geni stores it now. Never called without parameters.
+     */
+    suspend fun updatePhoto(photoId: String, params: List<Pair<String, String>>): GeniPhoto = parsePhoto(post("$photoId/update", params))
+
     /** Deletes a photo from Geni. */
     suspend fun deletePhoto(photoId: String) {
         post("$photoId/delete", emptyList())

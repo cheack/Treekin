@@ -115,6 +115,45 @@ object GeniParams {
     }
 
     /**
+     * Date parameters named `<prefix>[day]` and so on, if the date changed (all four parts: Geni replaces the date as a whole;
+     * the range parts only when the old or the new date has a range, so a switch to a single date clears the stale end parts).
+     * Nothing for a date Geni cannot store ([parseDate] fails, or it has a range and [ranges] is false): the caller blocks it.
+     */
+    private fun dateParams(params: MutableList<Pair<String, String>>, prefix: String, oldDate: String?, newDate: String?, ranges: Boolean = true) {
+        if (newDate == oldDate || (newDate != null && !isStorable(newDate, ranges))) return
+        val date = parseDate(newDate)
+        params += "$prefix[day]" to (date?.day?.toString() ?: "")
+        params += "$prefix[month]" to (date?.month?.toString() ?: "")
+        params += "$prefix[year]" to (date?.year?.toString() ?: "")
+        params += "$prefix[circa]" to (date?.circa == true).toString()
+        if (date?.range != null || parseDate(oldDate)?.range != null) {
+            params += "$prefix[range]" to (date?.range ?: "")
+            params += "$prefix[end_day]" to (date?.endDay?.toString() ?: "")
+            params += "$prefix[end_month]" to (date?.endMonth?.toString() ?: "")
+            params += "$prefix[end_year]" to (date?.endYear?.toString() ?: "")
+            params += "$prefix[end_circa]" to (date?.range == "between" && date.endCirca == true).toString()
+        }
+    }
+
+    /** True if Geni can store [text] as a date; photos keep no range (checked in the sandbox: a range is accepted, then read back as its first date). */
+    fun isStorable(text: String, ranges: Boolean) = parseDate(text)?.let { ranges || it.range == null } == true
+
+    /** True if Geni keeps [text] as the date of a photo: a single date, which may be approximate. */
+    fun isPhotoDate(text: String) = isStorable(text, ranges = false)
+
+    /**
+     * Parameters of `photo-X/update` for the fields that differ between [old] and [new]: an empty value clears a field
+     * (checked in the sandbox: Geni then leaves it out), the others stay as Geni has them. A date Geni cannot store as a photo date (see [isPhotoDate]) is skipped.
+     */
+    fun photo(old: PhotoDetails, new: PhotoDetails): List<Pair<String, String>> {
+        val params = mutableListOf<Pair<String, String>>()
+        if (new.title != old.title) params += "title" to (new.title ?: "")
+        if (new.description != old.description) params += "description" to (new.description ?: "")
+        dateParams(params, "date", old.date, new.date, ranges = false)
+        return params
+    }
+
+    /**
      * Date parameters if the date changed (all four parts: Geni replaces the date as a whole; the range parts only when
      * the old or the new date has a range, so a switch to a single date clears the stale end parts),
      * and one location parameter for each structured part that changed (an empty value for a part cleared on purpose),
@@ -122,21 +161,7 @@ object GeniParams {
      * as a place name.
      */
     private fun event(params: MutableList<Pair<String, String>>, name: String, old: EventFields?, new: EventFields?) {
-        val newDate = new?.date
-        if (newDate != old?.date && (newDate == null || parseDate(newDate) != null)) {
-            val date = parseDate(newDate)
-            params += "$name[date][day]" to (date?.day?.toString() ?: "")
-            params += "$name[date][month]" to (date?.month?.toString() ?: "")
-            params += "$name[date][year]" to (date?.year?.toString() ?: "")
-            params += "$name[date][circa]" to (date?.circa == true).toString()
-            if (date?.range != null || parseDate(old?.date)?.range != null) {
-                params += "$name[date][range]" to (date?.range ?: "")
-                params += "$name[date][end_day]" to (date?.endDay?.toString() ?: "")
-                params += "$name[date][end_month]" to (date?.endMonth?.toString() ?: "")
-                params += "$name[date][end_year]" to (date?.endYear?.toString() ?: "")
-                params += "$name[date][end_circa]" to (date?.range == "between" && date.endCirca == true).toString()
-            }
-        }
+        dateParams(params, "$name[date]", old?.date, new?.date)
         val oldLocation = old?.locationParts ?: LocationParts.EMPTY
         val newLocation = (new?.locationParts ?: LocationParts.EMPTY).storable // Geni drops coordinates that stand alone
         for (key in LocationParts.KEYS) {
