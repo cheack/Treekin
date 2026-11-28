@@ -6,16 +6,16 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #34)
+## Where we are (after PR #35)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
 | Names | first, middle, last, maiden, suffix, nicknames, display name, title | localized `names` per language |
 | Sex | male, female | unknown / clear not verified |
-| Profile events (birth, baptism, death, burial) | date `year/month/day/circa`, location as `place_name` only | date ranges (`range`, `end_*`, `end_circa`), structured location (`city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`), event `description` |
+| Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location as `place_name` only | structured location (`city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`), event `description` |
 | Other profile fields | is_alive, cause of death, occupation, about me | `public`, `locked`, `merge_note` |
 | Contact data | — | `email` (writable only when a relative is created), `phone_numbers` and `current_residence` (read-only) |
-| Unions | marriage, divorce (same limits as profile events) | ranges, structured location, description; `adopted_children` / `foster_children` read |
+| Unions | marriage, divorce incl. date ranges (same limits as profile events) | structured location; `adopted_children` / `foster_children` read |
 | Relatives | add parent/partner/child/sibling | `relationship_modifier` (adopt / foster) when adding a child or sibling; merge duplicates |
 | Photos | add, delete, read main and album | title / description / date edit, tag and untag profiles, set an existing photo as main (`add-mugshot` with `photo_id`), albums |
 | Documents, videos | — | everything (add, update, tag, untag, delete) |
@@ -41,6 +41,15 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - A single date replaces the whole date: sending only `year` and `circa` also removes `range` and `end_*`; sending the range keys empty works too (the app sends them). Clearing year plus the other parts removes the event.
 - Location keys `<event>[location][place_name|city|county|state|country|street_address1-3|latitude|longitude]` are independent: setting or clearing one leaves the others. GET adds `country_code` and `formatted_location`. The old behaviour (clear city, county, state and country when `place_name` changes) was never needed.
 - `<event>[description]` is accepted and silently dropped (a profile `GET` never returns it, single line or multiline): not synced.
+
+**Status of stage 1:**
+
+- [x] Sandbox checks for dates (all ranges, approximate ends, replacement, clear; profile, union and add-child) and for locations and descriptions
+- [x] Date ranges round-trip: `GeniDate`, `parseDate`, `gedcomDate`, `EventFields`, `SnapshotOverlay`, legacy start-of-range records left alone (PR #35)
+- [x] Same date rules in Modify and in the event screens, marriage and divorce included; date pickers keep `ABT` on each end (PR #35)
+- [ ] Structured places: `_GENI_LOCATION` extension, a place text edit changes only `place_name`, legacy joined-text places safe (second PR)
+- [ ] Verified structured fields shown in the event screen
+- [x] Event descriptions: not synced, Geni drops them (decided from the sandbox)
 
 ### 2. Privacy, sex and the remaining profile flags
 
