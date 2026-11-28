@@ -36,6 +36,12 @@ object GeniMapper {
     /** Geni's name title, like the display name; the GEDCOM title fact (TITL) stays local. */
     const val NAME_TITLE_TAG = "_GENI_NAME_TITLE"
 
+    /** Geni's privacy as "true" or "false"; missing: not known (a record from before). Only written from Geni and the editor's switch. */
+    const val PUBLIC_TAG = "_GENI_PUBLIC"
+
+    /** Geni's curator lock; read-only, never uploaded. */
+    const val LOCKED_TAG = "_GENI_LOCKED"
+
     /**
      * The structured location of an event fact, as a JSON object of the Geni location keys ("city", "country", ...).
      * Missing: a legacy fact, whose place text is all there is. An empty object ("{}"): every part cleared on purpose.
@@ -47,7 +53,7 @@ object GeniMapper {
     private val locationType = object : com.google.gson.reflect.TypeToken<Map<String, String?>>() {}.type
 
     /** Tags kept for the sync and edited in the person editor, not as facts. */
-    val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG, NAME_TITLE_TAG)
+    val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG, NAME_TITLE_TAG, PUBLIC_TAG, LOCKED_TAG)
 
     private val MONTHS = listOf("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 
@@ -115,10 +121,15 @@ object GeniMapper {
         }
         if (changed(ProfileGroup.DISPLAY_NAME) { clean(it.displayName) }) setTag(person, DISPLAY_NAME_TAG, clean(profile.displayName) ?: "")
         if (changed(ProfileGroup.TITLE) { clean(it.title) }) setTag(person, NAME_TITLE_TAG, clean(profile.title) ?: "")
-        if (profile.gender != null && changed(ProfileGroup.SEX) { it.gender })
+        // A missing gender is a cleared sex (verified on the sandbox): "U"
+        // (the first load without a gender keeps a local sex)
+        if ((profile.gender != null || previous != null) && changed(ProfileGroup.SEX) { it.gender })
             setFact(person, "SEX", value = if (profile.gender == "male") "M" else if (profile.gender == "female") "F" else "U")
         else if (person.eventsFacts.orEmpty().none { it.tag == "SEX" })
             setFact(person, "SEX", value = "U")
+        // Privacy is always returned; a missing value (a field set Geni did not return) leaves the tag as it is
+        if (profile.public != null && changed(ProfileGroup.PUBLIC) { it.public }) setBoolean(person, PUBLIC_TAG, profile.public)
+        if (profile.locked != null && (previous == null || previous.locked != profile.locked)) setBoolean(person, LOCKED_TAG, profile.locked)
         if (changed(ProfileGroup.BIRTH) { it.birth }) setEvent(person, "BIRT", profile.birth)
         if (changed(ProfileGroup.BAPTISM) { it.baptism }) setEvent(person, "BAPM", profile.baptism)
         if (changed(ProfileGroup.OCCUPATION) { it.occupation }) {
@@ -312,6 +323,17 @@ object GeniMapper {
         if (tags.isEmpty()) container.extensions?.remove(ModelParser.MORE_TAGS_EXTENSION_KEY)
         else container.putExtension(ModelParser.MORE_TAGS_EXTENSION_KEY, tags)
     }
+
+    /** A tag holding "true" or "false"; null when missing or anything else. */
+    fun getBoolean(container: ExtensionContainer, tag: String): Boolean? = getTag(container, tag)?.trim()?.lowercase()?.let {
+        when (it) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+    }
+
+    fun setBoolean(container: ExtensionContainer, tag: String, value: Boolean?) = setTag(container, tag, value?.toString())
 
     @Suppress("UNCHECKED_CAST")
     private fun moreTags(container: ExtensionContainer): List<GedcomTag> =

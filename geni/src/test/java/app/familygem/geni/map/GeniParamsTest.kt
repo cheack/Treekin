@@ -186,6 +186,54 @@ class GeniParamsTest {
     }
 
     @Test
+    fun unknownSexClearsAKnownOne() {
+        assertEquals(listOf("gender" to "unknown"), GeniParams.profile(ivan, ivan.copy(sex = "U")))
+        // Back to a sex: a normal write
+        assertEquals(listOf("gender" to "male"), GeniParams.profile(ivan.copy(sex = "U"), ivan))
+    }
+
+    @Test
+    fun unknownSexAgainstUnknownMakesNoWrite() {
+        // A legacy "SEX U" placeholder, a snapshot without gender, a missing SEX fact: none writes
+        val unknown = ivan.copy(sex = "U")
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(unknown, unknown.copy(occupation = null)))
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(unknown, unknown.copy(sex = null)))
+        assertTrue(GeniParams.profile(ProfileFields.EMPTY, ProfileFields.EMPTY.copy(given = "A", sex = "U"), isNew = true).none { it.first == "gender" })
+    }
+
+    @Test
+    fun privacyIsSentOnlyWhenSetAndChanged() {
+        val dead = ivan.copy(dead = true, isPublic = false)
+        assertEquals(listOf("public" to "true"), GeniParams.profile(dead, dead.copy(isPublic = true)))
+        assertEquals(listOf("public" to "false"), GeniParams.profile(dead.copy(isPublic = true), dead))
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(dead, dead.copy()))
+        // An untouched control (no tag) inherits Geni's value: no write
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(dead, dead.copy(isPublic = null)))
+    }
+
+    @Test
+    fun livingProfileIsNeverSentPublic() {
+        val living = ivan.copy(isPublic = false)
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(living, living.copy(isPublic = true)))
+        assertEquals(listOf("public" to "false"), GeniParams.profile(living.copy(isPublic = true), living))
+    }
+
+    @Test
+    fun publicFollowsIsAliveWhenMadeDeceasedInOneSave() {
+        val living = ivan.copy(isPublic = false)
+        val keys = GeniParams.profile(living, living.copy(isPublic = true, dead = true)).map { it.first }
+        assertTrue(keys.indexOf("is_alive") < keys.indexOf("public"))
+    }
+
+    @Test
+    fun newProfilePrivacy() {
+        val base = ProfileFields.EMPTY.copy(given = "A", dead = true)
+        assertTrue(GeniParams.profile(ProfileFields.EMPTY, base, isNew = true).none { it.first == "public" })
+        assertEquals("false", GeniParams.profile(ProfileFields.EMPTY, base.copy(isPublic = false), isNew = true).toMap()["public"])
+        assertEquals("true", GeniParams.profile(ProfileFields.EMPTY, base.copy(isPublic = true), isNew = true).toMap()["public"])
+    }
+
+    @Test
     fun newProfileSendsIsAlive() {
         val params = GeniParams.profile(ProfileFields.EMPTY, ProfileFields.EMPTY.copy(given = "Petr", sex = "M"), isNew = true).toMap()
         assertEquals("true", params["is_alive"])

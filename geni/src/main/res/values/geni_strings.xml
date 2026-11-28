@@ -161,6 +161,11 @@
     <string name="geni_burial_place">Burial place</string>
     <string name="geni_cause_of_death">Cause of death</string>
     <string name="geni_about_me">About me</string>
+    <string name="geni_public_profile">Public profile</string>
+    <string name="geni_privacy_living">A living person is always private on Geni.</string>
+    <string name="geni_privacy_public">Anyone on Geni can see this profile.</string>
+    <string name="geni_privacy_private">Only people Geni allows can see this profile.</string>
+    <string name="geni_privacy_unavailable">Privacy is not known yet: it shows once Geni\'s version of this person is loaded.</string>
     <string name="geni_date_not_supported">Geni cannot store this date</string>
     <string name="geni_place_name">Place name</string>
     <string name="geni_city">City</string>

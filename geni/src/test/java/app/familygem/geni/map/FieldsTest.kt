@@ -68,9 +68,31 @@ class FieldsTest {
     }
 
     @Test
-    fun unknownSexIsNull() {
-        assertNull(ProfileFields.of(Person().apply { addEventFact(fact("SEX", value = "U")) }).sex)
+    fun unknownSexIsKeptApartFromMissing() {
+        assertEquals("U", ProfileFields.of(Person().apply { addEventFact(fact("SEX", value = "U")) }).sex)
         assertNull(ProfileFields.of(Person()).sex)
+        assertEquals(ProfileFields.of(Person().apply { addEventFact(fact("SEX", value = "U")) }).value(ProfileGroup.SEX),
+            ProfileFields.of(Person()).value(ProfileGroup.SEX)) // The same for conflicts
+    }
+
+    @Test
+    fun privacyTagsAreRead() {
+        val person = Person().apply {
+            GeniMapper.setBoolean(this, GeniMapper.PUBLIC_TAG, false)
+            GeniMapper.setBoolean(this, GeniMapper.LOCKED_TAG, true)
+        }
+        val fields = ProfileFields.of(person)
+        assertEquals(false, fields.isPublic)
+        assertEquals(true, fields.locked)
+        assertNull(ProfileFields.of(Person()).isPublic)
+        // Legacy record: inherits the snapshot's privacy, so it does not differ from it
+        val snapshot = ProfileFields.ofSnapshot("""{"id":"profile-1","public":true,"is_alive":false}""")!!
+        assertEquals(true, ProfileFields.of(Person()).resolvedAgainst(snapshot).isPublic)
+    }
+
+    @Test
+    fun snapshotWithoutGenderIsUnknownSex() {
+        assertEquals("U", ProfileFields.ofSnapshot("""{"id":"profile-1","public":false}""")!!.sex)
     }
 
     @Test

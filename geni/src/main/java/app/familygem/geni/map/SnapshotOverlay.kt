@@ -13,7 +13,7 @@ object SnapshotOverlay {
 
     private val NUMBERS = setOf("day", "month", "year", "end_day", "end_month", "end_year")
     private val COORDINATES = setOf("latitude", "longitude")
-    private val BOOLEANS = setOf("is_alive", "circa", "end_circa")
+    private val BOOLEANS = setOf("is_alive", "circa", "end_circa", "public")
 
     /** [base] (raw Geni JSON, or nothing for a new record) with [params] written over it, as Geni stores them. */
     fun apply(base: String?, params: List<Pair<String, String>>, id: String): String {
@@ -25,7 +25,8 @@ object SnapshotOverlay {
             for (name in path.dropLast(1)) parent = parent.getAsJsonObject(name) ?: JsonObject().also { parent.add(name, it) }
             val leaf = path.last()
             if (leaf in LocationParts.KEYS && path.getOrNull(path.size - 2) == "location") LOCATION_DISPLAY.forEach { parent.remove(it) }
-            if (value.isEmpty()) parent.remove(leaf) else parent.add(leaf, element(leaf, value))
+            // Geni omits a cleared sex
+            if (value.isEmpty() || (leaf == "gender" && path.size == 1 && value == "unknown")) parent.remove(leaf) else parent.add(leaf, element(leaf, value))
         }
         // Geni ignores death for a living profile, and no death parameters are sent with is_alive=true
         if (root.get("is_alive")?.takeIf { it.isJsonPrimitive }?.asBoolean == true) {

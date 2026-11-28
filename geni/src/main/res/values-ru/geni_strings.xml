@@ -169,6 +169,11 @@
     <string name="geni_burial_place">Место захоронения</string>
     <string name="geni_cause_of_death">Причина смерти</string>
     <string name="geni_about_me">О себе</string>
+    <string name="geni_public_profile">Публичный профиль</string>
+    <string name="geni_privacy_living">Живой человек на Geni всегда закрыт.</string>
+    <string name="geni_privacy_public">Любой пользователь Geni может видеть этот профиль.</string>
+    <string name="geni_privacy_private">Профиль видят только те, кому это разрешает Geni.</string>
+    <string name="geni_privacy_unavailable">Приватность пока неизвестна: она появится, когда загрузится версия этого человека на Geni.</string>
     <string name="geni_date_not_supported">Geni не может сохранить такую дату</string>
     <string name="geni_place_name">Название места</string>
     <string name="geni_city">Город</string>

@@ -128,13 +128,6 @@ object GeniFacts {
         return true
     }
 
-    /** In a Geni tree removes the unknown sex from the choices (Geni writes male and female). True if trimmed. */
-    fun trimSexes(sexes: MutableMap<String, String>): Boolean {
-        if (!isGeniTree()) return false
-        sexes.remove("U")
-        return true
-    }
-
     /** The name the person editor edits: in a Geni tree the main name (the mapper's), else upstream's first name. */
     fun editedName(person: Person): Name {
         val names = person.names

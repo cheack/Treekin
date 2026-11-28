@@ -25,6 +25,25 @@ class GeniModelsTest {
     }
 
     @Test
+    fun parsesPrivacyAndClearedSex() {
+        val profiles = parseResults(Fixtures.read("profiles-batch-privacy.json"), GeniProfile::class.java).associateBy { it.id }
+        assertEquals(false, profiles.getValue("profile-100").public) // An explicit false is returned
+        assertEquals(true, profiles.getValue("profile-101").public)
+        assertEquals(null, profiles.getValue("profile-102").gender) // A cleared sex is omitted
+        assertEquals(null, profiles.getValue("profile-102").locked)
+    }
+
+    @Test
+    fun mergeNoteIsAStringOrAnArray() {
+        val profiles = parseResults(Fixtures.read("profile-merge-note-forms.json"), GeniProfile::class.java).associateBy { it.id }
+        assertEquals("same person as profile-1", profiles.getValue("profile-110").mergeNoteText)
+        assertEquals(true, profiles.getValue("profile-110").locked)
+        assertEquals("first note\nsecond note", profiles.getValue("profile-111").mergeNoteText)
+        assertEquals(false, profiles.getValue("profile-111").locked)
+        assertEquals(null, profiles.getValue("profile-112").mergeNoteText)
+    }
+
+    @Test
     fun parsesUnionsBatch() {
         val union = parseResults(Fixtures.read("unions-batch.json"), GeniUnion::class.java).single { it.id == "union-10106" }
         assertEquals(2, union.partners?.size)

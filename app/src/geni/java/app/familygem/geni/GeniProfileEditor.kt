@@ -5,6 +5,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.RadioButton
+import android.widget.TextView
 import androidx.appcompat.widget.SwitchCompat
 import app.familygem.DateEditorLayout
 import app.familygem.PersonEditorActivity
@@ -49,6 +50,18 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     /** The person is linked to Geni but its last version cannot be read. */
     private var unavailable = false
+
+    /** Privacy when the form was filled: the person's stored tag, else Geni's last version; null when neither is known. */
+    private var initialPublic: Boolean? = null
+
+    /** The privacy the user wants, kept apart from the switch: a living person shows it off, and Dead back on restores it. */
+    private var publicChoice = false
+
+    /** The user touched the Privacy switch: an explicit choice, also when it ends where it started. */
+    private var publicTouched = false
+
+    /** The switch can be used: privacy is known, or the person has no Geni version yet (new, or never uploaded). */
+    private var privacyUsable = true
 
     /** Structured location and place text of each event (by tag) when the form was filled. */
     private val originalLocation = mutableMapOf<String, LocationParts>()
@@ -135,15 +148,67 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         view<EditText>(AppR.id.editor_suffix).nextFocusForwardId = AppR.id.editor_nicknames
         view<EditText>(AppR.id.editor_nicknames).nextFocusForwardId = AppR.id.editor_birthDate
 
-        // Geni writes male and female: no tap-to-clear, and an unknown sex is only shown
+        // Male, female and unknown (verified on the sandbox: unknown clears Geni's sex), but no tap-to-clear:
+        // "no sex" is not a state Geni has, and leaving it untouched changes nothing
         view<RadioButton>(AppR.id.editor_sex1).setOnClickListener(null)
         view<RadioButton>(AppR.id.editor_sex2).setOnClickListener(null)
-        view<RadioButton>(AppR.id.editor_sex3).apply {
-            setOnClickListener(null)
-            isEnabled = false
-        }
+        view<RadioButton>(AppR.id.editor_sex3).setOnClickListener(null)
 
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
+        bindPrivacy(person, snapshot) // After the Dead switch has its final state
+    }
+
+    /** Shows the privacy of the person; a living person is always private on Geni, so the switch only works with Dead on. */
+    private fun bindPrivacy(person: Person, snapshot: String?) {
+        initialPublic = GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG) ?: baseline?.isPublic
+        // A linked person whose version has no privacy yet (stored before it was read) waits for the next load
+        privacyUsable = initialPublic != null || (!unavailable && snapshot == null)
+        val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
+        publicChoice = initialPublic == true
+        switch.setOnClickListener { publicTouched = true }
+        // Android does not restore this switch: after a recreation the form is rebuilt from the person, so a display forced off
+        // by a living person can never be taken for a choice. An unsaved Privacy change does not survive a rotation.
+        // The user's changes to the switch are the choice; the changes made by updatePrivacy are not
+        switch.isSaveEnabled = false
+        switch.setOnCheckedChangeListener { _, checked ->
+            if (!updatingPrivacy) {
+                publicChoice = checked
+                updatePrivacy()
+            }
+        }
+        // The upstream form owns the checked listener of the Dead switch: a tap is listened to here as well
+        view<SwitchCompat>(AppR.id.editor_dead).setOnClickListener { updatePrivacy() }
+        updatePrivacy()
+        // Android restores the Dead switch after this runs: the display follows its final state
+        switch.post { updatePrivacy() }
+    }
+
+    private var updatingPrivacy = false
+
+    private fun updatePrivacy() {
+        val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
+        val dead = view<SwitchCompat>(AppR.id.editor_dead).isChecked
+        updatingPrivacy = true
+        switch.isChecked = publicChoice && dead
+        updatingPrivacy = false
+        switch.isEnabled = privacyUsable && dead
+        view<TextView>(AppR.id.editor_geniPublicNote).setText(
+            when {
+                !privacyUsable -> R.string.geni_privacy_unavailable
+                !dead -> R.string.geni_privacy_living
+                switch.isChecked -> R.string.geni_privacy_public
+                else -> R.string.geni_privacy_private
+            }
+        )
+    }
+
+    /** Stores the privacy the user chose: explicit when touched, else only a change from what the person had. */
+    private fun savePrivacy(person: Person) {
+        if (!privacyUsable) return
+        val dead = view<SwitchCompat>(AppR.id.editor_dead).isChecked
+        // With Dead on the switch shows the choice, also one restored by Android after the form was recreated
+        val value = dead && view<SwitchCompat>(AppR.id.editor_geniPublic).isChecked
+        if (publicTouched || value != (initialPublic ?: false)) GeniMapper.setBoolean(person, GeniMapper.PUBLIC_TAG, value)
     }
 
     private fun set(id: Int, value: String?) {
@@ -206,6 +271,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
             it.cleanUpFields() // As upstream: "Y" only on a death fact with nothing else
         }
         setEvent(person, "BURI", AppR.id.editor_burialDate, AppR.id.editor_burialPlace)
+        savePrivacy(person)
         if (changed(AppR.id.editor_occupation)) setOccupation(person, text(AppR.id.editor_occupation))
         if (changed(AppR.id.editor_about))
             GeniMapper.setTag(person, GeniMapper.ABOUT_TAG, view<EditText>(AppR.id.editor_about).text.toString().trim().ifEmpty { null })
