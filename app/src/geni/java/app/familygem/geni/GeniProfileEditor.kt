@@ -166,8 +166,10 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         val switch = view<SwitchCompat>(AppR.id.editor_geniPublic)
         publicChoice = initialPublic == true
         switch.setOnClickListener { publicTouched = true }
-        // Any change the user (or Android, restoring the form after a recreation) makes to the switch is the choice;
-        // the changes made by updatePrivacy are not
+        // Android does not restore this switch: after a recreation the form is rebuilt from the person, so a display forced off
+        // by a living person can never be taken for a choice. An unsaved Privacy change does not survive a rotation.
+        // The user's changes to the switch are the choice; the changes made by updatePrivacy are not
+        switch.isSaveEnabled = false
         switch.setOnCheckedChangeListener { _, checked ->
             if (!updatingPrivacy) {
                 publicChoice = checked
@@ -177,6 +179,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         // The upstream form owns the checked listener of the Dead switch: a tap is listened to here as well
         view<SwitchCompat>(AppR.id.editor_dead).setOnClickListener { updatePrivacy() }
         updatePrivacy()
+        // Android restores the Dead switch after this runs: the display follows its final state
+        switch.post { updatePrivacy() }
     }
 
     private var updatingPrivacy = false
