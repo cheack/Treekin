@@ -210,6 +210,8 @@
     <string name="geni_open_on_geni">Open on Geni</string>
     <string name="geni_new_email">Email (optional)</string>
     <string name="geni_new_email_note">Geni may email this person an invitation to join. The email can only be changed on Geni afterwards.</string>
+    <string name="geni_lineage_note">Geni keeps this on the child\'s link to the family. It can only be changed on geni.com afterwards.</string>
+    <string name="geni_lineage_blocked">Geni cannot change a lineage through its API. Change it on geni.com; it will reach this tree on the next refresh.</string>
     <string name="geni_email_invalid">Enter a valid email or leave it empty</string>
     <string name="geni_email_not_saved">The email could not be saved. Try again, or clear the email field.</string>
 </resources>

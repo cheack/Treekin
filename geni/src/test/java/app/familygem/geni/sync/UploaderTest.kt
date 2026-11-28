@@ -164,6 +164,59 @@ class UploaderTest {
     }
 
     @Test
+    fun addAdoptedChildSendsOneModifierAndKeepsItOutOfTheSnapshot() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1"), link("union-10106", "F1")))
+        server.enqueue(ok("""{"id":"profile-50","unions":["https://api.sandbox.geni.com/union-10106"]}"""))
+        server.enqueue(ok("""{"id":"profile-50","first_name":"New"}"""))
+        server.enqueue(ok("""{"id":"union-10106","children":["profile-50"],"adopted_children":["profile-50"]}"""))
+        val add = job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1", "partner:I2"))
+        assertEquals(Outcome.Done, uploader().run(add.copy(params = add.params + (UploadJob.MODIFIER_PARAM to "adopt"))))
+        val post = server.takeRequest()
+        assertEquals("/api/union-10106/add-child", post.url.encodedPath)
+        assertEquals("first_name=New&is_alive=true&relationship_modifier=adopt", post.body!!.utf8())
+        assertEquals(1, post.body!!.utf8().split("relationship_modifier").size - 1)
+        assertEquals(false, store.link(1, "profile-50")!!.snapshot!!.contains("relationship_modifier"))
+    }
+
+    @Test
+    fun addFosterChildUnderSingleParentSendsTheModifier() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-54","unions":["https://api.sandbox.geni.com/union-80"]}"""))
+        server.enqueue(ok("""{"id":"profile-54"}"""))
+        server.enqueue(ok("""{"id":"union-80","foster_children":["profile-54"]}"""))
+        val add = job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))
+        assertEquals(Outcome.Done, uploader().run(add.copy(params = add.params + (UploadJob.MODIFIER_PARAM to "foster"))))
+        val post = server.takeRequest()
+        assertEquals("/api/profile-36430/add-child", post.url.encodedPath)
+        assertEquals("first_name=New&is_alive=true&relationship_modifier=foster", post.body!!.utf8())
+    }
+
+    @Test
+    fun addWithoutRouteFailsBeforeAnyPostEvenWithAModifier() = runTest {
+        tree()
+        val add = job(JobKind.ADD_CHILD, "add:I8", person = "I8", family = "F2", anchors = listOf("partner:I5"))
+        assertTrue(uploader().run(add.copy(params = add.params + (UploadJob.MODIFIER_PARAM to "adopt"))) is Outcome.Failed)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun failedReadBackAfterAdoptedAddNeverPostsAgain() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        server.enqueue(ok("""{"id":"profile-50","unions":["https://api.sandbox.geni.com/union-10106"]}"""))
+        server.enqueue(error(500)) // Profile read-back fails
+        val add = job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1", "partner:I2"))
+        val adopted = add.copy(params = add.params + (UploadJob.MODIFIER_PARAM to "adopt"))
+        assertEquals(Outcome.Done, uploader().run(adopted))
+        assertEquals("I3", store.link(1, "profile-50")!!.gedcomId)
+        val posted = server.requestCount
+        assertEquals(Outcome.Done, uploader().run(adopted)) // Run again: the person is linked
+        assertEquals(posted, server.requestCount)
+    }
+
+    @Test
     fun addParentCreatesUnionLink() = runTest {
         val gedcom = tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))

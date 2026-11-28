@@ -99,7 +99,10 @@ data class GeniUnion(
     val partners: List<String>?,
     val children: List<String>?,
     val marriage: GeniEvent?,
-    val divorce: GeniEvent?
+    val divorce: GeniEvent?,
+    /** Children that are adopted or foster in this union; also in [children]. Geni leaves a list out while it is empty. */
+    @SerializedName("adopted_children") val adoptedChildren: List<String>? = null,
+    @SerializedName("foster_children") val fosterChildren: List<String>? = null
 )
 
 /** IDs of the profiles and unions returned by profile-X/immediate-family. */

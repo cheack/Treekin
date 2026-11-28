@@ -18,13 +18,18 @@ data class LocalPerson(
 /** An inline media of a person: [file] is the plain file name, [geniPhotoId] is set once the photo is on Geni. */
 data class LocalMedia(val file: String, val title: String?, val geniPhotoId: String?)
 
-/** A family of a saved tree: partners (husbands then wives) and children by GEDCOM ID. */
+/**
+ * A family of a saved tree: partners (husbands then wives) and children by GEDCOM ID.
+ * @param lineages The lineage of the children in this family that are not birth children: child's GEDCOM ID to Geni's
+ * `relationship_modifier` ("adopt" or "foster"), from the `PEDI` of the child's link to this family
+ */
 data class LocalFamily(
     val gedcomId: String,
     val geniId: String?,
     val partners: List<String>,
     val children: List<String>,
-    val fields: UnionFields
+    val fields: UnionFields,
+    val lineages: Map<String, String> = emptyMap()
 )
 
 /**
@@ -51,18 +56,33 @@ data class LocalTree(val people: List<LocalPerson>, val families: List<LocalFami
             return LocalPerson(person.id, GeniMapper.getGeniId(person), label, fields, media)
         }
 
-        fun capture(gedcom: Gedcom): LocalTree = LocalTree(
-            stamp = captures.incrementAndGet(),
-            people = gedcom.people.orEmpty().map { capturePerson(it) },
-            families = gedcom.families.orEmpty().map { family ->
-                LocalFamily(
-                    gedcomId = family.id,
-                    geniId = GeniMapper.getGeniId(family),
-                    partners = family.husbandRefs.orEmpty().map { it.ref } + family.wifeRefs.orEmpty().map { it.ref },
-                    children = family.childRefs.orEmpty().map { it.ref },
-                    fields = UnionFields.of(family)
-                )
-            }
-        )
+        /** Geni's modifier of each adopted or foster child of the family, by the type on the child's own link to it. */
+        private fun lineages(family: org.folg.gedcom.model.Family, people: Map<String, org.folg.gedcom.model.Person>): Map<String, String> =
+            family.childRefs.orEmpty().mapNotNull { childRef ->
+                val type = people[childRef.ref]?.parentFamilyRefs.orEmpty().firstOrNull { it.ref == family.id }?.relationshipType
+                when (type) {
+                    "adopted" -> childRef.ref to "adopt"
+                    "foster" -> childRef.ref to "foster"
+                    else -> null
+                }
+            }.toMap()
+
+        fun capture(gedcom: Gedcom): LocalTree {
+            val byId = gedcom.people.orEmpty().associateBy { it.id }
+            return LocalTree(
+                stamp = captures.incrementAndGet(),
+                people = gedcom.people.orEmpty().map { capturePerson(it) },
+                families = gedcom.families.orEmpty().map { family ->
+                    LocalFamily(
+                        gedcomId = family.id,
+                        geniId = GeniMapper.getGeniId(family),
+                        partners = family.husbandRefs.orEmpty().map { it.ref } + family.wifeRefs.orEmpty().map { it.ref },
+                        children = family.childRefs.orEmpty().map { it.ref },
+                        fields = UnionFields.of(family),
+                        lineages = lineages(family, byId)
+                    )
+                }
+            )
+        }
     }
 }

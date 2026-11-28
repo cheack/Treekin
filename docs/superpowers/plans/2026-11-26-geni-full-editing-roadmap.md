@@ -125,6 +125,21 @@ What the user gets: a child or sibling can be added as adopted or foster, and ex
 - Mapping: GEDCOM `PEDI adopted` / `foster` on the child's family link (`ParentFamilyRef`), read from and written to the union lists.
 - Verify first: whether `union/add-child` also accepts the modifier, and whether an existing child can be changed afterwards (probably not; then changing it stays site-only).
 
+**Sandbox findings (2026-11-28):**
+
+- `relationship_modifier=adopt` / `foster` is accepted by `union/add-child`, `profile/add-child` and `profile/add-sibling`; no modifier makes a birth child. An unknown value fails the request.
+- The union read-back (single GET and the batch `union?ids=…`, no field mask needed) lists the child in `children` and also in `adopted_children` or `foster_children`. Geni leaves an empty list out, so a missing list means none. Fixture `unions-lineage-batch.json`.
+- `union/add-child` puts the child in that union. `profile/add-child` always makes a new single-parent union (the profile's other unions are left alone) and the modifier applies to it. `profile/add-sibling` picks the pivot's first parent union, with or without the modifier: it cannot target another one (extra `union` / `union_id` parameters are ignored), so it is not used: a sibling is a child of the chosen family and goes through the two child routes.
+- An existing child cannot be converted: `profile/update` and `union/update` with `relationship_modifier` change nothing. Changing the lineage of an existing child stays site-only.
+
+**Status of stage 5:**
+
+- [x] Sandbox checks: the three routes, read-back, omitted lists, sibling routing, conversion
+- [x] Read: `GeniUnion` decodes both lists; `GeniMapper.applyUnion` sets `PEDI adopted` / `foster` on the child's own link to that family (updated in place, other links and local-only marks such as `sealing` kept); a child listed in `children` but in neither list is a birth child and loses an old adopted or foster mark; a response without `children` changes nothing; independent of marriage and divorce conflicts
+- [x] Create: `LocalFamily.lineages` from the children's `PEDI`; the planner adds `relationship_modifier` to the `ADD_CHILD` job (never for Birth or a job queued before); `Uploader.add` sends it once with the add through the linked union or the single-parent route, keeps it out of the profile snapshot, and fails before any POST when no route exists
+- [x] Modify: Lineage choice (Birth default, Adopted, Foster) for a new child or sibling in a Geni tree, also from the Family screen; set on the new person's own `ParentFamilyRef` before the save (the sibling case no longer shares the ref with the pivot); the Lineage action is read-only for a person already on Geni
+- [ ] Changing the lineage of an existing child stays on the site (no API call)
+
 ### 6. Photo details, tags and main photo
 
 What the user gets: photo title, description and date are editable. People can be tagged in a photo and removed from it. Any photo can become the main photo.

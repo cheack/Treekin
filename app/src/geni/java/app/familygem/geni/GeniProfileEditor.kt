@@ -28,6 +28,7 @@ import org.folg.gedcom.model.Person
 import app.familygem.R as AppR
 import app.familygem.Global
 import app.familygem.constant.Extra
+import app.familygem.constant.Relation
 
 /**
  * The extra fields of the person editor ("Modify") in a Geni tree: the profile fields that Geni's sync maps
@@ -190,6 +191,10 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         if (isNew && (activity.intent.getSerializableExtra(Extra.RELATION) != null || activity.intent.getBooleanExtra(Extra.FROM_FAMILY, false))) {
             view<View>(AppR.id.editor_emailLabel).visibility = View.VISIBLE
             view<View>(AppR.id.editor_emailNote).visibility = View.VISIBLE
+        }
+        // A new child or sibling is linked to its family by a Geni add that can mark the link adopted or foster; Birth is the default
+        if (isNew && activity.intent.getSerializableExtra(Extra.RELATION).let { it == Relation.CHILD || it == Relation.SIBLING }) {
+            listOf(AppR.id.editor_lineageTitle, AppR.id.editor_lineageGroup, AppR.id.editor_lineageNote).forEach { view<View>(it).visibility = View.VISIBLE }
         }
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
         bindPrivacy(person, snapshot) // After the Dead switch has its final state
@@ -388,6 +393,20 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
             view<View>(AppR.id.editor_save).isEnabled = true // Disabled by the click
             false
         }
+    }
+
+    /**
+     * Marks the new person's link to its family as adopted or foster after it was linked: the person is new, so its only parent-family
+     * link is the one just made, and a Birth choice leaves it unmarked. The Geni add then sends the choice with the child.
+     */
+    fun applyLineage(person: Person) {
+        if (!enabled || view<View>(AppR.id.editor_lineageGroup).visibility != View.VISIBLE) return
+        val type = when (view<android.widget.RadioGroup>(AppR.id.editor_lineageGroup).checkedRadioButtonId) {
+            AppR.id.editor_lineageAdopted -> "adopted"
+            AppR.id.editor_lineageFoster -> "foster"
+            else -> null
+        }
+        person.parentFamilyRefs.forEach { it.relationshipType = type }
     }
 
     /** Writes the changed Geni fields to the person, after the upstream form wrote names, sex, birth and death. */

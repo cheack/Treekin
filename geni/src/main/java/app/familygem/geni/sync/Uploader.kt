@@ -235,7 +235,7 @@ open class Uploader(
 
         // Links first: once stored, this person can never be added again; the tags in the tree follow
         // What was sent stands for Geni's version until the full one is fetched: an edit made meanwhile goes as an update
-        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.paramsToSend(), profileId), 0))
+        val links = mutableListOf(GeniLink(treeId, profileId, personId, false, null, SnapshotOverlay.apply(null, job.profileParams(), profileId), 0))
         if (linkFamily) links += GeniLink(treeId, unionId!!, familyId!!, true, null, null, now())
         try {
             store.saveLinks(links)

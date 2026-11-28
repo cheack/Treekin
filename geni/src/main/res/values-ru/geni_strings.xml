@@ -220,6 +220,8 @@
     <string name="geni_open_on_geni">Открыть на Geni</string>
     <string name="geni_new_email">Email (необязательно)</string>
     <string name="geni_new_email_note">Geni может отправить этому человеку приглашение по email. Позже email можно изменить только на Geni.</string>
+    <string name="geni_lineage_note">Geni хранит это в связи ребёнка с семьёй. Позже изменить можно только на geni.com.</string>
+    <string name="geni_lineage_blocked">API Geni не умеет менять тип родства. Измените его на geni.com; он попадёт в это дерево при следующем обновлении.</string>
     <string name="geni_email_invalid">Введите корректный email или оставьте поле пустым</string>
     <string name="geni_email_not_saved">Не удалось сохранить email. Повторите или очистите поле email.</string>
 </resources>

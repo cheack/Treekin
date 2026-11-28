@@ -394,6 +394,7 @@ public class PersonEditorActivity extends BaseActivity {
                 modifications = addRelative(personId, newId, familyId, relation, getIntent().getStringExtra(Extra.DESTINATION));
         } else
             Global.indi = person.getId(); // To show the person then in DiagramFragment
+        geniEditor.applyLineage(person); // GENI-HOOK: adopted or foster link of a new child, before the save
         TreeUtil.INSTANCE.save(true, modifications);
         getOnBackPressedDispatcher().onBackPressed();
     }
@@ -444,7 +445,11 @@ public class PersonEditorActivity extends BaseActivity {
                 childRef1.setRef(pivotId);
                 childRef2.setRef(newId);
                 if (pivot != null) pivot.addParentFamilyRef(parentFamilyRef);
-                if (newPerson != null) newPerson.addParentFamilyRef(parentFamilyRef);
+                if (newPerson != null) { // GENI-HOOK: a ref of its own, so a lineage of the new child never lands on the pivot
+                    ParentFamilyRef newPersonRef = new ParentFamilyRef();
+                    newPersonRef.setRef(family.getId());
+                    newPerson.addParentFamilyRef(newPersonRef);
+                }
                 break;
             case PARTNER:
                 spouseRef1.setRef(pivotId);

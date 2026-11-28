@@ -46,6 +46,21 @@ class LocalTreeTest {
     }
 
     @Test
+    fun captureTakesLineageOfEachChildInItsFamily() {
+        val gedcom = Gedcom()
+        listOf("I1", "I2", "I3", "I4").forEach { gedcom.addPerson(person(it, null)) }
+        fun ref(family: String, type: String?) = org.folg.gedcom.model.ParentFamilyRef().apply { ref = family; relationshipType = type }
+        gedcom.people.single { it.id == "I2" }.addParentFamilyRef(ref("F1", "adopted"))
+        gedcom.people.single { it.id == "I3" }.addParentFamilyRef(ref("F1", "foster"))
+        gedcom.people.single { it.id == "I4" }.apply { addParentFamilyRef(ref("F1", "birth")); addParentFamilyRef(ref("F2", "adopted")) }
+        gedcom.addFamily(Family().apply { id = "F1"; listOf("I2", "I3", "I4").forEach { c -> addChild(ChildRef().apply { ref = c }) } })
+        gedcom.addFamily(Family().apply { id = "F2"; addChild(ChildRef().apply { ref = "I4" }) })
+        val local = LocalTree.capture(gedcom)
+        assertEquals(mapOf("I2" to "adopt", "I3" to "foster"), local.families[0].lineages)
+        assertEquals(mapOf("I4" to "adopt"), local.families[1].lineages)
+    }
+
+    @Test
     fun captureSkipsMediaThatIsAnUrl() {
         val gedcom = Gedcom()
         gedcom.addPerson(person("I1", null).apply {
