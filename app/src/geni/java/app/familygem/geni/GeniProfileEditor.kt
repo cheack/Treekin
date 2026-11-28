@@ -264,6 +264,7 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         for ((code, parts) in current) {
             // Only the fields the user changed go over the person's name of that language, which Geni's sync may have changed meanwhile
             val base = initial[code]
+            if (parts == base) continue // Untouched: a language that sync removed meanwhile stays removed
             val merged = LocaleName.KEYS.fold(now[code] ?: LocaleName.EMPTY) { acc, key -> if (parts[key] != base?.get(key)) acc.with(key, parts[key]) else acc }
             if (merged != now[code]) LocaleNames.set(person, code, merged)
         }
