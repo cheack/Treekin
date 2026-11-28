@@ -7,6 +7,7 @@ import app.familygem.geni.api.RateLimiter
 import app.familygem.geni.auth.AuthResult
 import app.familygem.geni.auth.InMemoryTokenStore
 import app.familygem.geni.map.GeniMapper
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.Dispatcher
@@ -159,6 +160,22 @@ class ProfileMergerTest {
         assertEquals(MergeResult.Unknown, merger().merge(treeId, "profile-7", "profile-9", "profile-1"))
         assertEquals(1, posts.size)
         assertEquals(2, host.trees.getValue(treeId).people.size)
+    }
+
+    @Test
+    fun loginChangedAfterThePostWentOutIsReadBackNotReportedAsNotSent() = runTest {
+        mergePostCode = 429
+        val treeId = tree()
+        val client = GeniClient(server.url("/api/"), tokens, RateLimiter { testScheduler.currentTime })
+        val merger = ProfileMerger(client, store, GeniLoader(client, store, host, now = { 5_000L }))
+        val result = kotlinx.coroutines.coroutineScope {
+            val call = async { merger.merge(treeId, "profile-7", "profile-9", "profile-1") }
+            while (posts.isEmpty()) kotlinx.coroutines.yield()
+            tokens.save(AuthResult.Success("other", Long.MAX_VALUE)) // After the 429 answer, before the replay
+            call.await()
+        }
+        assertTrue(result != MergeResult.AccountChanged)
+        assertEquals(1, posts.size)
     }
 
     @Test

@@ -99,6 +99,12 @@ object GeniMerge {
             MergeResult.AccountChanged -> R.string.geni_merge_login_changed
             MergeResult.NotLinked -> R.string.geni_merge_not_linked
         }
+        // The merge ran independently of the screen: a screen that is gone gets a toast only
+        val alive = !activity.isFinishing && !activity.isDestroyed
+        if (!alive) {
+            Toast.makeText(activity.applicationContext, message, Toast.LENGTH_LONG).show()
+            return
+        }
         if (result == MergeResult.Merged || result == MergeResult.RefreshNeeded) onDone()
         if (result == MergeResult.RefreshNeeded || result == MergeResult.Unknown) {
             // Reads only: safe to repeat, never sends the merge again

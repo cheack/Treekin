@@ -339,7 +339,15 @@ class GeniClient(
         val session = session()
         if (profileOf(session).id != confirmedBy) throw GeniAccountMismatchException()
         val form = FormBody.Builder().build()
-        return execute(Request.Builder().url(apiUrl("$survivorId/merge/$absorbedId")).post(form), session = session)
+        var dispatched = false
+        try {
+            return execute(Request.Builder().url(apiUrl("$survivorId/merge/$absorbedId")).post(form), session = session,
+                beforeSend = { dispatched = true; true })
+        } catch (e: GeniSessionChangedException) {
+            // After an attempt went out (a replay after 429), the merge may have reached Geni: not "nothing was sent"
+            if (dispatched) throw java.io.IOException("the login changed after the merge was sent", e)
+            throw e
+        }
     }
 
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
