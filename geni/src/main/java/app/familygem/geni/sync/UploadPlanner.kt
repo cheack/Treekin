@@ -182,7 +182,7 @@ object UploadPlanner {
 
         // Jobs whose record is gone (deleted locally: not uploaded), linked meanwhile or no longer connected
         for (job in jobs) {
-            if (job.kind == JobKind.DELETE_PROFILE || job.kind == JobKind.DELETE_PHOTO) continue // The record is gone on purpose
+            if (job.kind == JobKind.DELETE_PROFILE || job.kind == JobKind.DELETE_PHOTO || job.kind == JobKind.UPDATE_PHOTO) continue // The record is gone on purpose, or the job was queued by the user
             val gone = when {
                 job.key.startsWith("add:") -> job.key.removePrefix("add:") !in planned
                 // With the setting off only the waiting ones go; a failed or dismissed one stays, so it is not planned and sent again later

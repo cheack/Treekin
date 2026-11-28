@@ -28,9 +28,11 @@ class AlbumLoaderTest {
     private val gedcom = Gedcom().apply { addPerson(Person().apply { id = "I1"; GeniMapper.setGeniId(this, "profile-1") }) }
     private val treeId = kotlinx.coroutines.runBlocking { host.createTree("t", gedcom) }
     private val failing = mutableSetOf<String>()
+    private val downloaded = mutableListOf<String>()
     private val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1)
 
     private val sync = PhotoSync(store, host) { url, target ->
+        downloaded += url
         if (failing.any { url.contains(it) }) throw IOException("cdn")
         target.writeBytes(jpeg)
         "image/jpeg"
@@ -199,5 +201,19 @@ class AlbumLoaderTest {
         } catch (e: app.familygem.geni.api.GeniApiException) {
         }
         assertEquals(emptyList<DownloadTask>(), feed.tasks.value)
+    }
+
+    @Test
+    fun listRefreshesTheDetailsOfPhotosOnTheDeviceWithoutDownloading() = runTest {
+        sync.addAlbumPhoto(treeId, "profile-1", "I1", loaderPhoto(1))
+        val before = downloaded.size
+        server.enqueue(MockResponse.Builder().code(200).body(
+            """{"results":[{"id":"photo-1","title":"New title","description":"Text","date":{"year":1950},"sizes":{"medium":"https://p.example/1/m.jpg"}}]}"""
+        ).build())
+        server.enqueue(MockResponse.Builder().code(200).body("""{"results":[]}""").build())
+        loader().list(treeId, "profile-1", "I1")
+        val media = gedcom.people.single().media.single()
+        assertEquals(app.familygem.geni.map.PhotoDetails("New title", "Text", "1950"), app.familygem.geni.map.PhotoDetails.shown(media))
+        assertEquals(before, downloaded.size)
     }
 }

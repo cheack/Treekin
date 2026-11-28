@@ -57,6 +57,7 @@ class MediaFragment : BaseFragment() {
             if (index >= 0 && index < person.media.size - 1) menu.add(0, 6, 0, R.string.move_down)
             menu.add(0, 7, 0, R.string.make_shared_media)
         }
+        app.familygem.geni.GeniPhotoEditor.addMenuItem(requireContext(), menu, person, media) { if (isAdded) refresh() } // GENI-HOOK
         menu.add(0, 8, 0, R.string.delete)
     }
 

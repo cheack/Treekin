@@ -1,6 +1,6 @@
 package app.familygem.geni.sync
 
-enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD, DELETE_PROFILE, ADD_PHOTO, DELETE_PHOTO }
+enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD, DELETE_PROFILE, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO }
 
 /** PENDING runs; FAILED waits for the user; DISMISSED is hidden and kept so the same change is not planned again. */
 enum class JobState {
@@ -11,9 +11,9 @@ enum class JobState {
 
 /**
  * A change waiting to be uploaded to Geni. One job per record, identified by [key] within the tree:
- * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>` or `photo:<personGedcomId>:<fileName>`.
+ * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>`, `updphoto:<photoId>` or `photo:<personGedcomId>:<fileName>`.
  * @param anchors For adds: relatives to attach the new profile to, as "child:<gedcomId>" or "partner:<gedcomId>"
- * @param params Form parameters for Geni; an add of an adopted or foster child also has [MODIFIER_PARAM]
+ * @param params Form parameters for Geni; an UPDATE_PHOTO has the details it started from and the wanted ones as `base:<FIELD>` and `want:<FIELD>` pairs (see [app.familygem.geni.map.PhotoDetails.toParams]); an add of an adopted or foster child also has [MODIFIER_PARAM]
  * @param label What the user sees in the list of failed changes
  * @param localHash Hash of the local projection the job was planned from
  * @param confirmedByProfileId For deletes: the Geni account (its profile ID) that confirmed it; null for jobs from before this was recorded
@@ -54,6 +54,9 @@ data class UploadJob(
     companion object {
         /** Geni's lineage of a new child ("adopt" or "foster"), sent with the add only; a birth child has none. */
         const val MODIFIER_PARAM = "relationship_modifier"
+        /** Prefixes of the params of an UPDATE_PHOTO: the details it started from and the ones it wants. */
+        const val BASE_PREFIX = "base:"
+        const val WANT_PREFIX = "want:"
         const val CURRENT_PARAMS_FORMAT = 1
         private val LEGACY_CLEARS = listOf("city", "county", "state", "country")
     }

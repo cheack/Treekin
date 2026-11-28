@@ -57,6 +57,14 @@
     <string name="geni_delete_other_account">A deletion of this person confirmed under another Geni account is still waiting. Sign in to that account, or dismiss the failed change first.</string>
     <string name="geni_photo_delete_local">The photo stays on Geni and can be downloaded again from the album.</string>
     <string name="geni_photo_delete_confirm">This photo will be deleted on Geni for everyone. This cannot be undone.</string>
+    <string name="geni_photo_edit">Edit Geni photo details</string>
+    <string name="geni_photo_edit_title">Title</string>
+    <string name="geni_photo_edit_description">Description</string>
+    <string name="geni_photo_edit_date">Date</string>
+    <string name="geni_photo_edit_date_hint">For example 12 MAR 1960, JUL 1948 or ABT 1950</string>
+    <string name="geni_photo_edit_date_invalid">Geni keeps one date for a photo: a day with its month, a month or a year, as in the hint. Ranges such as BEF or BET cannot be stored.</string>
+    <string name="geni_photo_edit_queued">Photo details will be sent to Geni</string>
+    <string name="geni_photo_edit_failed">Photo details were not saved</string>
     <string name="geni_photo_main">This is the main photo from Geni. Delete it on Geni to remove it.</string>
     <string name="geni_delete_failed">The change could not be saved. Try again.</string>
     <string name="geni_album">Geni photos</string>
@@ -98,6 +106,7 @@
     <string name="geni_backlog_op_delete_person">Deletion on Geni</string>
     <string name="geni_backlog_op_add_photo">Photo upload</string>
     <string name="geni_backlog_op_delete_photo">Photo deletion on Geni</string>
+    <string name="geni_backlog_op_update_photo">Photo details on Geni</string>
     <string name="geni_backlog_op_prefetch">Loading relatives</string>
     <string name="geni_backlog_op_keep_offline">Keep offline</string>
     <string name="geni_backlog_op_daily_refresh">Daily refresh</string>

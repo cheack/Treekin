@@ -349,4 +349,44 @@ class GeniParamsTest {
         GeniMapper.setTag(person, GeniMapper.NAME_TITLE_TAG, null)
         assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(snapshot, ProfileFields.of(person)))
     }
+
+    @Test
+    fun photoParamsHoldOnlyTheChangedFieldsWithEmptyValuesForClears() {
+        val old = PhotoDetails("Old", "Old text", "ABT 3 MAY 1950")
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.photo(old, old))
+        assertEquals(listOf("title" to "New"), GeniParams.photo(old, old.copy(title = "New")))
+        assertEquals(listOf("title" to "", "description" to ""), GeniParams.photo(old, old.copy(title = null, description = null)))
+        assertEquals(listOf("description" to "Two\nlines"), GeniParams.photo(old, old.copy(description = "Two\nlines")))
+    }
+
+    @Test
+    fun photoDateParamsAreSentWholeAndClearedWithEmptyParts() {
+        val old = PhotoDetails(null, null, "1950")
+        assertEquals(
+            listOf("date[day]" to "3", "date[month]" to "5", "date[year]" to "1951", "date[circa]" to "true"),
+            GeniParams.photo(old, old.copy(date = "ABT 3 MAY 1951"))
+        )
+        assertEquals(
+            listOf("date[day]" to "", "date[month]" to "7", "date[year]" to "1948", "date[circa]" to "false"),
+            GeniParams.photo(old, old.copy(date = "JUL 1948"))
+        )
+        assertEquals(
+            listOf("date[day]" to "", "date[month]" to "", "date[year]" to "", "date[circa]" to "false"),
+            GeniParams.photo(old, old.copy(date = null))
+        )
+    }
+
+    @Test
+    fun aPhotoDateWithARangeOrNoSenseIsNotSent() {
+        val old = PhotoDetails("T", null, "1950")
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.photo(old, old.copy(date = "BEF 1900")))
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.photo(old, old.copy(date = "BET 1940 AND 1945")))
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.photo(old, old.copy(date = "spring")))
+        assertTrue(GeniParams.isPhotoDate("12 mar 1960"))
+        assertTrue(GeniParams.isPhotoDate("ABT 1950"))
+        assertTrue(!GeniParams.isPhotoDate("BEF 1900"))
+        assertTrue(!GeniParams.isPhotoDate("12 1960"))
+        // Events still take ranges
+        assertTrue(GeniParams.isStorable("BEF 1900", ranges = true))
+    }
 }

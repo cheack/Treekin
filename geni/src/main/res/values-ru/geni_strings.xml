@@ -57,6 +57,14 @@
     <string name="geni_delete_other_account">Удаление этого человека, подтверждённое под другим аккаунтом Geni, ещё ожидает. Войдите в тот аккаунт или сначала отклоните неудавшееся изменение.</string>
     <string name="geni_photo_delete_local">Фото останется на Geni, его можно снова скачать из альбома.</string>
     <string name="geni_photo_delete_confirm">Это фото будет удалено на Geni для всех. Отменить это нельзя.</string>
+    <string name="geni_photo_edit">Изменить данные фото Geni</string>
+    <string name="geni_photo_edit_title">Название</string>
+    <string name="geni_photo_edit_description">Описание</string>
+    <string name="geni_photo_edit_date">Дата</string>
+    <string name="geni_photo_edit_date_hint">Например 12 MAR 1960, JUL 1948 или ABT 1950</string>
+    <string name="geni_photo_edit_date_invalid">Geni хранит у фото одну дату: день с месяцем, месяц или год, как в подсказке. Диапазоны BEF и BET сохранить нельзя.</string>
+    <string name="geni_photo_edit_queued">Данные фото будут отправлены в Geni</string>
+    <string name="geni_photo_edit_failed">Данные фото не сохранены</string>
     <string name="geni_photo_main">Это главное фото с Geni. Чтобы убрать его, удалите его на Geni.</string>
     <string name="geni_delete_failed">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
     <string name="geni_album">Фото на Geni</string>
@@ -98,6 +106,7 @@
     <string name="geni_backlog_op_delete_person">Удаление на Geni</string>
     <string name="geni_backlog_op_add_photo">Отправка фото</string>
     <string name="geni_backlog_op_delete_photo">Удаление фото на Geni</string>
+    <string name="geni_backlog_op_update_photo">Данные фото на Geni</string>
     <string name="geni_backlog_op_prefetch">Загрузка родственников</string>
     <string name="geni_backlog_op_keep_offline">Хранить офлайн</string>
     <string name="geni_backlog_op_daily_refresh">Ежедневное обновление</string>

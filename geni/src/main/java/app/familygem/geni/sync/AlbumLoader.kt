@@ -23,7 +23,8 @@ class AlbumLoader(
 
     /**
      * The album as Geni lists it now, each photo marked with its local state; needs the network.
-     * Photos deleted on Geni are removed from the person first (see [PhotoSync.reconcileAlbum]).
+     * Photos deleted on Geni are removed from the person first (see [PhotoSync.reconcileAlbum]); the title, description and date of the
+     * photos already on the device are refreshed from the listing, with no download (see [PhotoSync.refreshDetails]).
      */
     suspend fun list(treeId: Int, geniProfileId: String, personGedcomId: String): Album =
         feed.track(treeId, DownloadKind.ALBUM_LIST, geniProfileId) { listNow(treeId, geniProfileId, personGedcomId) }
@@ -31,6 +32,7 @@ class AlbumLoader(
     private suspend fun listNow(treeId: Int, geniProfileId: String, personGedcomId: String): Album {
         val photos = client.photos(geniProfileId)
         val removed = this.photos.reconcileAlbum(treeId, geniProfileId, personGedcomId, photos)
+        this.photos.refreshDetails(treeId, photos)
         val links = store.photoLinks(treeId, geniProfileId).associateBy { it.geniPhotoId }
         val dir = mediaDir(treeId)
         return Album(photos.map { photo ->

@@ -85,4 +85,33 @@ class GeniPhotoTest {
         assertTrue(error is GeniApiException)
         assertEquals(200, (error as GeniApiException).code)
     }
+
+    @Test
+    fun parsesDescriptionAndDateOfAPhoto() {
+        val photo = parsePhoto(Fixtures.read("photo-details-single.json"))
+        assertEquals("Wedding day", photo.title)
+        assertEquals("First line\nSecond line", photo.description)
+        assertEquals(GeniDate(1950, 5, 3, true), photo.date)
+        assertTrue(photo.detailsKnown)
+    }
+
+    @Test
+    fun aPhotoWithoutDetailsHasNoneAndAMugshotKnowsNone() {
+        val plain = parsePhoto(Fixtures.read("photo-single.json"))
+        assertNull(plain.description)
+        assertNull(plain.date)
+        assertTrue(plain.detailsKnown)
+        val mugshot = mugshotToPhoto(GeniProfile(id = "profile-1", mugshotUrls = mapOf("url" to "https://api.example/photo-7", "medium" to "m")))!!
+        assertFalse(mugshot.detailsKnown)
+        assertNull(mugshot.title)
+    }
+
+    @Test
+    fun aRangeDateIsAcceptedByGeniButReadBackAsItsFirstDate() {
+        // Sandbox 2026-11: the update answers with the range, a later read has only the first date, so photo ranges are not offered
+        assertEquals("before", parsePhoto(Fixtures.read("photo-date-range-update-response.json")).date?.range)
+        val readBack = parsePhoto(Fixtures.read("photo-date-range-read-back.json"))
+        assertNull(readBack.date?.range)
+        assertEquals(1960, readBack.date?.year)
+    }
 }
