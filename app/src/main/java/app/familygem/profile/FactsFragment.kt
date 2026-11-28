@@ -111,7 +111,6 @@ class FactsFragment : BaseFragment() {
                     chosenSex++
                 }
                 if (chosenSex > 2) chosenSex = -1
-                if (app.familygem.geni.GeniFacts.trimSexes(sexes)) chosenSex = chosenSex.takeIf { it < sexes.size } ?: -1 // GENI-HOOK
                 eventView.setOnClickListener {
                     AlertDialog.Builder(requireContext())
                         .setSingleChoiceItems(sexes.values.toTypedArray<String>(), chosenSex) { dialog: DialogInterface, item: Int ->

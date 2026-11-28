@@ -10,6 +10,8 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers.isPlatformPopup
 import androidx.test.espresso.matcher.ViewMatchers.isChecked
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isEnabled
+import androidx.test.espresso.matcher.ViewMatchers.isNotChecked
 import androidx.test.espresso.matcher.ViewMatchers.isNotEnabled
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
@@ -146,6 +148,12 @@ class GeniProfileEditorTest {
      * so Espresso's scrollTo() can stop with the buttons still behind the navigation bar.
      */
     private fun tapButton(id: Int) {
+        scrollToEnd()
+        field(id).perform(click())
+    }
+
+    /** Scrolls the form to its end (see [tapButton]); the privacy switch is the last field, right above the buttons. */
+    private fun scrollToEnd() {
         onView(withId(R.id.base_scrollView)).perform(object : androidx.test.espresso.ViewAction {
             override fun getConstraints(): Matcher<View> = androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom(android.widget.ScrollView::class.java)
             override fun getDescription() = "scroll to the end"
@@ -154,7 +162,6 @@ class GeniProfileEditorTest {
                 uiController.loopMainThreadUntilIdle()
             }
         })
-        field(id).perform(click())
     }
 
     /** Saves the form and returns the Geni parameters that the change makes. */
@@ -227,7 +234,8 @@ class GeniProfileEditorTest {
                 R.id.editor_burialDate to "1901", R.id.editor_burialPlace to "Kazan", R.id.editor_occupation to "Miner",
                 R.id.editor_about to "Line one\nLine two"
             ).forEach { (id, text) -> field(id).check(matches(withText(text))) }
-            field(R.id.editor_sex3).check(matches(isNotEnabled()))
+            field(R.id.editor_sex3).check(matches(isEnabled())) // Unknown is writable: Geni clears the sex
+            field(R.id.editor_geniPublic).check(matches(allOf(isEnabled(), isNotChecked()))) // A deceased person can be made public
         }
         GeniTrees.remove(treeId)
         openEditor(person).use {
@@ -235,6 +243,105 @@ class GeniProfileEditorTest {
                 .forEach { field(it).check(matches(androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility(
                     androidx.test.espresso.matcher.ViewMatchers.Visibility.GONE))) }
         }
+    }
+
+    @Test
+    fun deceasedPersonCanBeMadePublicAndSecondSaveQueuesNothing() {
+        GeniTrees.add(treeId)
+        val person = geniPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            scrollToEnd()
+            field(R.id.editor_geniPublic).perform(click())
+            field(R.id.editor_geniPublicNote).check(matches(withText(context.getString(app.familygem.geni.R.string.geni_privacy_public))))
+            saveAndParams(person, before)
+        }
+        assertEquals(true, GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+        assertEquals(listOf("public" to "true"), params)
+        // Reload and save again without a change: the stored value shows and nothing is queued
+        val saved = ProfileFields.of(person)
+        val again = openEditor(person).use {
+            run { scrollToEnd(); field(R.id.editor_geniPublic) }.check(matches(isChecked()))
+            saveAndParams(person, saved)
+        }
+        assertEquals(emptyList<Pair<String, String>>(), again)
+    }
+
+    @Test
+    fun untouchedPrivacyWritesNothing() {
+        GeniTrees.add(treeId)
+        val person = geniPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use { saveAndParams(person, before) }
+        assertNull(GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+        assertTrue(params.none { it.first == "public" })
+    }
+
+    @Test
+    fun explicitPrivateChoiceIsKept() {
+        GeniTrees.add(treeId)
+        val person = geniPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            // On and off again: a deliberate Private, sent as public=false for a profile without a stored value
+            scrollToEnd()
+            field(R.id.editor_geniPublic).perform(click())
+            field(R.id.editor_geniPublic).perform(click())
+            saveAndParams(person, before)
+        }
+        assertEquals(false, GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+        assertEquals(listOf("public" to "false"), params)
+    }
+
+    @Test
+    fun livingPersonIsPrivateAndTheSwitchIsOff() {
+        GeniTrees.add(treeId)
+        val person = legacyPerson()
+        openEditor(person).use {
+            run { scrollToEnd(); field(R.id.editor_geniPublic) }
+                .check(matches(allOf(isNotEnabled(), isNotChecked())))
+            field(R.id.editor_geniPublicNote).check(matches(withText(context.getString(app.familygem.geni.R.string.geni_privacy_living))))
+            // Marking the person dead lets the switch work
+            field(R.id.editor_dead).perform(androidx.test.espresso.action.ViewActions.scrollTo(), click())
+            run { scrollToEnd(); field(R.id.editor_geniPublic) }.check(matches(isEnabled()))
+        }
+    }
+
+    @Test
+    fun privacyIsAbsentInAnOrdinaryTree() {
+        GeniTrees.remove(treeId)
+        openEditor(geniPerson()).use {
+            field(R.id.editor_geni).check(matches(androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility(
+                androidx.test.espresso.matcher.ViewMatchers.Visibility.GONE)))
+        }
+    }
+
+    @Test
+    fun unknownSexIsSavedAsUAndClearsGeniSex() {
+        GeniTrees.add(treeId)
+        val person = geniPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_sex3).perform(androidx.test.espresso.action.ViewActions.scrollTo(), click())
+            saveAndParams(person, before)
+        }
+        assertEquals("U", person.eventsFacts.single { it.tag == "SEX" }.value)
+        assertEquals("U", ProfileFields.of(person).sex)
+        // Against a snapshot that has a sex, Unknown clears it; against none it writes nothing
+        assertEquals(listOf("gender" to "unknown"), params)
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(ProfileFields.of(person), ProfileFields.of(person)))
+    }
+
+    @Test
+    fun legacyUnknownSexOfAPlaceholderDoesNotWriteOnAnUnrelatedSave() {
+        GeniTrees.add(treeId)
+        val person = geniPerson().apply { eventsFacts.single { it.tag == "SEX" }.value = "U" }
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_occupation).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("Driver"))
+            saveAndParams(person, before)
+        }
+        assertEquals(listOf("occupation" to "Driver"), params)
     }
 
     @Test

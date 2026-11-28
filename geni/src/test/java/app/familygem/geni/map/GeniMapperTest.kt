@@ -208,6 +208,43 @@ class GeniMapperTest {
     }
 
     @Test
+    fun clearedGenderOnGeniClearsTheSex() {
+        val person = Person().apply { addEventFact(EventFact().apply { tag = "SEX"; value = "M" }) }
+        val male = profiles.getValue("profile-36431")
+        GeniMapper.applyProfile(Gedcom(), person, male.copy(gender = null), previous = male)
+        assertEquals("U", person.fact("SEX").value)
+        GeniMapper.applyProfile(Gedcom(), person, male, previous = male.copy(gender = null))
+        assertEquals("M", person.fact("SEX").value)
+    }
+
+    @Test
+    fun privacyIsAppliedFromGeni() {
+        val fixture = parseResults(Fixtures.read("profiles-batch-privacy.json"), GeniProfile::class.java).associateBy { it.id }
+        val person = Person().apply { GeniMapper.applyProfile(Gedcom(), this, fixture.getValue("profile-101")) }
+        assertEquals(true, GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+        // An explicit false is kept apart from missing
+        val living = Person().apply { GeniMapper.applyProfile(Gedcom(), this, fixture.getValue("profile-100")) }
+        assertEquals(false, GeniMapper.getBoolean(living, GeniMapper.PUBLIC_TAG))
+        assertNull(GeniMapper.getBoolean(living, GeniMapper.LOCKED_TAG))
+        // Geni changes it, a later load follows; a local change in the same group is kept
+        val changed = fixture.getValue("profile-101").copy(public = false)
+        GeniMapper.applyProfile(Gedcom(), person, changed, previous = fixture.getValue("profile-101"))
+        assertEquals(false, GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+        GeniMapper.applyProfile(Gedcom(), person, fixture.getValue("profile-101"), previous = changed, keep = setOf(ProfileGroup.PUBLIC))
+        assertEquals(false, GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG))
+    }
+
+    @Test
+    fun lockedIsReadOnlyAndMissingStaysMissing() {
+        val fixture = parseResults(Fixtures.read("profile-merge-note-forms.json"), GeniProfile::class.java).associateBy { it.id }
+        val locked = Person().apply { GeniMapper.applyProfile(Gedcom(), this, fixture.getValue("profile-110")) }
+        assertEquals(true, GeniMapper.getBoolean(locked, GeniMapper.LOCKED_TAG))
+        val plain = Person().apply { GeniMapper.applyProfile(Gedcom(), this, fixture.getValue("profile-112")) }
+        assertNull(GeniMapper.getBoolean(plain, GeniMapper.LOCKED_TAG))
+        assertNull(GeniMapper.getBoolean(plain, GeniMapper.PUBLIC_TAG))
+    }
+
+    @Test
     fun clearedEventKeepsAFactWithLocalData() {
         val person = Person()
         val withBirth = com.google.gson.Gson().fromJson("""{"id":"profile-1","birth":{"date":{"year":1960}}}""", GeniProfile::class.java)

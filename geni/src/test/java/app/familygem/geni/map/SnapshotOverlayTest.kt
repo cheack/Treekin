@@ -31,6 +31,25 @@ class SnapshotOverlayTest {
     private fun fieldsOf(json: String) = ProfileFields.ofSnapshot(json)?.withPlacesResolved()
 
     @Test
+    fun unknownSexLeavesNoGender() {
+        val json = SnapshotOverlay.apply(olga.copy(sex = "F").let { SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, it, isNew = true), "profile-5") },
+            GeniParams.profile(olga.copy(sex = "F"), olga.copy(sex = "U")), "profile-5")
+        assertEquals(false, com.google.gson.JsonParser.parseString(json).asJsonObject.has("gender"))
+        assertEquals("U", ProfileFields.ofSnapshot(json)!!.sex)
+        assertEquals(olga.copy(sex = "U").asGeni().value(ProfileGroup.SEX), fieldsOf(json)!!.value(ProfileGroup.SEX))
+    }
+
+    @Test
+    fun privacyRoundTripsAsABoolean() {
+        val dead = olga.copy(isPublic = false)
+        val json = SnapshotOverlay.apply(null, GeniParams.profile(ProfileFields.EMPTY, dead.copy(isPublic = true), isNew = true), "profile-5")
+        assertEquals(true, com.google.gson.JsonParser.parseString(json).asJsonObject.get("public").asBoolean)
+        assertEquals(true, ProfileFields.ofSnapshot(json)!!.isPublic)
+        val privateJson = SnapshotOverlay.apply(json, GeniParams.profile(dead.copy(isPublic = true), dead), "profile-5")
+        assertEquals(false, ProfileFields.ofSnapshot(privateJson)!!.isPublic) // Explicit false stays, not removed
+    }
+
+    @Test
     fun unionParams() {
         val married = UnionFields(EventFields("2000", "Kazan"), EventFields("2010", null), divorced = true)
         val json = SnapshotOverlay.apply("""{"id":"union-1","status":"spouse"}""", GeniParams.union(UnionFields.EMPTY, married), "union-1")

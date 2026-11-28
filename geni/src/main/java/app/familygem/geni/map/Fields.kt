@@ -69,6 +69,7 @@ data class ProfileFields(
     val maiden: String?,
     val suffix: String?,
     val nicknames: String?,
+    /** "M", "F", "U" for an unknown sex written as such, null without a SEX fact. */
     val sex: String?,
     val birth: EventFields?,
     val baptism: EventFields?,
@@ -83,7 +84,11 @@ data class ProfileFields(
     /** Geni's display name override: null when the record does not know it, empty for none. */
     val displayName: String? = null,
     /** Geni's name title (not the GEDCOM title fact): null when the record does not know it, empty for none. */
-    val title: String? = null
+    val title: String? = null,
+    /** Geni's privacy: null when the record does not know it (no `_GENI_PUBLIC` tag), false for an explicit private. */
+    val isPublic: Boolean? = null,
+    /** Curator lock as Geni reported it (read-only, never written): null when unknown. */
+    val locked: Boolean? = null
 ) {
     /**
      * The fields with what a legacy record does not store taken from [baseline] (the last Geni version):
@@ -93,6 +98,8 @@ data class ProfileFields(
         givenParts = givenParts ?: baseline.givenParts?.takeIf { given == baseline.given } ?: GivenNameParts.split(given),
         displayName = displayName ?: baseline.displayName,
         title = title ?: baseline.title,
+        isPublic = isPublic ?: baseline.isPublic,
+        locked = locked ?: baseline.locked,
         birth = birth.resolvedAgainst(baseline.birth),
         baptism = baptism.resolvedAgainst(baseline.baptism),
         death = death.resolvedAgainst(baseline.death),
@@ -132,7 +139,8 @@ data class ProfileFields(
                 maiden = splitName(names.firstOrNull { it.type == "birth" }?.value).second?.takeIf { it != surname },
                 suffix = clean(main?.suffix),
                 nicknames = main?.nickname?.split(',')?.mapNotNull { clean(it) }?.joinToString(", ")?.takeIf { it.isNotEmpty() },
-                sex = clean(first("SEX")?.value)?.uppercase()?.takeIf { it == "M" || it == "F" },
+                // "U" is Geni's cleared sex (or a record that never had one); a missing SEX fact is null
+                sex = clean(first("SEX")?.value)?.uppercase()?.takeIf { it == "M" || it == "F" || it == "U" },
                 birth = event(first("BIRT")),
                 baptism = event(first("BAPM")),
                 death = event(death),
@@ -144,7 +152,9 @@ data class ProfileFields(
                 // Parts that no longer make the given name were left by an edit elsewhere: ignored
                 givenParts = GeniMapper.getGivenNameParts(person)?.normalized()?.takeIf { it.joined == given },
                 displayName = GeniMapper.getTag(person, GeniMapper.DISPLAY_NAME_TAG)?.let { clean(it) ?: "" },
-                title = GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG)?.let { clean(it) ?: "" }
+                title = GeniMapper.getTag(person, GeniMapper.NAME_TITLE_TAG)?.let { clean(it) ?: "" },
+                isPublic = GeniMapper.getBoolean(person, GeniMapper.PUBLIC_TAG),
+                locked = GeniMapper.getBoolean(person, GeniMapper.LOCKED_TAG)
             )
         }
 

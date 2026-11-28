@@ -164,6 +164,49 @@ class UploadPlannerTest {
         assertEquals(emptyList<UploadJob>(), plan(local).upserts)
     }
 
+    private fun withSnapshot(json: String) = coupleLinks.map { if (it.geniId == "profile-1") it.copy(snapshot = json) else it }
+
+    @Test
+    fun privacyChangeMakesAJobOnceAfterTheUpload() {
+        val deadJson = ivanJson.replace("\"is_alive\":true", "\"is_alive\":false,\"public\":false")
+        val dead = ProfileFields.ofSnapshot(deadJson)!!
+        val local = dead.copy(isPublic = true)
+        val job = plan(couple(ivanFields = local), withSnapshot(deadJson)).upserts.single()
+        assertEquals(listOf("public" to "true"), job.params)
+        // Geni's read-back (or the overlay) now has public=true: a second save queues nothing
+        val after = SnapshotOverlay.apply(deadJson, job.params, "profile-1")
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = local), withSnapshot(after), listOf(job("profile:profile-1"))).upserts)
+    }
+
+    @Test
+    fun sexChangeToUnknownMakesAJobOnce() {
+        val local = ivan.copy(sex = "U")
+        val job = plan(couple(ivanFields = local)).upserts.single()
+        assertEquals(listOf("gender" to "unknown"), job.params)
+        val after = SnapshotOverlay.apply(ivanJson, job.params, "profile-1") // Geni omits the gender
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = local), withSnapshot(after)).upserts)
+    }
+
+    @Test
+    fun legacyUnknownSexAndMissingPrivacyMakeNoJobOnAnUnrelatedSave() {
+        val noGenderJson = ivanJson.replace("\"gender\":\"male\",", "\"public\":true,")
+        val snapshot = ProfileFields.ofSnapshot(noGenderJson)!!
+        assertEquals("U", snapshot.sex)
+        // The local record has a SEX U placeholder and no privacy tag; only the occupation changed
+        val local = snapshot.copy(isPublic = null, occupation = "Driver")
+        val job = plan(couple(ivanFields = local), withSnapshot(noGenderJson)).upserts.single()
+        assertEquals(listOf("occupation" to "Driver"), job.params)
+        assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = snapshot.copy(isPublic = null, sex = null)), withSnapshot(noGenderJson)).upserts)
+    }
+
+    @Test
+    fun legacySnapshotWithoutPrivacyIsRecheckedWithoutAWrite() {
+        // A snapshot stored before privacy was read: no public field; the record has no tag either
+        assertEquals(emptyList<UploadJob>(), plan(couple()).upserts)
+        val verified = plan(couple()).verified.single { it.geniId == "profile-1" }
+        assertEquals(ivan.hashCode(), verified.verifiedHash)
+    }
+
     @Test
     fun unparseableDateMakesNoJob() {
         assertEquals(emptyList<UploadJob>(), plan(couple(ivanFields = ivan.copy(birth = EventFields("FROM 1960", null)))).upserts)

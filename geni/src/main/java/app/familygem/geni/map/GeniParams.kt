@@ -45,6 +45,7 @@ object GeniParams {
      * Form parameters that bring a Geni profile from [old] to [new], only for the field groups that differ.
      * With [isNew] the profile is being created: every non-empty group is sent, and `is_alive` always
      * (Geni makes profiles created through the API deceased otherwise).
+     * `public` goes only when it was set explicitly (an untouched profile keeps Geni's creation default) and differs.
      * Values Geni cannot store (a date like "BEF 1900") count as unchanged.
      */
     fun profile(oldFields: ProfileFields, newFields: ProfileFields, isNew: Boolean = false): List<Pair<String, String>> {
@@ -62,7 +63,10 @@ object GeniParams {
         if (new.nicknames != old.nicknames) params += "nicknames" to (new.nicknames ?: "")
         if (new.displayName.orEmpty() != old.displayName.orEmpty()) params += "display_name" to new.displayName.orEmpty()
         if (new.title.orEmpty() != old.title.orEmpty()) params += "title" to new.title.orEmpty()
-        if (new.sex != null && new.sex != old.sex) params += "gender" to if (new.sex == "M") "male" else "female"
+        // An unknown sex is `gender=unknown`, sent only to clear a sex Geni has (verified on the sandbox: an omitted gender is the same
+        // as a cleared one on creation); a missing SEX fact, as in a legacy record, never clears
+        if (new.sex != null && new.sex != old.sex && (new.sex != "U" || old.sex == "M" || old.sex == "F"))
+            params += "gender" to when (new.sex) { "M" -> "male"; "F" -> "female"; else -> "unknown" }
         event(params, "birth", old.birth, new.birth)
         event(params, "baptism", old.baptism, new.baptism)
         // Geni ignores death while the profile is alive, so is_alive goes first and with every death change
@@ -75,6 +79,9 @@ object GeniParams {
             params += "is_alive" to (!new.dead).toString()
             params += death
         }
+        // After is_alive: a profile made deceased in the same save can then be made public. A living profile is never public on Geni
+        // (public=true is ignored), so it is not sent: it would differ from Geni's read-back for good
+        if (new.isPublic != null && new.isPublic != old.isPublic && (!new.isPublic || new.dead)) params += "public" to new.isPublic.toString()
         event(params, "burial", old.burial, new.burial)
         if (new.occupation != old.occupation) params += "occupation" to (new.occupation ?: "")
         if (new.about != old.about) params += "about_me" to (new.about ?: "")

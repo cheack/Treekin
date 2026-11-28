@@ -315,7 +315,6 @@ class ProfileActivity : AppCompatActivity() {
                     21 -> { // Create sex
                         val sexNames =
                             arrayOf(getString(R.string.male), getString(R.string.female), getString(R.string.unknown))
-                                .let { if (app.familygem.geni.GeniFacts.isGeniTree()) it.copyOfRange(0, 2) else it } // GENI-HOOK: Geni writes male and female
                         AlertDialog.Builder(this)
                             .setSingleChoiceItems(sexNames, -1) { dialog: DialogInterface, i: Int ->
                                 val gender = EventFact()

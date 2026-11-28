@@ -1,6 +1,7 @@
 package app.familygem.geni.api
 
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
 
@@ -49,7 +50,14 @@ data class GeniProfile(
     @SerializedName("display_name") val displayName: String? = null,
     /** Name title like "Dr."; top-level and set only while there is one (checked on the sandbox, 2026-11-26). */
     val title: String? = null,
+    /** "male" or "female"; omitted while the sex is cleared (checked on the sandbox, 2026-11-28: `gender=unknown` and an empty value both clear it). */
     val gender: String? = null,
+    /** Always returned on the sandbox, an explicit false included; a living profile is never public. */
+    val public: Boolean? = null,
+    /** Curator lock; never returned for a basic account (sandbox, 2026-11-28), so it is read-only and may stay null. */
+    val locked: Boolean? = null,
+    /** Curator note: documented as a string or an array of strings; never returned for a basic account. */
+    @SerializedName("merge_note") val mergeNote: JsonElement? = null,
     @SerializedName("is_alive") val isAlive: Boolean? = null,
     val occupation: String? = null,
     @SerializedName("about_me") val aboutMe: String? = null,
@@ -66,6 +74,16 @@ data class GeniProfile(
     @SerializedName("merged_into") val mergedInto: String? = null,
     @SerializedName("mugshot_urls") val mugshotUrls: Map<String, String>? = null
 )
+
+/** The merge note as text, the items of an array joined by line breaks; null when there is none. */
+val GeniProfile.mergeNoteText: String?
+    get() = mergeNote?.let { note ->
+        when {
+            note.isJsonPrimitive -> note.asString
+            note.isJsonArray -> note.asJsonArray.filter { it.isJsonPrimitive }.joinToString("\n") { it.asString }
+            else -> null
+        }
+    }?.trim()?.takeIf { it.isNotEmpty() }
 
 /** Geni union: a couple and their children. */
 data class GeniUnion(

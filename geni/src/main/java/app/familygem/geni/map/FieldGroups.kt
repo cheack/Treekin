@@ -6,7 +6,7 @@ package app.familygem.geni.map
  * who changed what, and where both changed the same thing differently.
  */
 
-enum class ProfileGroup { NAMES, DISPLAY_NAME, TITLE, SEX, BIRTH, BAPTISM, DEATH, BURIAL, OCCUPATION, ABOUT }
+enum class ProfileGroup { NAMES, DISPLAY_NAME, TITLE, SEX, PUBLIC, BIRTH, BAPTISM, DEATH, BURIAL, OCCUPATION, ABOUT }
 
 enum class UnionGroup { MARRIAGE, DIVORCE }
 
@@ -14,7 +14,8 @@ fun ProfileFields.value(group: ProfileGroup): Any? = when (group) {
     ProfileGroup.NAMES -> listOf(given, surname, maiden, suffix, nicknames, givenParts)
     ProfileGroup.DISPLAY_NAME -> displayName
     ProfileGroup.TITLE -> title
-    ProfileGroup.SEX -> sex
+    ProfileGroup.SEX -> sex?.takeIf { it != "U" } // An unknown sex equals a missing one
+    ProfileGroup.PUBLIC -> isPublic?.let { if (it) "public" else "private" }
     ProfileGroup.BIRTH -> birth
     ProfileGroup.BAPTISM -> baptism
     ProfileGroup.DEATH -> listOf(death, dead, causeOfDeath)

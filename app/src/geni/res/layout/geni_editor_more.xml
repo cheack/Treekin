@@ -87,4 +87,16 @@
             android:minLines="3"
             android:gravity="top" />
     </com.google.android.material.textfield.TextInputLayout>
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/editor_geniPublic"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/geni_public_profile" />
+    <TextView
+        android:id="@+id/editor_geniPublicNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="8dp"
+        android:textAppearance="?attr/textAppearanceBodySmall" />
 </merge>

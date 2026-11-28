@@ -52,7 +52,7 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - [x] Verified structured fields shown in the event screen: place name, city, county, state, country, street lines and coordinates for birth, baptism, death, burial, marriage and divorce; editable, each part saved and cleared alone (PR #36)
 - [x] Event descriptions: not synced, Geni drops them (decided from the sandbox)
 
-### 2. Privacy, sex and the remaining profile flags
+### 2. Privacy, sex and the remaining profile flags (privacy and unknown sex done; curator fields hidden)
 
 What the user gets: a profile can be made public or private, sex can be unknown, and curator flags are visible.
 
@@ -60,6 +60,20 @@ What the user gets: a profile can be made public or private, sex can be unknown,
 - Verify first: the accepted `gender` values (`unknown`? empty?) and whether clearing works; whether a non-curator's `locked` / `merge_note` write is refused, and what the response looks like.
 - Mapping: `public` and `locked` go to person extensions (`_GENI_PUBLIC`, `_GENI_LOCKED`). Unknown sex becomes `SEX U` again in the editor. `merge_note` is shown read-only unless the sandbox shows the user can write it.
 - UI: a Privacy switch in Modify. Curator fields only appear when the API reports the user as a curator (`curator` field).
+
+**Sandbox results (2026-11-28, disposable profile-36543 and union-10107; sanitized fixtures `profile*privacy*.json`, `profile-sex-cleared.json`, `profile-merge-note-forms.json`):**
+
+- `gender=unknown` and an empty `gender` both clear the sex: the field is omitted from every later GET (single and batch), the POST succeeds, and `gender=female`/`male` sets it again. On creation (`profile-X/add-child`, `union-X/add-child`) `gender=unknown` gives a profile without gender, same as omitting it.
+- `public` is always returned, an explicit `false` included. A **living** profile is always `public: false`: `public=true` is accepted and ignored (profile and union paths, add-child, add-partner, update). A **deceased** profile takes both values, also on creation. Omitted on creation: `false` (private), living and deceased. Union `add-child` and profile `add-child`/`add-partner` behave the same.
+- `locked` and `merge_note` (a string with spaces needs real form encoding) return a normal response on a basic account but are silently dropped: a GET never returns either, with or without `fields=`. `curator` is never returned either, and `user` gives only `name` and `account_type` ("basic"). So there is no account-role signal and no verified curator read or write: curator controls stay hidden and `locked` / `merge_note` are read-only (parsed if Geni ever returns them, string or array).
+
+**Status of stage 2:**
+
+- [x] Sandbox checks: gender unknown/empty/restore, `public` on update, add-child (profile and union), add-partner, living and deceased, `locked` / `merge_note` / curator role signal
+- [x] `public` read, `_GENI_PUBLIC` extension, own conflict group `PUBLIC`, written only when set and changed (never `true` for a living person, after `is_alive` in the same save); `locked` read into `_GENI_LOCKED`, never written; `merge_note` parsed in the model only
+- [x] Unknown sex: Geni's missing gender is `SEX U`; `gender=unknown` is sent only to clear a sex Geni has; a legacy `SEX U` or a missing SEX fact never writes; Modify and the Facts chooser offer Unknown
+- [x] Modify: Privacy switch (off and explained for a living person, "not known yet" for a linked person whose stored version has no privacy), untouched control keeps Geni's creation default, explicit Private sends `public=false`
+- [ ] Curator fields: need a verified account role signal (a curator account); hidden until then
 
 ### 3. Names in other languages
 

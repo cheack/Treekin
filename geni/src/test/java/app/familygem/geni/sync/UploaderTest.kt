@@ -366,6 +366,49 @@ class UploaderTest {
     }
 
     @Test
+    fun privacyAndUnknownSexAreSentAndReadBack() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
+        server.enqueue(ok("""{"id":"profile-36430"}"""))
+        val full = """{"id":"profile-36430","is_alive":false,"public":true,"updated_at":"1795000001"}""" // No gender: cleared
+        server.enqueue(ok(full))
+        val job = updateProfile.copy(params = listOf("gender" to "unknown", "public" to "true"))
+        assertEquals(Outcome.Done, uploader().run(stored(job)))
+        assertEquals("GET", server.takeRequest().method)
+        assertEquals("gender=unknown&public=true", server.takeRequest().body!!.utf8())
+        assertEquals(full, store.link(1, "profile-36430")!!.snapshot)
+    }
+
+    @Test
+    fun explicitPrivateIsSentOnAddWithoutTouchingTheDefaultOtherwise() = runTest {
+        tree()
+        store.saveLinks(listOf(link("union-10106", "F1")))
+        server.enqueue(ok("""{"id":"profile-50","unions":["union-10106"]}"""))
+        server.enqueue(error(503))
+        val add = job(JobKind.ADD_CHILD, "add:I3", person = "I3", family = "F1", anchors = listOf("partner:I1"))
+            .copy(params = listOf("first_name" to "New", "is_alive" to "false", "public" to "false"))
+        assertEquals(Outcome.Done, uploader().run(add))
+        val post = server.takeRequest()
+        assertEquals("/api/union-10106/add-child", post.url.encodedPath)
+        assertEquals(true, post.body!!.utf8().contains("public=false"))
+        // The read-back failed: the overlay keeps the explicit private
+        assertEquals(false, app.familygem.geni.map.ProfileFields.ofSnapshot(store.link(1, "profile-50")!!.snapshot!!)!!.isPublic)
+    }
+
+    @Test
+    fun refusedPermissionSensitiveWriteStaysFailed() = runTest {
+        tree()
+        store.saveLinks(listOf(link("profile-36430", "I1")))
+        server.enqueue(ok("""{"id":"profile-36430"}""")) // Check
+        server.enqueue(error(403, """{"error":{"type":"ApiException","message":"Access Denied"}}"""))
+        val outcome = uploader().run(stored(updateProfile.copy(params = listOf("public" to "true"))))
+        assertEquals(Outcome.Failed("Access Denied"), outcome)
+        assertEquals(99, store.link(1, "profile-36430")!!.verifiedHash) // Not marked as verified
+        assertEquals("{}", store.link(1, "profile-36430")!!.snapshot) // No overlay of a write Geni refused
+    }
+
+    @Test
     fun updateIsNotSentWhenJobChangedDuringCheck() = runTest {
         tree()
         store.saveLinks(listOf(link("profile-36430", "I1")))
@@ -420,7 +463,8 @@ class UploaderTest {
         val saved = store.link(1, "profile-50")!!
         // Geni's full version could not be fetched: what was sent is Geni's version for later comparisons
         assertEquals(app.familygem.geni.map.ProfileFields.EMPTY.copy(given = "New", givenParts = app.familygem.geni.map.GivenNameParts("New", null),
-            displayName = "", title = ""), app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!))
+            displayName = "", title = "", sex = "U"),
+            app.familygem.geni.map.ProfileFields.ofSnapshot(saved.snapshot!!)) // Geni returns no gender for a profile created without one
         assertNull(saved.verifiedHash)
     }
 
