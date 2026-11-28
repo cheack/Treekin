@@ -288,7 +288,7 @@ class SyncQueue(
             val job = lock(treeId).withLock {
                 var next = nextJob(store.jobs(treeId), deferred) ?: return@withLock null
                 // The same change planned again right after it was sent: Geni stored another value. Stop instead of looping
-                while (sent[next.key] == next.params) {
+                while (sent[next.key] == next.signature()) {
                     store.saveJob(next.copy(state = JobState.FAILED, error = DIFFERENT_VALUE))
                     next = nextJob(store.jobs(treeId), deferred) ?: return@withLock null
                 }
@@ -330,7 +330,7 @@ class SyncQueue(
             val unchanged = current?.version == job.version
             when (outcome) {
                 Outcome.Done -> {
-                    sent[job.key] = job.params
+                    sent[job.key] = job.signature()
                     // An added person is linked now: newer details of it go as an update. A newer version
                     // of an update planned during the upload stays pending and runs next
                     if (!job.isAdd()) store.deleteJobIfVersion(job.id, job.version)
@@ -379,6 +379,9 @@ class SyncQueue(
             families = local.families.map { if (it.gedcomId == job.familyGedcomId && it.geniId == null && family != null) it.copy(geniId = family) else it }
         )
     }
+
+    /** What a finished job sent: its params and kind, so an untag followed by a tag with the same params is not taken for a repeat. */
+    private fun UploadJob.signature() = params + ("kind" to kind.name)
 
     /** A photo upload is like an add: after a lost response the photo may exist on Geni, so it is never sent again by itself. */
     private fun UploadJob.isAdd() = kind == JobKind.ADD_CHILD || kind == JobKind.ADD_PARTNER || kind == JobKind.ADD_PHOTO

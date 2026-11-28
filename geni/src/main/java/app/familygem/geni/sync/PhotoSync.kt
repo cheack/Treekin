@@ -103,6 +103,9 @@ class PhotoSync(
         treeId: Int, profileId: String, personGedcomId: String, photo: GeniPhoto, staged: Staged?, fileName: String, asMain: Boolean
     ): Boolean = guard.withTree(treeId) {
         if (guard.isDeleted(treeId, photo.id)) return@withTree false
+        // Checked again under the lock: a download that started before the untag must not bring the photo back
+        if (store.jobs(treeId).any { it.kind == JobKind.UNTAG_PHOTO && it.geniId == photo.id && (it.state == JobState.PENDING || it.state == JobState.SENDING) &&
+                it.params.any { p -> p.first == "profile" && p.second == profileId } }) return@withTree false
         if (staged != null) withContext(Dispatchers.IO) {
             val target = File(host.mediaDir(treeId), fileName)
             if (!staged.file.renameTo(target)) staged.file.copyTo(target, overwrite = true)

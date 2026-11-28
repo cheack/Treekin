@@ -1024,4 +1024,18 @@ class SyncQueueTest {
         queue.replan(1)
         assertEquals(setOf("mainphoto:profile-1", "tags:photo-5:profile-2"), store.jobs(1).map { it.key }.toSet())
     }
+
+    @Test
+    fun aTagQueuedWhileAnUntagWasSentIsNotTakenForARepeat() = runTest {
+        linkBoth()
+        queue.enqueuePhotoTag(1, "photo-5", "profile-2", "I2", false, "Untag")
+        uploader.answer = { job ->
+            // The user tags the same person again while the untag is on its way
+            if (job.kind == JobKind.UNTAG_PHOTO) queue.enqueuePhotoTag(1, "photo-5", "profile-2", "I2", true, "Tag")
+            Outcome.Done
+        }
+        queue.runPending(1)
+        assertEquals(listOf(JobKind.UNTAG_PHOTO, JobKind.TAG_PHOTO), uploader.ran.map { it.kind })
+        assertTrue(store.jobs(1).isEmpty())
+    }
 }

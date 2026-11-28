@@ -44,8 +44,10 @@ object GeniPhotoEditor {
             true
         }
         if (media.primary == null) menu.add(0, MENU_ID + 1, 0, R.string.geni_photo_set_main).setOnMenuItemClickListener {
+            val personId = person.id
+            val label = "Main photo: ${U.properName(person)}"
             queue(context, treeId, R.string.geni_photo_set_main_queued, onDone) { q ->
-                q.enqueueSetMainPhoto(treeId, geniId, photoId, person.id, "Main photo: ${U.properName(person)}")
+                q.enqueueSetMainPhoto(treeId, geniId, photoId, personId, label)
             }
             true
         }
@@ -54,12 +56,22 @@ object GeniPhotoEditor {
             true
         }
         menu.add(0, MENU_ID + 3, 0, R.string.geni_photo_untag).setOnMenuItemClickListener {
+            // Read on the main thread: the tree is main-thread state
+            val isMain = media.primary != null
+            val personId = person.id
+            val label = "Untag: ${U.properName(person)}"
             AlertDialog.Builder(context).setMessage(R.string.geni_photo_untag_confirm).setNegativeButton(android.R.string.cancel, null)
                 .setPositiveButton(R.string.geni_photo_untag) { _, _ ->
                     queue(context, treeId, R.string.geni_photo_untag_queued, onDone) { q ->
-                        q.enqueuePhotoTag(treeId, photoId, geniId, person.id, false, "Untag: ${U.properName(person)}")
-                        // A main photo goes when Geni has chosen another; any other leaves this person at once
-                        if (media.primary == null) PhotoSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, person.id, photoId)
+                        q.enqueuePhotoTag(treeId, photoId, geniId, personId, false, label)
+                        // A main photo goes when Geni has chosen another; any other leaves this person at once. The untag is queued already
+                        if (!isMain) try {
+                            PhotoSync(Geni.store(context), AppTreeHost).removeLocal(treeId, geniId, personId, photoId)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w("GeniSync", "Removing the untagged photo $photoId here failed", e)
+                        }
                     }
                 }.show()
             true
@@ -99,8 +111,11 @@ object GeniPhotoEditor {
         AlertDialog.Builder(context).setTitle(R.string.geni_photo_tag).setNegativeButton(android.R.string.cancel, null)
             .setItems(others.map { U.properName(it) }.toTypedArray()) { _, which ->
                 val chosen = others[which]
+                val chosenProfile = GeniMapper.getGeniId(chosen)!!
+                val chosenId = chosen.id
+                val label = "Tag: ${U.properName(chosen)}"
                 queue(context, treeId, R.string.geni_photo_tag_queued, onDone) { q ->
-                    q.enqueuePhotoTag(treeId, photoId, GeniMapper.getGeniId(chosen)!!, chosen.id, true, "Tag: ${U.properName(chosen)}")
+                    q.enqueuePhotoTag(treeId, photoId, chosenProfile, chosenId, true, label)
                 }
             }.show()
     }
