@@ -63,6 +63,14 @@
     <string name="geni_photo_edit_date">Дата</string>
     <string name="geni_photo_edit_date_hint">Например 12 MAR 1960, JUL 1948 или ABT 1950</string>
     <string name="geni_photo_edit_date_invalid">Geni хранит у фото одну дату: день с месяцем, месяц или год, как в подсказке. Диапазоны BEF и BET сохранить нельзя.</string>
+    <string name="geni_photo_set_main">Сделать главным фото в Geni</string>
+    <string name="geni_photo_set_main_queued">Главное фото будет изменено в Geni</string>
+    <string name="geni_photo_tag">Отметить человека в Geni</string>
+    <string name="geni_photo_tag_none">В этом дереве нет других людей из Geni</string>
+    <string name="geni_photo_tag_queued">Отметка будет отправлена в Geni</string>
+    <string name="geni_photo_untag">Снять отметку в Geni</string>
+    <string name="geni_photo_untag_confirm">Убрать этого человека с фото в Geni? Фото останется в Geni и в профилях других отмеченных людей.</string>
+    <string name="geni_photo_untag_queued">Отметка будет снята в Geni</string>
     <string name="geni_photo_edit_queued">Данные фото будут отправлены в Geni</string>
     <string name="geni_photo_edit_failed">Данные фото не сохранены</string>
     <string name="geni_photo_main">Это главное фото с Geni. Чтобы убрать его, удалите его на Geni.</string>
@@ -107,6 +115,9 @@
     <string name="geni_backlog_op_add_photo">Отправка фото</string>
     <string name="geni_backlog_op_delete_photo">Удаление фото на Geni</string>
     <string name="geni_backlog_op_update_photo">Данные фото на Geni</string>
+    <string name="geni_backlog_op_tag_photo">Отметка на фото в Geni</string>
+    <string name="geni_backlog_op_untag_photo">Снятие отметки с фото в Geni</string>
+    <string name="geni_backlog_op_set_main_photo">Главное фото в Geni</string>
     <string name="geni_backlog_op_prefetch">Загрузка родственников</string>
     <string name="geni_backlog_op_keep_offline">Хранить офлайн</string>
     <string name="geni_backlog_op_daily_refresh">Ежедневное обновление</string>

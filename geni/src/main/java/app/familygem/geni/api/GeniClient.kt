@@ -189,6 +189,21 @@ class GeniClient(
      */
     suspend fun updatePhoto(photoId: String, params: List<Pair<String, String>>): GeniPhoto = parsePhoto(post("$photoId/update", params))
 
+    /** Tags [profileId] in the photo, so it shows in that profile's photos. Repeating it is safe. */
+    suspend fun tagPhoto(photoId: String, profileId: String) {
+        post("$photoId/tag/$profileId", emptyList())
+    }
+
+    /** Removes [profileId] from the photo's tags; the photo stays on Geni. Repeating it is safe. */
+    suspend fun untagPhoto(photoId: String, profileId: String) {
+        post("$photoId/untag/$profileId", emptyList())
+    }
+
+    /** Makes [photoId] the main photo of [profileId] (it also tags the profile in the photo). */
+    suspend fun setMainPhoto(profileId: String, photoId: String) {
+        post("$profileId/add-mugshot", listOf("photo_id" to photoId))
+    }
+
     /** Deletes a photo from Geni. */
     suspend fun deletePhoto(photoId: String) {
         post("$photoId/delete", emptyList())

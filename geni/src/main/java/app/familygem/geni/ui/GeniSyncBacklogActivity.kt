@@ -285,6 +285,9 @@ class GeniSyncBacklogActivity : AppCompatActivity() {
         BacklogOperation.ADD_PHOTO -> R.string.geni_backlog_op_add_photo
         BacklogOperation.DELETE_PHOTO -> R.string.geni_backlog_op_delete_photo
         BacklogOperation.UPDATE_PHOTO -> R.string.geni_backlog_op_update_photo
+        BacklogOperation.TAG_PHOTO -> R.string.geni_backlog_op_tag_photo
+        BacklogOperation.UNTAG_PHOTO -> R.string.geni_backlog_op_untag_photo
+        BacklogOperation.SET_MAIN_PHOTO -> R.string.geni_backlog_op_set_main_photo
         BacklogOperation.PREFETCH -> R.string.geni_backlog_op_prefetch
         BacklogOperation.KEEP_OFFLINE -> R.string.geni_backlog_op_keep_offline
         BacklogOperation.DAILY_REFRESH -> R.string.geni_backlog_op_daily_refresh

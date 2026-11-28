@@ -1,6 +1,6 @@
 package app.familygem.geni.sync
 
-enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD, DELETE_PROFILE, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO }
+enum class JobKind { UPDATE_PROFILE, UPDATE_UNION, ADD_PARTNER, ADD_CHILD, DELETE_PROFILE, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO, TAG_PHOTO, UNTAG_PHOTO, SET_MAIN_PHOTO }
 
 /** PENDING runs; FAILED waits for the user; DISMISSED is hidden and kept so the same change is not planned again. */
 enum class JobState {
@@ -11,9 +11,10 @@ enum class JobState {
 
 /**
  * A change waiting to be uploaded to Geni. One job per record, identified by [key] within the tree:
- * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>`, `updphoto:<photoId>` or `photo:<personGedcomId>:<fileName>`.
+ * `profile:<geniId>`, `union:<geniId>`, `add:<personGedcomId>`, `delete:<geniId>`, `delphoto:<photoId>`, `updphoto:<photoId>`, `tags:<photoId>:<profileId>`, `mainphoto:<profileId>` or `photo:<personGedcomId>:<fileName>`.
  * @param anchors For adds: relatives to attach the new profile to, as "child:<gedcomId>" or "partner:<gedcomId>"
  * @param params Form parameters for Geni; an UPDATE_PHOTO has the details it started from and the wanted ones as `base:<FIELD>` and `want:<FIELD>` pairs (see [app.familygem.geni.map.PhotoDetails.toParams]); an add of an adopted or foster child also has [MODIFIER_PARAM]
+ * A TAG_PHOTO or UNTAG_PHOTO has the photo as [geniId] and the profile as `profile` param; a SET_MAIN_PHOTO has the profile as [geniId] and `photo_id`.
  * @param label What the user sees in the list of failed changes
  * @param localHash Hash of the local projection the job was planned from
  * @param confirmedByProfileId For deletes: the Geni account (its profile ID) that confirmed it; null for jobs from before this was recorded

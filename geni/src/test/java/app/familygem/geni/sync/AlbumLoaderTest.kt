@@ -216,4 +216,11 @@ class AlbumLoaderTest {
         assertEquals(app.familygem.geni.map.PhotoDetails("New title", "Text", "1950"), app.familygem.geni.map.PhotoDetails.shown(media))
         assertEquals(before, downloaded.size)
     }
+
+    @Test
+    fun downloadSkipsAPhotoWhoseUntaggingIsQueuedForThisProfile() = runTest {
+        store.saveJob(UploadJob(treeId = treeId, key = "tags:photo-1:profile-1", kind = JobKind.UNTAG_PHOTO, geniId = "photo-1",
+            personGedcomId = "I1", params = listOf("profile" to "profile-1"), label = "x", localHash = 0))
+        assertFalse(loader().download(treeId, "profile-1", "I1", loaderPhoto(1)))
+    }
 }

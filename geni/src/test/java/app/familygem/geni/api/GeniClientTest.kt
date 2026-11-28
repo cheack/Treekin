@@ -368,4 +368,15 @@ class GeniClientTest {
         assertEquals("First line\nSecond line", photo.description)
         assertEquals(GeniDate(1950, 5, 3, true), photo.date)
     }
+
+    @Test
+    fun tagUntagAndSetMainPostTheirRoutes() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        repeat(3) { server.enqueue(ok("{}")) }
+        client().tagPhoto("photo-5", "profile-2")
+        client().untagPhoto("photo-5", "profile-2")
+        client().setMainPhoto("profile-1", "photo-6")
+        val paths = (1..3).map { server.takeRequest().let { r -> r.method + " " + r.url.encodedPath + " " + r.body!!.utf8() } }
+        assertEquals(listOf("POST /api/photo-5/tag/profile-2 ", "POST /api/photo-5/untag/profile-2 ", "POST /api/profile-1/add-mugshot photo_id=photo-6"), paths)
+    }
 }

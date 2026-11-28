@@ -15,7 +15,7 @@ enum class BacklogSection { IN_PROGRESS, WAITING, NEEDS_ATTENTION }
 
 /** What a backlog row does, as the user reads it. */
 enum class BacklogOperation {
-    UPDATE_PROFILE, UPDATE_RELATIONSHIP, ADD_PERSON, DELETE_PERSON, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO,
+    UPDATE_PROFILE, UPDATE_RELATIONSHIP, ADD_PERSON, DELETE_PERSON, ADD_PHOTO, DELETE_PHOTO, UPDATE_PHOTO, TAG_PHOTO, UNTAG_PHOTO, SET_MAIN_PHOTO,
     PREFETCH, KEEP_OFFLINE, DAILY_REFRESH, PERSON_REFRESH, ROOT_LOAD, ALBUM_LIST, ALBUM_DOWNLOAD, PHOTO_DOWNLOAD;
 
     companion object {
@@ -27,6 +27,9 @@ enum class BacklogOperation {
             JobKind.ADD_PHOTO -> ADD_PHOTO
             JobKind.DELETE_PHOTO -> DELETE_PHOTO
             JobKind.UPDATE_PHOTO -> UPDATE_PHOTO
+            JobKind.TAG_PHOTO -> TAG_PHOTO
+            JobKind.UNTAG_PHOTO -> UNTAG_PHOTO
+            JobKind.SET_MAIN_PHOTO -> SET_MAIN_PHOTO
         }
 
         fun of(kind: DownloadKind) = when (kind) {

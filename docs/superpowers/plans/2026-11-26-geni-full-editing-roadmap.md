@@ -155,8 +155,8 @@ What the user gets: photo title, description and date are editable. People can b
 
 - [x] Sandbox checks: details, tag, untag, main photo, albums
 - [x] PR 1: read and edit title, description and date of a Geni photo (queued offline, conflict and rejection keep the draft, both profiles of a shared photo show the same, no re-download)
-- [ ] PR 2: tag and untag from the app
-- [ ] PR 2: set an existing photo as main on Geni
+- [x] PR 2: tag and untag from the app (Tag a person, Untag on Geni; distinct from remove-from-device and delete)
+- [x] PR 2: set an existing photo as main on Geni
 - [ ] Album create and rename: no API route, stays on the site
 
 ### 7. Documents and videos

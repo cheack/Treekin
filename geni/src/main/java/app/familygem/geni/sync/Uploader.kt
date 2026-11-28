@@ -81,6 +81,9 @@ open class Uploader(
             JobKind.ADD_PHOTO -> addPhoto(job)
             JobKind.DELETE_PHOTO -> deletePhoto(job)
             JobKind.UPDATE_PHOTO -> updatePhoto(job)
+            JobKind.TAG_PHOTO -> tagPhoto(job)
+            JobKind.UNTAG_PHOTO -> untagPhoto(job)
+            JobKind.SET_MAIN_PHOTO -> setMainPhoto(job)
         }
     } catch (e: CancellationException) {
         throw e
@@ -209,6 +212,54 @@ open class Uploader(
                 store.saveJob(newer.copy(params = start.toParams(UploadJob.BASE_PREFIX) + PhotoDetails.fromParams(newer.params, UploadJob.WANT_PREFIX).toParams(UploadJob.WANT_PREFIX)))
             }
             host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /** Tags the profile in the photo, then downloads the photo for that person (never a second time for a file already there). */
+    private suspend fun tagPhoto(job: UploadJob): Outcome {
+        val photoId = job.geniId ?: return Outcome.Failed("no Geni photo ID")
+        val profileId = job.params.firstOrNull { it.first == "profile" }?.second ?: return Outcome.Failed("no Geni profile ID")
+        client.tagPhoto(photoId, profileId)
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            if (photos.addAlbumPhoto(job.treeId, profileId, personId, client.photo(photoId))) host.refreshScreens()
+        }
+        return Outcome.Done
+    }
+
+    /**
+     * Removes the profile from the photo's tags; a photo or tag already gone counts as done. The photo stays on Geni for its other
+     * tags. If it was the main photo of that profile, the local link goes and the photo Geni chose instead is fetched.
+     */
+    private suspend fun untagPhoto(job: UploadJob): Outcome {
+        val photoId = job.geniId ?: return Outcome.Failed("no Geni photo ID")
+        val profileId = job.params.firstOrNull { it.first == "profile" }?.second ?: return Outcome.Failed("no Geni profile ID")
+        try {
+            client.untagPhoto(photoId, profileId)
+        } catch (e: GeniApiException) {
+            if (e.code != 404) throw e
+        }
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            val changed = { host.refreshScreens(); PersonPhotoChanges.notify(job.treeId, personId) }
+            photos.mainDeleted(job.treeId, profileId, personId, photoId, { client.profiles(listOf(profileId))[profileId]?.first }, changed)
+        }
+        return Outcome.Done
+    }
+
+    /** Makes the photo the main one of the profile on Geni, then takes the profile's new main photo into the tree. */
+    private suspend fun setMainPhoto(job: UploadJob): Outcome {
+        val profileId = job.geniId ?: return Outcome.Failed("no Geni profile ID")
+        val photoId = job.params.firstOrNull { it.first == "photo_id" }?.second ?: return Outcome.Failed("no Geni photo ID")
+        client.setMainPhoto(profileId, photoId)
+        bestEffort {
+            val personId = job.personGedcomId ?: return@bestEffort
+            val profile = client.profiles(listOf(profileId))[profileId]?.first ?: return@bestEffort
+            if (photos.sync(job.treeId, profile, personId)) {
+                host.refreshScreens()
+                PersonPhotoChanges.notify(job.treeId, personId)
+            }
         }
         return Outcome.Done
     }
