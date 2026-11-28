@@ -190,7 +190,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     private fun savePrivacy(person: Person) {
         if (!privacyUsable) return
         val dead = view<SwitchCompat>(AppR.id.editor_dead).isChecked
-        val value = publicChoice && dead
+        // With Dead on the switch shows the choice, also one restored by Android after the form was recreated
+        val value = dead && view<SwitchCompat>(AppR.id.editor_geniPublic).isChecked
         if (publicTouched || value != (initialPublic ?: false)) GeniMapper.setBoolean(person, GeniMapper.PUBLIC_TAG, value)
     }
 
