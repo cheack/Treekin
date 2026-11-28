@@ -50,12 +50,14 @@ class GeniApiException(val code: Int, message: String) : Exception(message)
 /** Profile fields requested for mapping. */
 const val PROFILE_FIELDS = "id,guid,first_name,middle_name,last_name,maiden_name,suffix,display_name,title,name,gender,is_alive," +
         "occupation,about_me,cause_of_death,nicknames,birth,death,baptism,burial,updated_at,created_at,deleted,merged_into,mugshot_urls," +
-        "public,locked,merge_note,names," +
+        "public,locked,merge_note,names,requested_merges," +
         // Read-only details for the card (ProfileDetails); `events` must be requested, `curator` is only returned as `is_curator` on the sandbox
         "email,phone_numbers,current_residence,events,managers,claimed,curator,is_curator,big_tree,merge_pending,relationship,profile_url"
 
 /** IDs per batch request. */
 private const val BATCH_SIZE = 50
+
+private val PROFILE_ID = Regex("profile-\\d+")
 
 class GeniClient(
     private val baseUrl: HttpUrl,
@@ -323,6 +325,29 @@ class GeniClient(
         if (profileOf(session).id != confirmedBy) throw GeniAccountMismatchException()
         val form = FormBody.Builder().build()
         return execute(Request.Builder().url(apiUrl("$profileId/delete")).post(form), session = session)
+    }
+
+    /**
+     * Merges [absorbedId] into [survivorId] on Geni (`profile-A/merge/profile-B`), only under the account that confirmed it
+     * ([confirmedBy], a profile ID; null for none). Geni merges at once when the account may edit both profiles, else it may
+     * file a request: the answer alone does not say which, so the caller reads both profiles back. Pinned to one login like
+     * [deleteProfile]: another login in between sends nothing.
+     */
+    suspend fun mergeProfiles(survivorId: String, absorbedId: String, confirmedBy: String?): String {
+        require(PROFILE_ID.matches(survivorId) && PROFILE_ID.matches(absorbedId) && survivorId != absorbedId) { "not two profiles" }
+        if (confirmedBy == null) throw GeniNotConfirmedException()
+        val session = session()
+        if (profileOf(session).id != confirmedBy) throw GeniAccountMismatchException()
+        val form = FormBody.Builder().build()
+        var dispatched = false
+        try {
+            return execute(Request.Builder().url(apiUrl("$survivorId/merge/$absorbedId")).post(form), session = session,
+                beforeSend = { dispatched = true; true })
+        } catch (e: GeniSessionChangedException) {
+            // After an attempt went out (a replay after 429), the merge may have reached Geni: not "nothing was sent"
+            if (dispatched) throw java.io.IOException("the login changed after the merge was sent", e)
+            throw e
+        }
     }
 
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */

@@ -311,4 +311,20 @@
     <string name="geni_backlog_op_untag_video">Video untag on Geni</string>
     <string name="geni_backlog_op_video_list">Videos list</string>
     <string name="geni_backlog_op_video_download">Video download</string>
+    <string name="geni_merge">Merge on Geni</string>
+    <string name="geni_merge_pick">Merge which duplicate into this profile?</string>
+    <string name="geni_merge_none">No other Geni profile in this tree</string>
+    <string name="geni_merge_confirm">Merge\n%1$s\ninto this profile\n%2$s\n\nThis profile is meant to survive. If your Geni account may edit both profiles, Geni merges them at once and this cannot be undone here; otherwise Geni may file a merge request instead.</string>
+    <string name="geni_merge_do">Merge</string>
+    <string name="geni_merge_started">Merging on Geni…</string>
+    <string name="geni_merge_busy">This merge is already running</string>
+    <string name="geni_merge_done">Merged on Geni</string>
+    <string name="geni_merge_refresh_needed">Merged on Geni · refresh needed. The tree is not up to date yet.</string>
+    <string name="geni_merge_requested">Merge requested. Geni filed a merge request; it completes when a curator approves it. Both profiles stay here until then.</string>
+    <string name="geni_merge_not_completed">Geni did not merge the profiles. It may have filed a merge request; check on Geni. Both profiles stay here.</string>
+    <string name="geni_merge_unknown">No answer from Geni, so it is not known whether the profiles were merged. Nothing changed here.</string>
+    <string name="geni_merge_rejected">Geni refused the merge. You may not be allowed to edit both profiles.</string>
+    <string name="geni_merge_login_changed">The Geni login is not the account of this tree. Nothing was sent.</string>
+    <string name="geni_merge_not_linked">One of the profiles is no longer in this tree. Nothing was sent.</string>
+    <string name="geni_merge_retry">Check again</string>
 </resources>

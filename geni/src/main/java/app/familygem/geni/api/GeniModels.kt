@@ -79,7 +79,9 @@ data class GeniProfile(
     @SerializedName("created_at") val createdAt: String? = null,
     val deleted: Boolean? = null,
     @SerializedName("merged_into") val mergedInto: String? = null,
-    @SerializedName("mugshot_urls") val mugshotUrls: Map<String, String>? = null
+    @SerializedName("mugshot_urls") val mugshotUrls: Map<String, String>? = null,
+    /** Profiles that asked to be merged into this one (checked on the sandbox: the survivor lists the absorbed one's URL). */
+    @SerializedName("requested_merges") val requestedMerges: List<String>? = null
 )
 
 /** The merge note as text, the items of an array joined by line breaks; null when there is none. */

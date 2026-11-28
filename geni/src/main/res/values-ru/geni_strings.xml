@@ -321,4 +321,20 @@
     <string name="geni_backlog_op_untag_video">Снятие отметки с видео Geni</string>
     <string name="geni_backlog_op_video_list">Список видео</string>
     <string name="geni_backlog_op_video_download">Загрузка видео</string>
+    <string name="geni_merge">Объединить в Geni</string>
+    <string name="geni_merge_pick">Какой дубликат объединить с этим профилем?</string>
+    <string name="geni_merge_none">В этом дереве нет других профилей Geni</string>
+    <string name="geni_merge_confirm">Объединить\n%1$s\nс этим профилем\n%2$s\n\nЭтот профиль должен остаться. Если ваш аккаунт Geni может редактировать оба профиля, Geni объединит их сразу, и здесь это не отменить; иначе Geni может подать запрос на объединение.</string>
+    <string name="geni_merge_do">Объединить</string>
+    <string name="geni_merge_started">Объединение в Geni…</string>
+    <string name="geni_merge_busy">Это объединение уже выполняется</string>
+    <string name="geni_merge_done">Объединено в Geni</string>
+    <string name="geni_merge_refresh_needed">Объединено в Geni · нужно обновить. Дерево пока не обновлено.</string>
+    <string name="geni_merge_requested">Объединение запрошено. Geni подал запрос; он выполнится после одобрения куратором. До тех пор оба профиля остаются здесь.</string>
+    <string name="geni_merge_not_completed">Geni не объединил профили. Возможно, он подал запрос на объединение: проверьте в Geni. Оба профиля остаются здесь.</string>
+    <string name="geni_merge_unknown">Geni не ответил, неизвестно, объединены ли профили. Здесь ничего не изменилось.</string>
+    <string name="geni_merge_rejected">Geni отклонил объединение. Возможно, вы не можете редактировать оба профиля.</string>
+    <string name="geni_merge_login_changed">Вход в Geni не от аккаунта этого дерева. Ничего не отправлено.</string>
+    <string name="geni_merge_not_linked">Один из профилей больше не в этом дереве. Ничего не отправлено.</string>
+    <string name="geni_merge_retry">Проверить снова</string>
 </resources>

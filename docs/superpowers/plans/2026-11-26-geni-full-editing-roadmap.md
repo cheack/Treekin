@@ -181,6 +181,8 @@ What the user gets: documents (scans, certificates, text) and videos of a profil
 
 ### 8. Merging duplicates, following, projects
 
+**Status of stage 8:** PR 1 (merge on Geni) is in progress, see [the stage plan](2026-11-28-geni-merge.md). Following and projects are not started.
+
 What the user gets: a duplicate found in the app can be merged on Geni (or a merge requested). People can be followed, and profiles added to a Geni project.
 
 - API: `profile-A/merge/profile-B` (merges with edit rights on both, else files a request), `profile/follow` and `unfollow`, `project/add_profiles` (`profile_ids`), `project/add_documents`, `project/update`.
