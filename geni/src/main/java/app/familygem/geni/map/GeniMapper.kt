@@ -271,7 +271,7 @@ object GeniMapper {
             val date = gedcomDate(union.divorce?.date)
             val location = LocationParts.of(union.divorce?.location)
             if (date != null || !location.isEmpty) setFact(family, "DIV", date = date, location = location)
-            else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y")
+            else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y", location = location)
             else removeFacts(family, "DIV")
         }
     }

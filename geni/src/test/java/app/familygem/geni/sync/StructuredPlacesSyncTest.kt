@@ -203,16 +203,25 @@ class StructuredPlacesSyncTest {
     }
 
     @Test
-    fun oldJobIsReplacedByTheCurrentFormatWhenPlannedAgain() = runTest {
+    fun oldJobSendingSomethingElseIsReplacedWhenPlannedAgain() = runTest {
         host.trees[1] = Gedcom().apply { addPerson(person { GeniMapper.setLocation(birth(), GeniMapper.getLocation(birth())!!.with("place_name", "Clinic")) }) }
         store.saveLinks(listOf(GeniLink(1, "profile-1", "I1", true, null, snapshot, 0)))
         val queue = SyncQueue(store, uploader())
-        // The same params as the new plan wants, but queued by the old version
-        val old = UploadJob(treeId = 1, key = "profile:profile-1", kind = JobKind.UPDATE_PROFILE, geniId = "profile-1",
-            params = listOf("birth[location][place_name]" to "Clinic"), label = "Ivan", localHash = 1, paramsFormat = 0)
-        store.saveJob(old)
+        store.saveJob(legacyJob(0).copy(id = 0, params = listOf("birth[location][place_name]" to "Hospital", "birth[location][city]" to "")))
         queue.onSaved(1, LocalTree.capture(host.trees.getValue(1)))
-        assertEquals(UploadJob.CURRENT_PARAMS_FORMAT, store.jobs(1).single().paramsFormat)
+        val job = store.jobs(1).single()
+        assertEquals(UploadJob.CURRENT_PARAMS_FORMAT, job.paramsFormat)
+        assertEquals(listOf("birth[location][place_name]" to "Clinic"), job.params)
+    }
+
+    @Test
+    fun dismissedOldJobStaysDismissedWhenItSendsWhatIsPlanned() = runTest {
+        host.trees[1] = Gedcom().apply { addPerson(person { GeniMapper.setLocation(birth(), GeniMapper.getLocation(birth())!!.with("place_name", "Clinic")) }) }
+        store.saveLinks(listOf(GeniLink(1, "profile-1", "I1", true, null, snapshot, 0)))
+        val queue = SyncQueue(store, uploader())
+        store.saveJob(legacyJob(0).copy(id = 0, state = JobState.DISMISSED))
+        queue.onSaved(1, LocalTree.capture(host.trees.getValue(1)))
+        assertEquals(JobState.DISMISSED, store.jobs(1).single().state)
     }
 
     // Conflicts

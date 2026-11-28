@@ -174,6 +174,7 @@
     <string name="geni_longitude">Longitude</string>
     <string name="geni_coordinate_not_valid">Enter a number: latitude from -90 to 90, longitude from -180 to 180</string>
     <string name="geni_coordinates_need_place">Geni keeps coordinates only with a place or an address: fill one of them first</string>
+    <string name="geni_version_not_loaded">Geni\'s version of this person is not loaded yet. Try again once it has synced.</string>
     <string name="geni_first_name">First name</string>
     <string name="geni_middle_name">Middle name</string>
     <string name="geni_last_name">Last name</string>

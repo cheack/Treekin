@@ -11,15 +11,23 @@ import org.folg.gedcom.model.EventFact
 /** The structured places of a Geni tree as the editors see them: a fact resolved against Geni's last version of its record. */
 object GeniLocations {
 
-    /** Geni's last version of the person or family with this GEDCOM ID in the open tree; null if there is none or it cannot be read. */
-    fun snapshot(context: Context, gedcomId: String?): String? {
-        gedcomId ?: return null
+    /**
+     * What is known of a record's Geni version: whether it is linked, and its last snapshot. A linked record without a readable
+     * snapshot is [unavailable]: its structured location must not be written yet, or the parts it holds would be lost.
+     */
+    data class Lookup(val linked: Boolean, val snapshot: String?) {
+        val unavailable: Boolean get() = linked && snapshot == null
+    }
+
+    fun lookup(context: Context, gedcomId: String?): Lookup {
+        gedcomId ?: return Lookup(false, null)
         return try {
             val treeId = Global.settings.openTree
-            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(context).linkByGedcomId(treeId, gedcomId)?.snapshot }
+            val link = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(context).linkByGedcomId(treeId, gedcomId) }
+            Lookup(link != null, link?.snapshot)
         } catch (e: Exception) {
             android.util.Log.w("GeniSync", "Snapshot of $gedcomId not read", e)
-            null
+            Lookup(true, null)
         }
     }
 

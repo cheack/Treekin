@@ -149,12 +149,13 @@ object GeniFacts {
         if (Memory.getLeaderObject() is Family) it in FAMILY_LOCATIONS else it in PERSON_LOCATIONS
     }
 
-    /** Geni's last version of the event [fact] belongs to (null for a new record or none stored), as its fields. */
-    private fun baseline(context: android.content.Context, fact: EventFact) = Memory.getLeaderObject().let { leader ->
-        val family = leader as? Family
-        val id = family?.id ?: (leader as? Person)?.id
-        GeniLocations.baseline(GeniLocations.snapshot(context, id), fact.tag, family != null)
+    /** Geni's last version of the record the event [fact] belongs to. */
+    private fun lookup(context: android.content.Context): GeniLocations.Lookup = Memory.getLeaderObject().let { leader ->
+        GeniLocations.lookup(context, (leader as? Family)?.id ?: (leader as? Person)?.id)
     }
+
+    /** Geni's last version of the event [fact] as its fields (null for a new record or none stored). */
+    private fun baseline(lookup: GeniLocations.Lookup, fact: EventFact) = GeniLocations.baseline(lookup.snapshot, fact.tag, Memory.getLeaderObject() is Family)
 
     /**
      * Places the rows of the structured location of [event] instead of the single place row. The first row is the place name,
@@ -162,7 +163,7 @@ object GeniFacts {
      */
     fun placeLocation(activity: DetailActivity, event: EventFact): Boolean {
         if (!hasLocation(event)) return false
-        val location = GeniLocations.effective(event, baseline(activity, event))
+        val location = GeniLocations.effective(event, baseline(lookup(activity), event))
         for ((key, label) in LOCATION_ROWS) {
             val coordinate = key == LocationParts.LATITUDE || key == LocationParts.LONGITUDE
             val input = if (coordinate) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED else 0
@@ -188,13 +189,21 @@ object GeniFacts {
             Toast.makeText(activity, R.string.geni_coordinate_not_valid, Toast.LENGTH_LONG).show()
             return false
         }
-        val updated = GeniLocations.effective(event, baseline(activity, event)).with(key, value.ifEmpty { null })
+        val lookup = lookup(activity)
+        // The parts Geni holds are not known yet: saving the location now would drop them on the next upload
+        if (lookup.unavailable && GeniMapper.getLocation(event) == null) {
+            Toast.makeText(activity, R.string.geni_version_not_loaded, Toast.LENGTH_LONG).show()
+            return false
+        }
+        val updated = GeniLocations.effective(event, baseline(lookup, event)).with(key, value.ifEmpty { null })
         // Geni keeps coordinates only with a place or an address: they cannot be set alone, and go with the last of those
         if (updated.storable != updated && value.isNotEmpty()) {
             Toast.makeText(activity, R.string.geni_coordinates_need_place, Toast.LENGTH_LONG).show()
             return false
         }
         GeniMapper.setLocation(event, updated.storable)
+        // Coordinates left alone go with the last text part: the other rows show it
+        if (updated.storable != updated) activity.refresh()
         return true
     }
 

@@ -202,9 +202,9 @@ class SyncQueue(
         saveVerified(plan.verified.filter { runningKey != "profile:${it.geniId}" && runningKey != "union:${it.geniId}" })
     }
 
-    private fun UploadJob.sameChange(other: UploadJob) = params == other.params && kind == other.kind && geniId == other.geniId &&
-            personGedcomId == other.personGedcomId && familyGedcomId == other.familyGedcomId && anchors == other.anchors &&
-            paramsFormat == other.paramsFormat
+    /** Compared by what would be sent: a job queued before structured places that sends the same params stays as it is (a dismissed one too). */
+    private fun UploadJob.sameChange(other: UploadJob) = paramsToSend() == other.params && kind == other.kind && geniId == other.geniId &&
+            personGedcomId == other.personGedcomId && familyGedcomId == other.familyGedcomId && anchors == other.anchors
 
     /** Stores verified hashes, but only on links whose snapshot is still the one the hash was checked against. */
     internal suspend fun saveVerified(verified: List<GeniLink>) = verified.forEach {

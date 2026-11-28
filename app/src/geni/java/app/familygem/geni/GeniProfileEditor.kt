@@ -47,6 +47,9 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
      */
     private var baseline: ProfileFields? = null
 
+    /** The person is linked to Geni but its last version cannot be read. */
+    private var unavailable = false
+
     /** Structured location and place text of each event (by tag) when the form was filled. */
     private val originalLocation = mutableMapOf<String, LocationParts>()
     private val originalPlace = mutableMapOf<String, String?>()
@@ -95,7 +98,9 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
         // First and middle name: the stored parts, or for a record from before them Geni's last version, or the first-space split
         isNew = person.id == null
-        val snapshot = if (isNew) null else cachedSnapshot(person.id)
+        val lookup = if (isNew) GeniLocations.Lookup(false, null) else GeniLocations.lookup(activity, person.id)
+        val snapshot = lookup.snapshot
+        unavailable = lookup.unavailable
         baseline = snapshot?.let { ProfileFields.ofSnapshot(it) }
         val parts = if (person.names.isNullOrEmpty()) null else GeniMapper.givenNamePartsFor(person, snapshot)
         if (parts != null) set(AppR.id.editor_name, parts.first) else initial[AppR.id.editor_name] = text(AppR.id.editor_name)
@@ -139,15 +144,6 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         }
 
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
-    }
-
-    /** Geni's last version of the person, read before the form accepts input; null if none or unreadable. */
-    private fun cachedSnapshot(personId: String): String? = try {
-        val treeId = app.familygem.Global.settings.openTree
-        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(activity).linkByGedcomId(treeId, personId)?.snapshot }
-    } catch (e: Exception) {
-        android.util.Log.w("GeniSync", "Snapshot of $personId not read", e)
-        null
     }
 
     private fun set(id: Int, value: String?) {
@@ -253,8 +249,12 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     }
 
     /** Sets the place name of the event's structured location to the text of its input, the other parts as they were. */
-    private fun setPlaceName(fact: EventFact, tag: String, placeId: Int) =
-        GeniMapper.setLocation(fact, (originalLocation[tag] ?: LocationParts.EMPTY).with(LocationParts.PLACE_NAME, text(placeId).ifEmpty { null }))
+    private fun setPlaceName(fact: EventFact, tag: String, placeId: Int) {
+        val name = text(placeId).ifEmpty { null }
+        // Geni's parts are not known yet: only the place text changes, a legacy edit that the next load reads as the new place name
+        if (unavailable && GeniMapper.getLocation(fact) == null) fact.place = name
+        else GeniMapper.setLocation(fact, (originalLocation[tag] ?: LocationParts.EMPTY).with(LocationParts.PLACE_NAME, name).storable)
+    }
 
     /**
      * Birth and death, written by the upstream form with the place input as the place text: the place text goes back to

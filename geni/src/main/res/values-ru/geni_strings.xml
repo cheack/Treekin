@@ -182,6 +182,7 @@
     <string name="geni_longitude">Долгота</string>
     <string name="geni_coordinate_not_valid">Введите число: широта от -90 до 90, долгота от -180 до 180</string>
     <string name="geni_coordinates_need_place">Geni хранит координаты только вместе с местом или адресом: сначала заполните одно из них</string>
+    <string name="geni_version_not_loaded">Версия этого человека на Geni ещё не загружена. Повторите после синхронизации.</string>
     <string name="geni_first_name">Имя</string>
     <string name="geni_middle_name">Второе имя</string>
     <string name="geni_last_name">Фамилия</string>
