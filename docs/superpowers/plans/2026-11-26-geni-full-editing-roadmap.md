@@ -6,13 +6,13 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #35)
+## Where we are (after PR #36)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
 | Names | first, middle, last, maiden, suffix, nicknames, display name, title | localized `names` per language |
 | Sex | male, female | unknown / clear not verified |
-| Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location in parts (`place_name`, `city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`; each part alone) | event `description` (Geni drops it) |
+| Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location in parts (`place_name`, `city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`; each part alone; PR #36) | event `description` (Geni drops it) |
 | Other profile fields | is_alive, cause of death, occupation, about me | `public`, `locked`, `merge_note` |
 | Contact data | — | `email` (writable only when a relative is created), `phone_numbers` and `current_residence` (read-only) |
 | Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | `adopted_children` / `foster_children` read |
@@ -25,7 +25,7 @@
 
 Each stage is one plan and one or two PRs, in this order. Earlier stages touch every event and every profile. Later ones are separate features.
 
-### 1. Exact dates and places
+### 1. Exact dates and places (done: PR #35 dates, PR #36 places)
 
 What the user gets: dates like "before 1900", "between 1840 and 1845" and "about 1850 – about 1855" sync with Geni. Places keep city, region and country apart, and an event can have a description.
 
@@ -48,8 +48,8 @@ What the user gets: dates like "before 1900", "between 1840 and 1845" and "about
 - [x] Sandbox checks for dates (all ranges, approximate ends, replacement, clear; profile, union and add-child) and for locations and descriptions
 - [x] Date ranges round-trip: `GeniDate`, `parseDate`, `gedcomDate`, `EventFields`, `SnapshotOverlay`, legacy start-of-range records left alone (PR #35)
 - [x] Same date rules in Modify and in the event screens, marriage and divorce included; date pickers keep `ABT` on each end (PR #35)
-- [x] Structured places: `_GENI_LOCATION` extension (JSON of the location keys on the fact, `PLAC` keeps the joined text), a place text edit changes only `place_name`, legacy joined-text places inherit Geni's parts without a write, queued jobs from before upgrade do not replay the old implicit clears (second PR)
-- [x] Verified structured fields shown in the event screen: place name, city, county, state, country, street lines and coordinates for birth, baptism, death, burial, marriage and divorce; editable, each part saved and cleared alone
+- [x] Structured places: `_GENI_LOCATION` extension (JSON of the location keys on the fact, `PLAC` keeps the joined text), a place text edit changes only `place_name`, legacy joined-text places inherit Geni's parts without a write, queued jobs from before upgrade do not replay the old implicit clears (PR #36)
+- [x] Verified structured fields shown in the event screen: place name, city, county, state, country, street lines and coordinates for birth, baptism, death, burial, marriage and divorce; editable, each part saved and cleared alone (PR #36)
 - [x] Event descriptions: not synced, Geni drops them (decided from the sandbox)
 
 ### 2. Privacy, sex and the remaining profile flags

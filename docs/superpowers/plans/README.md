@@ -288,7 +288,7 @@ The person editor of a Geni tree offers the fields Geni's profile API can write 
 
 Roadmap: [2026-11-26-geni-full-editing-roadmap.md](2026-11-26-geni-full-editing-roadmap.md). Each stage gets its own plan before work starts.
 
-- [ ] Exact dates and places: date ranges (before, after, between), structured locations, event descriptions
+- [x] Exact dates and places: date ranges (before, after, between), structured locations (PRs #35, #36); event descriptions are not synced, Geni drops them
 - [ ] Privacy, unknown sex, curator flags (`public`, `gender`, `locked`, `merge_note`)
 - [ ] Names in other languages (`names` per locale)
 - [ ] Read-only Geni data on the card (email, phones, current residence, custom events, managers)
