@@ -237,9 +237,11 @@ object GeniVideos {
     ) {
         val owner = activity as? LifecycleOwner ?: return
         owner.lifecycleScope.launch {
+            // Set inside the IO block, so a cancellation that discards its result still leaves the name for the rollback
+            var copied: String? = null
             val failure = try {
-                val stored = withContext(Dispatchers.IO) { copyIn(activity, treeId, uri, name) }
                 try {
+                    val stored = withContext(Dispatchers.IO) { copyIn(activity, treeId, uri, name).also { copied = it } }
                     val added = AppTreeHost.edit(treeId) { gedcom ->
                         val person = gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId && GeniMapper.getGeniId(it) == geniId } ?: return@edit false
                         person.addMedia(Media().apply {
@@ -254,27 +256,28 @@ object GeniVideos {
                     withContext(Dispatchers.IO) {
                         Geni.queue(activity).enqueueAddVideo(treeId, geniId, personGedcomId, stored, title, description, "Video: ${title ?: stored}")
                     }
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     // Also on cancellation: when no job was saved for the file, neither the media nor the copy may stay as a video nobody sends
-                    withContext(NonCancellable) {
+                    val stored = copied
+                    if (stored != null) withContext(NonCancellable) {
                         val jobSaved = try {
                             Geni.store(activity).jobs(treeId).any { it.key == "vid:$personGedcomId:$stored" }
                         } catch (check: Exception) {
                             true // Unknown: keep the media, a job may depend on it
                         }
-                        if (!jobSaved) {
-                            try {
-                                AppTreeHost.edit(treeId) { gedcom ->
-                                    gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId }?.let { person ->
-                                        person.media = person.media.orEmpty().filterNot {
-                                            it.file == stored && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null
-                                        }.toMutableList()
-                                    }
+                        if (!jobSaved) try {
+                            // The file goes only when no media of the tree still names it: one that the queue just completed keeps its file
+                            val stillUsed = AppTreeHost.edit(treeId) { gedcom ->
+                                gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId }?.let { person ->
+                                    person.media = person.media.orEmpty().filterNot {
+                                        it.file == stored && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null
+                                    }.toMutableList()
                                 }
-                            } catch (cleanup: Exception) {
-                                Log.w("GeniSync", "Removing the media of an unqueued video failed", cleanup)
+                                gedcom.people.orEmpty().any { p -> p.media.orEmpty().any { it.file == stored } }
                             }
-                            withContext(Dispatchers.IO) { File(AppTreeHost.mediaDir(treeId), stored).delete() }
+                            if (!stillUsed) withContext(Dispatchers.IO) { File(AppTreeHost.mediaDir(treeId), stored).delete() }
+                        } catch (cleanup: Exception) {
+                            Log.w("GeniSync", "Removing the media of an unqueued video failed", cleanup) // The file stays
                         }
                     }
                     throw e
