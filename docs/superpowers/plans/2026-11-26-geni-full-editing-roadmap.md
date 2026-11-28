@@ -6,7 +6,7 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #38)
+## Where we are (after PR #41)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
@@ -14,9 +14,9 @@
 | Sex | male, female, unknown (clears the sex; PR #37) | — |
 | Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location in parts (`place_name`, `city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`; each part alone; PR #36) | event `description` (Geni drops it) |
 | Other profile fields | is_alive, cause of death, occupation, about me, `public` (PR #37) | `locked` and `merge_note` (read-only, never returned for a basic account), curator controls |
-| Contact data | — | `email` (writable only when a relative is created), `phone_numbers` and `current_residence` (read-only) |
-| Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | `adopted_children` / `foster_children` read |
-| Relatives | add parent/partner/child/sibling | `relationship_modifier` (adopt / foster) when adding a child or sibling; merge duplicates |
+| Contact data | `email` of a new relative, sent with the add (PR #39) | `email` of an existing profile, `phone_numbers` and `current_residence` stay site-only (shown read-only in "On Geni" when Geni returns them) |
+| Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | — (lineage of each child is read from `adopted_children` / `foster_children`; PR #41) |
+| Relatives | add parent/partner/child/sibling; `relationship_modifier` (adopt / foster) when adding a child or sibling (PR #41) | change the lineage of an existing child (no API call); merge duplicates |
 | Photos | add, delete, read main and album | title / description / date edit, tag and untag profiles, set an existing photo as main (`add-mugshot` with `photo_id`), albums |
 | Documents, videos | — | everything (add, update, tag, untag, delete) |
 | Projects, follow | — | add profiles to a project, follow / unfollow |
@@ -100,7 +100,7 @@ What the user gets: the same names in another language or script (e.g. Cyrillic 
 - [x] Modify: language list with Add (catalog), edit and Remove, drafts survive a rotation, Cancel stores nothing; Facts rows of a language open Modify, show their language and cannot be moved or deleted
 - [ ] Names of a new relative in other languages: a profile is created without them, and the next save sends them (the form is not offered for a person not saved yet)
 
-### 4. Read-only profile data, shown like the site
+### 4. Read-only profile data, shown like the site (done: PR #39)
 
 What the user gets: the card shows what Geni knows even where the API can't write it.
 
@@ -117,7 +117,7 @@ What the user gets: the card shows what Geni knows even where the API can't writ
 - [x] Email of a new relative: profile `add-child`, `add-parent`, `add-partner` and union `add-child`, `add-partner` all accept `email` without error, so the field is on every new-relative form. The sandbox never returns the email and cannot show an invitation, so the form says Geni may send one. The value waits in a `new_email` table (Room v9) bound to the new person's ID, goes with the one add POST only, and is dropped after the add, when the person is linked or when the person leaves the tree; never in the job, a snapshot, an update or GEDCOM
 - [ ] Email of an existing profile, phone numbers and managers' names stay site-only (nothing returned to show)
 
-### 5. Adoption and foster relationships
+### 5. Adoption and foster relationships (done: PR #41)
 
 What the user gets: a child or sibling can be added as adopted or foster, and existing ones show it.
 
@@ -171,12 +171,12 @@ What the user gets: a duplicate found in the app can be merged on Geni (or a mer
 - Change `email`, `phone_numbers` or `current_residence` of an existing profile (read-only in the API).
 - Create or edit custom timeline events (`events` is read-only, and there is no event resource).
 - Remove a relationship (no call; the app keeps blocking it).
-- Change a child from biological to adopted or foster after it was added (unless stage 5 finds a way).
+- Change a child from biological to adopted or foster after it was added (stage 5 checked: `profile/update` and `union/update` ignore `relationship_modifier`).
 - About-me text in other languages (`detail_strings` is read-only), discussions, and editing or deleting comments. Comments can only be added (`photo/comment`, `document/comment`, `video/comment`).
 
 ## Order and dependencies
 
-1 → 2 → 3 change the profile projection, `GeniParams` and the snapshot overlay, so they go one after another. 4 needs no writes and can go any time. 5 depends on how the relatives sync builds family links. 6 → 7 share the media pattern. 8 is independent.
+1 → 2 → 3 change the profile projection, `GeniParams` and the snapshot overlay, so they go one after another. 4 and 5 are done. 6 → 7 share the media pattern. 8 is independent.
 
 This roadmap goes before the modern UI roadmap ([2026-11-26-modern-ui-roadmap.md](2026-11-26-modern-ui-roadmap.md)). The new fields are built in today's screens (`GeniProfileEditor`, the Facts and media tabs), and the UI rebuild takes them over with their tests.
 
