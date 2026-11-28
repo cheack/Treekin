@@ -6,11 +6,11 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #37)
+## Where we are (after PR #38)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
-| Names | first, middle, last, maiden, suffix, nicknames, display name, title | localized `names` per language |
+| Names | first, middle, last, maiden, suffix, nicknames, display name, title; the same fields per language (`names`, PR #38) | languages of a person not saved yet (sent with the next save) |
 | Sex | male, female, unknown (clears the sex; PR #37) | — |
 | Profile events (birth, baptism, death, burial) | date incl. ranges (`range`, `end_*`, `end_circa`; PR #35), location in parts (`place_name`, `city`, `county`, `state`, `country`, `street_address1-3`, `latitude`, `longitude`; each part alone; PR #36) | event `description` (Geni drops it) |
 | Other profile fields | is_alive, cause of death, occupation, about me, `public` (PR #37) | `locked` and `merge_note` (read-only, never returned for a basic account), curator controls |
