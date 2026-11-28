@@ -26,8 +26,10 @@ class VideoLoader(
      */
     suspend fun list(treeId: Int, geniProfileId: String, personGedcomId: String): VideoListing =
         feed.track(treeId, DownloadKind.VIDEO_LIST, geniProfileId) {
+            // The links known before the request: a video stored meanwhile (an upload that finished) is not in the listing yet and must stay
+            val before = store.photoLinks(treeId, geniProfileId).map { it.geniPhotoId }.toSet()
             val listed = client.videos(geniProfileId)
-            val removed = videos.reconcile(treeId, geniProfileId, personGedcomId, listed)
+            val removed = videos.reconcile(treeId, geniProfileId, personGedcomId, listed, before)
             videos.refreshDetails(treeId, listed)
             val links = store.photoLinks(treeId, geniProfileId).associateBy { it.geniPhotoId }
             val dir = mediaDir(treeId)

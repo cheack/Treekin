@@ -190,11 +190,14 @@ class VideoSync(
     /**
      * Removes the videos of a profile that Geni no longer lists. Call it only with a listing that was read completely: a failed
      * or partial one must leave every cached copy alone. Not touched: videos waiting for upload or deletion and media the user made their own.
+     * @param knownBefore the video IDs linked before the listing was requested: only these can be removed, so a video stored while the
+     * request was in flight (an upload that finished) survives a listing that was served before it existed; null means every link
      * @return how many videos were removed
      */
-    suspend fun reconcile(treeId: Int, profileId: String, personGedcomId: String, listed: List<GeniVideo>): Int {
+    suspend fun reconcile(treeId: Int, profileId: String, personGedcomId: String, listed: List<GeniVideo>, knownBefore: Set<String>? = null): Int {
         val ids = listed.map { it.id }.toSet()
-        val gone = store.photoLinks(treeId, profileId).filter { isVideoId(it.geniPhotoId) && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in ids }
+        val gone = store.photoLinks(treeId, profileId).filter { isVideoId(it.geniPhotoId) && it.state == PhotoState.DOWNLOADED && it.geniPhotoId !in ids &&
+            (knownBefore == null || it.geniPhotoId in knownBefore) }
         var removed = 0
         for (link in gone) if (removeLocal(treeId, profileId, personGedcomId, link.geniPhotoId, keepIfEdited = true)) removed++
         return removed

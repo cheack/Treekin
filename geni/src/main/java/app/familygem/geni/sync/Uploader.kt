@@ -626,7 +626,12 @@ open class Uploader(
             return Outcome.Failed("the video file name is not a plain file name")
         if (VideoTypes.contentTypeFor(fileName) == null) return Outcome.Failed("Geni video upload takes only MP4 files")
         // Already uploaded (a finished job run again): never send a second copy
-        if (store.photoLinks(treeId, profileId).any { it.fileName == fileName && VideoSync.isVideoId(it.geniPhotoId) }) return Outcome.Done
+        val stored = store.photoLinks(treeId, profileId).firstOrNull { it.fileName == fileName && VideoSync.isVideoId(it.geniPhotoId) }
+        if (stored != null) {
+            // The app stopped after the link and before the tree edit: finish the media from the stored link, send nothing
+            bestEffort { completeVideoMedia(treeId, personId, fileName, stored.geniPhotoId, null) }
+            return Outcome.Done
+        }
         if (!documentOwnerMatches(treeId, profileId, personId)) return Outcome.Deferred
         // The user may have removed the media meanwhile: the file is no longer wanted on Geni
         if (!stillQueuedVideo(treeId, personId, fileName)) return Outcome.Failed("the video was removed from this device before it was sent; dismiss this change")
@@ -671,21 +676,23 @@ open class Uploader(
         } catch (e: Exception) {
             return Outcome.Failed("Geni stored ${video.id} but the app could not save the link (${e.message}); $checkVideo")
         }
-        bestEffort {
-            val details = VideoSync.details(video)
-            host.edit(treeId) { gedcom ->
-                val media = gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
-                    .firstOrNull { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null }
-                if (media != null) {
-                    GeniMapper.setTag(media, VideoSync.VIDEO_TAG, video.id)
-                    GeniMapper.setTag(media, VideoSync.QUEUED_TAG, null)
-                    PhotoDetails.apply(media, details)
-                }
-                onTreeEdited(treeId, LocalTree.capture(gedcom))
-            }
-            host.refreshScreens()
-        }
+        bestEffort { completeVideoMedia(treeId, personId, fileName, video.id, VideoSync.details(video)) }
         return Outcome.Done
+    }
+
+    /** Gives the queued media of [fileName] its Geni video ID and clears the queued mark; [details] (when known) fill title, description and date. */
+    private suspend fun completeVideoMedia(treeId: Int, personId: String, fileName: String, videoId: String, details: PhotoDetails?) {
+        host.edit(treeId) { gedcom ->
+            val media = gedcom.people.orEmpty().firstOrNull { it.id == personId }?.media.orEmpty()
+                .firstOrNull { it.file?.substringAfterLast('/') == fileName && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null }
+            if (media != null) {
+                GeniMapper.setTag(media, VideoSync.VIDEO_TAG, videoId)
+                GeniMapper.setTag(media, VideoSync.QUEUED_TAG, null)
+                if (details != null) PhotoDetails.apply(media, details)
+            }
+            onTreeEdited(treeId, LocalTree.capture(gedcom))
+        }
+        host.refreshScreens()
     }
 
     /** True while the person still has the media of the queued video file: the user may remove it before the send. */

@@ -32,6 +32,7 @@ import app.familygem.geni.sync.VideoEntry
 import app.familygem.geni.sync.VideoSync
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.folg.gedcom.model.Media
@@ -254,19 +255,28 @@ object GeniVideos {
                         Geni.queue(activity).enqueueAddVideo(treeId, geniId, personGedcomId, stored, title, description, "Video: ${title ?: stored}")
                     }
                 } catch (e: Exception) {
-                    // Nothing was queued: neither the media nor the copy may stay as a video nobody sends
-                    try {
-                        AppTreeHost.edit(treeId) { gedcom ->
-                            gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId }?.let { person ->
-                                person.media = person.media.orEmpty().filterNot {
-                                    it.file == stored && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null
-                                }.toMutableList()
-                            }
+                    // Also on cancellation: when no job was saved for the file, neither the media nor the copy may stay as a video nobody sends
+                    withContext(NonCancellable) {
+                        val jobSaved = try {
+                            Geni.store(activity).jobs(treeId).any { it.key == "vid:$personGedcomId:$stored" }
+                        } catch (check: Exception) {
+                            true // Unknown: keep the media, a job may depend on it
                         }
-                    } catch (cleanup: Exception) {
-                        Log.w("GeniSync", "Removing the media of an unqueued video failed", cleanup)
+                        if (!jobSaved) {
+                            try {
+                                AppTreeHost.edit(treeId) { gedcom ->
+                                    gedcom.people.orEmpty().firstOrNull { it.id == personGedcomId }?.let { person ->
+                                        person.media = person.media.orEmpty().filterNot {
+                                            it.file == stored && GeniMapper.getTag(it, VideoSync.QUEUED_TAG) != null
+                                        }.toMutableList()
+                                    }
+                                }
+                            } catch (cleanup: Exception) {
+                                Log.w("GeniSync", "Removing the media of an unqueued video failed", cleanup)
+                            }
+                            withContext(Dispatchers.IO) { File(AppTreeHost.mediaDir(treeId), stored).delete() }
+                        }
                     }
-                    withContext(Dispatchers.IO) { File(AppTreeHost.mediaDir(treeId), stored).delete() }
                     throw e
                 }
                 null

@@ -206,6 +206,16 @@ class VideoSyncTest {
     }
 
     @Test
+    fun aListingServedBeforeAnUploadFinishedNeverRemovesThatVideo() = runTest {
+        videos.attach(treeId, "profile-1", "I1", video)
+        // video-289 was linked after the listing was requested: it was not among the links known before
+        assertEquals(0, videos.reconcile(treeId, "profile-1", "I1", emptyList(), knownBefore = emptySet()))
+        assertEquals(1, mediaOf("I1").size)
+        assertEquals(1, videos.reconcile(treeId, "profile-1", "I1", emptyList(), knownBefore = setOf(video.id)))
+        assertTrue(person("I1").media.isEmpty())
+    }
+
+    @Test
     fun theAlbumAndTheDocumentListingNeverRemoveAVideo() = runTest {
         videos.attach(treeId, "profile-1", "I1", video)
         val photos = PhotoSync(store, host) { _, _ -> "image/jpeg" }

@@ -310,6 +310,8 @@ class UploadVideoTest {
         videos.attach(treeId, "profile-1", "I1", doc)
         uploader0 = uploader()
         queueEdit(base.copy(title = "A better title"), listOf(PhotoField.TITLE))
+        // As the editor does: the user's title is on screen before the job is sent
+        videos.applyOwnEdit(treeId, "video-289", PhotoDetails("A better title", null, null), listOf(PhotoField.TITLE))
         val draft = store.jobs(treeId).single().params
         server.enqueue(ok(Fixtures.read("video-added.json")))
         server.enqueue(MockResponse.Builder().code(403).body("""{"error":{"message":"Access Denied"}}""").build())
@@ -318,13 +320,20 @@ class UploadVideoTest {
         assertEquals(JobState.FAILED, job.state)
         assertTrue(job.error!!.contains("Access Denied"))
         assertEquals(draft, job.params)
-        // The user's own title is still on screen
-        applyOwn()
+        // The rejection leaves the user's own title on screen
+        assertEquals("A better title", person("I1").media.single().title)
     }
 
-    private suspend fun applyOwn() {
-        videos.applyOwnEdit(treeId, "video-289", PhotoDetails("A better title", null, null), listOf(PhotoField.TITLE))
-        assertEquals("A better title", person("I1").media.single().title)
+    @Test
+    fun aRetryAfterTheAppStoppedBetweenTheLinkAndTheTreeEditCompletesTheMediaAndSendsNothing() = runTest {
+        stage()
+        // The link was saved, the media still has only the queued mark
+        store.savePhotoLink(PhotoLink(treeId, "profile-1", "video-289", null, false, null, "clip.mp4", PhotoState.DOWNLOADED))
+        assertEquals(Outcome.Done, uploader().run(addJob()))
+        assertEquals(0, server.requestCount)
+        val media = person("I1").media.single()
+        assertEquals("video-289", GeniMapper.getTag(media, VideoSync.VIDEO_TAG))
+        assertNull(GeniMapper.getTag(media, VideoSync.QUEUED_TAG))
     }
 
     @Test
