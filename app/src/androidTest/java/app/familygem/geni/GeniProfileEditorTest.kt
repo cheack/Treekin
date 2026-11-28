@@ -22,6 +22,7 @@ import app.familygem.R
 import app.familygem.constant.Extra
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.GeniParams
+import app.familygem.geni.map.LocationParts
 import app.familygem.geni.map.ProfileFields
 import app.familygem.profile.ProfileActivity
 import org.folg.gedcom.model.EventFact
@@ -466,5 +467,200 @@ class GeniProfileEditorTest {
         }
         assertEquals("Catholic", person.eventsFacts.single { it.tag == "BAPM" }.type)
         assertEquals("Manya", person.names.single { it.type == "birth" }.nickname)
+    }
+
+    // Structured places
+
+    private val kazan = LocationParts.of(mapOf("place_name" to "Hospital", "city" to "Kazan", "country" to "Russia", "street_address1" to "Main 1"))
+
+    /** A person whose birth and marriage-less profile keep a structured location, as the mapper stores a Geni one. */
+    private fun placedPerson(): Person = useTree(Person().apply {
+        id = "I1"
+        addName(Name().apply { value = "Ivan /Test/" })
+        addEventFact(fact("SEX", value = "M"))
+        addEventFact(fact("BIRT", date = "1960").also { GeniMapper.setLocation(it, kazan) })
+        addEventFact(fact("BURI", date = "BET 1999 AND ABT 2001").apply {
+            addSourceCitation(SourceCitation().apply { ref = "S1" })
+            GeniMapper.setLocation(this, kazan)
+        })
+    })
+
+    private fun Person.birth() = eventsFacts.single { it.tag == "BIRT" }
+
+    @Test
+    fun placeInputShowsAndEditsThePlaceNameOnly() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_birthPlace).check(matches(withText("Hospital")))
+            field(R.id.editor_burialPlace).check(matches(withText("Hospital")))
+            field(R.id.editor_birthPlace).perform(replaceText("Clinic"))
+            saveAndParams(person, before)
+        }
+        assertEquals(listOf("birth[location][place_name]" to "Clinic"), params)
+        assertEquals(kazan.with("place_name", "Clinic"), GeniMapper.getLocation(person.birth()))
+        assertEquals("Clinic, Kazan, Russia", person.birth().place)
+        // A second unchanged save makes no job
+        assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(ProfileFields.of(person), ProfileFields.of(person)))
+    }
+
+    @Test
+    fun clearingThePlaceInputKeepsCityAndCountry() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_birthPlace).perform(replaceText(""))
+            field(R.id.editor_burialPlace).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText(""))
+            saveAndParams(person, before)
+        }
+        assertEquals(listOf("birth[location][place_name]" to "", "burial[location][place_name]" to ""), params)
+        assertEquals(kazan.with("place_name", null), GeniMapper.getLocation(person.birth()))
+        assertEquals("Kazan, Russia", person.birth().place)
+    }
+
+    @Test
+    fun burialPlaceEditKeepsCitationAndApproximateRange() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_burialPlace).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("Cemetery"))
+            saveAndParams(person, before)
+        }
+        val burial = person.eventsFacts.single { it.tag == "BURI" }
+        assertEquals(listOf("burial[location][place_name]" to "Cemetery"), params)
+        assertEquals("S1", burial.sourceCitations.single().ref)
+        assertEquals("BET 1999 AND ABT 2001", burial.date)
+        assertEquals("Kazan", GeniMapper.getLocation(burial)!!["city"])
+    }
+
+    @Test
+    fun unrelatedSaveOfALegacyTreeSendsNoLocationAndStoresNoParts() {
+        GeniTrees.add(treeId)
+        val person = useTree(Person().apply {
+            id = "I1"
+            addName(Name().apply { value = "Ivan /Test/" })
+            addEventFact(fact("SEX", value = "M"))
+            addEventFact(fact("BIRT", date = "1960", place = "Hospital, Kazan, Russia"))
+        })
+        val before = ProfileFields.of(person)
+        val params = openEditor(person).use {
+            field(R.id.editor_birthPlace).check(matches(withText("Hospital, Kazan, Russia"))) // Not linked: the text is all there is
+            field(R.id.editor_nicknames).perform(androidx.test.espresso.action.ViewActions.scrollTo(), replaceText("Vanya"))
+            saveAndParams(person, before)
+        }
+        assertEquals(listOf("nicknames" to "Vanya"), params)
+        assertEquals("Hospital, Kazan, Russia", person.birth().place)
+        assertNull(GeniMapper.getLocation(person.birth()))
+    }
+
+    private fun openEvent(leader: Any, fact: EventFact): ActivityScenario<app.familygem.detail.EventActivity> {
+        Memory.setLeader(leader)
+        Memory.add(fact)
+        return ActivityScenario.launch(app.familygem.detail.EventActivity::class.java)
+    }
+
+    /** A tap on a row can be lost during the opening animation: tap again until the editor shows. */
+    private fun editRow(title: String, text: String) {
+        for (attempt in 1..3) {
+            displayed(allOf(withId(R.id.event_title), withText(title))).perform(click())
+            if (runCatching { displayed(withId(R.id.event_edit)).check(matches(isDisplayed())) }.isSuccess) break
+        }
+        displayed(withId(R.id.event_edit)).perform(replaceText(text), androidx.test.espresso.action.ViewActions.closeSoftKeyboard())
+        displayed(withId(R.id.event_edit)).check(matches(withText(text)))
+        displayed(withId(R.id.event_save)).perform(click())
+    }
+
+    private fun string(id: Int) = context.getString(id)
+
+    private val locationLabels = listOf(
+        app.familygem.geni.R.string.geni_place_name, app.familygem.geni.R.string.geni_city, app.familygem.geni.R.string.geni_county,
+        app.familygem.geni.R.string.geni_state, app.familygem.geni.R.string.geni_country, app.familygem.geni.R.string.geni_street_address1,
+        app.familygem.geni.R.string.geni_street_address2, app.familygem.geni.R.string.geni_street_address3,
+        app.familygem.geni.R.string.geni_latitude, app.familygem.geni.R.string.geni_longitude
+    )
+
+    @Test
+    fun eventScreenEditsOneLocationPartAndClearsAnother() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val birth = person.birth()
+        openEvent(person, birth).use {
+            locationLabels.forEach { label -> displayed(allOf(withId(R.id.event_title), withText(string(label)))) }
+            editRow(string(app.familygem.geni.R.string.geni_city), "Omsk")
+            editRow(string(app.familygem.geni.R.string.geni_latitude), "0")
+        }
+        assertEquals(kazan.with("city", "Omsk").with("latitude", "0"), GeniMapper.getLocation(birth))
+        assertEquals("Hospital, Omsk, Russia", birth.place)
+        assertEquals("1960", birth.date)
+        // The raw extension is not listed as a generic row
+        val params = GeniParams.profile(ProfileFields.of(person).let { it.copy(birth = it.birth!!.copy(location = kazan, place = kazan.joined)) }, ProfileFields.of(person))
+        assertEquals(listOf("birth[location][city]" to "Omsk", "birth[location][latitude]" to "0"), params)
+    }
+
+    @Test
+    fun eventScreenContextMenuDeleteClearsOnlyThatPart() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val birth = person.birth()
+        openEvent(person, birth).use {
+            displayed(allOf(withId(R.id.event_title), withText(string(app.familygem.geni.R.string.geni_street_address1)))).perform(androidx.test.espresso.action.ViewActions.longClick())
+            onView(withText(R.string.delete)).perform(click())
+            onView(withText(R.string.yes)).perform(click())
+        }
+        assertEquals(kazan.with("street_address1", null), GeniMapper.getLocation(birth))
+        assertEquals("Hospital, Kazan, Russia", birth.place)
+    }
+
+    @Test
+    fun eventScreenRefusesAnInvalidCoordinate() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val birth = person.birth()
+        openEvent(person, birth).use {
+            editRow(string(app.familygem.geni.R.string.geni_latitude), "95")
+            displayed(withId(R.id.event_edit)).check(matches(isDisplayed())) // Still in the editor
+        }
+        assertEquals(kazan, GeniMapper.getLocation(birth))
+    }
+
+    @Test
+    fun marriageOfAFamilyHasTheLocationRows() {
+        GeniTrees.add(treeId)
+        val person = placedPerson()
+        val family = org.folg.gedcom.model.Family().apply { id = "F1" }
+        val marriage = fact("MARR", date = "2000")
+        family.addEventFact(marriage)
+        openEvent(family, marriage).use {
+            editRow(string(app.familygem.geni.R.string.geni_city), "Tula")
+            displayed(allOf(withId(R.id.event_title), withText(string(app.familygem.geni.R.string.geni_street_address2))))
+        }
+        assertEquals(LocationParts.of(mapOf("city" to "Tula")), GeniMapper.getLocation(marriage))
+        assertEquals("Tula", marriage.place)
+        assertEquals("2000", marriage.date)
+        assertSame(person, Global.gc.getPerson("I1"))
+    }
+
+    @Test
+    fun localTreeAndOccupationKeepTheirEventScreens() {
+        val person = placedPerson()
+        val birth = person.birth()
+        GeniTrees.remove(treeId)
+        openEvent(person, birth).use {
+            displayed(allOf(withId(R.id.event_title), withText(string(R.string.place))))
+            onView(withText(string(app.familygem.geni.R.string.geni_city))).check(doesNotExist())
+        }
+        finishActivities()
+        GeniTrees.add(treeId)
+        val occupation = fact("OCCU", value = "Miner", place = "Pit 5")
+        person.addEventFact(occupation)
+        openEvent(person, occupation).use {
+            displayed(allOf(withId(R.id.event_title), withText(string(R.string.place))))
+            displayed(allOf(withId(R.id.event_title), withText(string(R.string.value))))
+            onView(withText(string(app.familygem.geni.R.string.geni_city))).check(doesNotExist())
+        }
+        assertEquals("Pit 5", occupation.place)
     }
 }

@@ -11,6 +11,8 @@ import app.familygem.PersonEditorActivity
 import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.GeniParams
 import app.familygem.geni.map.GivenNameParts
+import app.familygem.geni.map.LocationParts
+import app.familygem.geni.map.ProfileFields
 import app.familygem.util.cleanUpFields
 import com.google.android.material.textfield.TextInputLayout
 import org.folg.gedcom.model.EventFact
@@ -38,6 +40,24 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
     /** Text of each field when the form was filled, to tell the fields the user changed. */
     private val initial = mutableMapOf<Int, String>()
+
+    /**
+     * Geni's last version of the person. The place inputs show and edit the place name of an event; its other location parts
+     * (city, country, street, coordinates) are the event screen's, and stay as they were.
+     */
+    private var baseline: ProfileFields? = null
+
+    /** The person is linked to Geni but its last version cannot be read. */
+    private var unavailable = false
+
+    /** Structured location and place text of each event (by tag) when the form was filled. */
+    private val originalLocation = mutableMapOf<String, LocationParts>()
+    private val originalPlace = mutableMapOf<String, String?>()
+
+    private val placeInputs = mapOf(
+        "BIRT" to AppR.id.editor_birthPlace, "BAPM" to AppR.id.editor_baptismPlace,
+        "DEAT" to AppR.id.editor_deathPlace, "BURI" to AppR.id.editor_burialPlace
+    )
 
     private fun <T : View> view(id: Int): T = activity.findViewById(id)
     private fun text(id: Int): String = view<EditText>(id).text.toString().trim()
@@ -78,7 +98,10 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
 
         // First and middle name: the stored parts, or for a record from before them Geni's last version, or the first-space split
         isNew = person.id == null
-        val snapshot = if (isNew) null else cachedSnapshot(person.id)
+        val lookup = if (isNew) GeniLocations.Lookup(false, null) else GeniLocations.lookup(activity, person.id)
+        val snapshot = lookup.snapshot
+        unavailable = lookup.unavailable
+        baseline = snapshot?.let { ProfileFields.ofSnapshot(it) }
         val parts = if (person.names.isNullOrEmpty()) null else GeniMapper.givenNamePartsFor(person, snapshot)
         if (parts != null) set(AppR.id.editor_name, parts.first) else initial[AppR.id.editor_name] = text(AppR.id.editor_name)
         set(AppR.id.editor_middleName, parts?.middle)
@@ -92,11 +115,10 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         set(AppR.id.editor_nicknames, main?.nickname)
         val baptism = first(person, "BAPM")
         set(AppR.id.editor_baptismDate, baptism?.date)
-        set(AppR.id.editor_baptismPlace, baptism?.place)
+        for ((tag, id) in placeInputs) set(id, placeName(person, tag))
         set(AppR.id.editor_causeOfDeath, first(person, "DEAT")?.cause)
         val burial = first(person, "BURI")
         set(AppR.id.editor_burialDate, burial?.date)
-        set(AppR.id.editor_burialPlace, burial?.place)
         set(AppR.id.editor_occupation, first(person, "OCCU")?.value)
         set(AppR.id.editor_about, GeniMapper.getTag(person, GeniMapper.ABOUT_TAG))
         // The upstream form already holds birth and death
@@ -122,15 +144,6 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         }
 
         if (activity.intent.getBooleanExtra(EXTRA_DEAD, false)) view<SwitchCompat>(AppR.id.editor_dead).isChecked = true
-    }
-
-    /** Geni's last version of the person, read before the form accepts input; null if none or unreadable. */
-    private fun cachedSnapshot(personId: String): String? = try {
-        val treeId = app.familygem.Global.settings.openTree
-        kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) { Geni.store(activity).linkByGedcomId(treeId, personId)?.snapshot }
-    } catch (e: Exception) {
-        android.util.Log.w("GeniSync", "Snapshot of $personId not read", e)
-        null
     }
 
     private fun set(id: Int, value: String?) {
@@ -185,6 +198,8 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
             if (changed(AppR.id.editor_nicknames)) main.nickname = text(AppR.id.editor_nicknames).ifEmpty { null }
         }
         setEvent(person, "BAPM", AppR.id.editor_baptismDate, AppR.id.editor_baptismPlace)
+        fixUpstreamPlace(person, "BIRT")
+        fixUpstreamPlace(person, "DEAT")
         // The upstream form already created or removed the death fact following the switch
         if (changed(AppR.id.editor_causeOfDeath)) first(person, "DEAT")?.let {
             it.cause = text(AppR.id.editor_causeOfDeath).ifEmpty { null }
@@ -224,7 +239,34 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         }
     }
 
-    /** Updates the changed date and place of the first fact with [tag] in place; never leaves an empty fact without local data. */
+    /** The place name the input shows: the one of the event's structured location (see [baseline]). Remembers what the form started from. */
+    private fun placeName(person: Person, tag: String): String? {
+        val fact = first(person, tag)
+        val location = GeniLocations.effective(fact, baseline?.event(tag))
+        originalPlace[tag] = fact?.place
+        originalLocation[tag] = location
+        return location[LocationParts.PLACE_NAME]
+    }
+
+    /** Sets the place name of the event's structured location to the text of its input, the other parts as they were. */
+    private fun setPlaceName(fact: EventFact, tag: String, placeId: Int) {
+        val name = text(placeId).ifEmpty { null }
+        // Geni's parts are not known yet: only the place text changes, a legacy edit that the next load reads as the new place name
+        if (unavailable && GeniMapper.getLocation(fact) == null) fact.place = name
+        else GeniMapper.setLocation(fact, (originalLocation[tag] ?: LocationParts.EMPTY).with(LocationParts.PLACE_NAME, name).storable)
+    }
+
+    /**
+     * Birth and death, written by the upstream form with the place input as the place text: the place text goes back to
+     * what it was (the input shows the place name only), and a changed input becomes the place name of the structured location.
+     */
+    private fun fixUpstreamPlace(person: Person, tag: String) {
+        val fact = first(person, tag) ?: return
+        val placeId = placeInputs.getValue(tag)
+        if (changed(placeId)) setPlaceName(fact, tag, placeId) else if (originalPlace.containsKey(tag)) fact.place = originalPlace[tag]
+    }
+
+    /** Updates the changed date and place name of the first fact with [tag] in place; never leaves an empty fact without local data. */
     private fun setEvent(person: Person, tag: String, dateId: Int, placeId: Int) {
         val dateChanged = changed(dateId)
         val placeChanged = changed(placeId)
@@ -233,12 +275,17 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
         val place = text(placeId).ifEmpty { null }
         val fact = first(person, tag)
         if (fact == null) {
-            if (date != null || place != null) person.addEventFact(EventFact().also { it.tag = tag; it.date = date; it.place = place })
+            if (date != null || place != null) person.addEventFact(EventFact().also {
+                it.tag = tag
+                it.date = date
+                if (place != null) GeniMapper.setLocation(it, LocationParts.ofPlace(place))
+            })
             return
         }
         if (dateChanged) fact.date = date
-        if (placeChanged) fact.place = place
-        if (fact.date == null && fact.place == null && fact.value.isNullOrBlank() && !hasLocalData(fact)) person.eventsFacts.remove(fact)
+        if (placeChanged) setPlaceName(fact, tag, placeId)
+        if (fact.date == null && fact.place == null && fact.value.isNullOrBlank() && !hasLocalData(fact) && GeniMapper.getLocation(fact)?.isEmpty != false)
+            person.eventsFacts.remove(fact)
     }
 
     private fun setOccupation(person: Person, text: String) {

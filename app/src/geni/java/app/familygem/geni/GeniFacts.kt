@@ -6,7 +6,9 @@ import android.view.Menu
 import android.text.InputType
 import android.widget.LinearLayout
 import android.widget.Toast
+import app.familygem.geni.map.GeniMapper
 import app.familygem.geni.map.GeniParams
+import app.familygem.geni.map.LocationParts
 import org.folg.gedcom.model.Family
 import app.familygem.DetailActivity
 import app.familygem.Global
@@ -44,6 +46,21 @@ object GeniFacts {
     /** Synced tags whose Geni field is a value, not a date and place. */
     private const val OCCUPATION = "OCCU"
     private const val DEATH = "DEAT"
+
+    /** Events whose place Geni stores in parts, on a person and on a family. */
+    private val PERSON_LOCATIONS = setOf("BIRT", "BAPM", "DEAT", "BURI")
+    private val FAMILY_LOCATIONS = setOf("MARR", "DIV")
+
+    /** Start of the piece object of a row of the event screen that edits one part of the location (then the Geni key). */
+    private const val LOCATION_PIECE = "_GENI_LOCATION:"
+
+    /** The labeled rows of the structured location, in order: Geni key and label. */
+    private val LOCATION_ROWS = listOf(
+        LocationParts.PLACE_NAME to R.string.geni_place_name, "city" to R.string.geni_city, "county" to R.string.geni_county,
+        "state" to R.string.geni_state, "country" to R.string.geni_country, "street_address1" to R.string.geni_street_address1,
+        "street_address2" to R.string.geni_street_address2, "street_address3" to R.string.geni_street_address3,
+        LocationParts.LATITUDE to R.string.geni_latitude, LocationParts.LONGITUDE to R.string.geni_longitude
+    )
 
     fun isGeniTree(): Boolean = Global.settings != null && GeniGlue.isGeniTree(Global.settings.openTree)
 
@@ -124,28 +141,104 @@ object GeniFacts {
         return if (isGeniTree()) names.firstOrNull { it.type != "birth" } ?: names[0] else names[0]
     }
 
+    /** True for a piece of the event screen that edits one part of the structured location. */
+    fun isLocationPiece(piece: Any?): Boolean = piece is String && piece.startsWith(LOCATION_PIECE)
+
+    /** True for a fact whose place Geni stores in parts: a person event Geni writes, or a marriage or divorce of a family. */
+    private fun hasLocation(fact: EventFact): Boolean = isGeniTree() && fact.tag.let {
+        if (Memory.getLeaderObject() is Family) it in FAMILY_LOCATIONS else it in PERSON_LOCATIONS
+    }
+
+    /** Geni's last version of the record the event [fact] belongs to. */
+    private fun lookup(context: android.content.Context): GeniLocations.Lookup = Memory.getLeaderObject().let { leader ->
+        GeniLocations.lookup(context, (leader as? Family)?.id ?: (leader as? Person)?.id)
+    }
+
+    /** Geni's last version of the event [fact] as its fields (null for a new record or none stored). */
+    private fun baseline(lookup: GeniLocations.Lookup, fact: EventFact) = GeniLocations.baseline(lookup.snapshot, fact.tag, Memory.getLeaderObject() is Family)
+
+    /**
+     * Places the rows of the structured location of [event] instead of the single place row. The first row is the place name,
+     * which the compact place inputs of the Modify form edit too. False if the fact keeps upstream's place row.
+     */
+    fun placeLocation(activity: DetailActivity, event: EventFact): Boolean {
+        if (!hasLocation(event)) return false
+        val location = GeniLocations.effective(event, baseline(lookup(activity), event))
+        for ((key, label) in LOCATION_ROWS) {
+            val coordinate = key == LocationParts.LATITUDE || key == LocationParts.LONGITUDE
+            val input = if (coordinate) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED else 0
+            activity.placePiece(activity.getString(label), location[key].orEmpty(), LOCATION_PIECE + key, input)
+        }
+        return true
+    }
+
+    /**
+     * Saves [text] as one part of the location of [event]: only that part changes, the others stay as the fact (or Geni's last
+     * version, for a legacy fact) has them, and the place text is rejoined. A blank text clears the part.
+     * False if the text is refused (a coordinate that is not a number in range): the row stays open.
+     */
+    fun saveLocation(activity: DetailActivity, event: EventFact, piece: String, text: String): Boolean {
+        val key = piece.removePrefix(LOCATION_PIECE)
+        val value = text.trim()
+        val limit = when (key) {
+            LocationParts.LATITUDE -> 90
+            LocationParts.LONGITUDE -> 180
+            else -> 0
+        }
+        if (limit > 0 && value.isNotEmpty() && !LocationParts.isCoordinate(value, limit)) {
+            Toast.makeText(activity, R.string.geni_coordinate_not_valid, Toast.LENGTH_LONG).show()
+            return false
+        }
+        val lookup = lookup(activity)
+        // The parts Geni holds are not known yet: saving the location now would drop them on the next upload
+        if (lookup.unavailable && GeniMapper.getLocation(event) == null) {
+            Toast.makeText(activity, R.string.geni_version_not_loaded, Toast.LENGTH_LONG).show()
+            return false
+        }
+        val updated = GeniLocations.effective(event, baseline(lookup, event)).with(key, value.ifEmpty { null })
+        // Geni keeps coordinates only with a place or an address: they cannot be set alone, and go with the last of those
+        if (updated.storable != updated && value.isNotEmpty()) {
+            Toast.makeText(activity, R.string.geni_coordinates_need_place, Toast.LENGTH_LONG).show()
+            return false
+        }
+        GeniMapper.setLocation(event, updated.storable)
+        // Coordinates left alone go with the last text part: the other rows show it
+        if (updated.storable != updated) activity.refresh()
+        return true
+    }
+
     /**
      * Places the pieces of an event screen for a fact synced with Geni: only the fields Geni stores are offered,
      * other fields show when they hold data, and media, notes and sources stay. False for any other fact.
      */
     fun placeFields(activity: DetailActivity, event: EventFact): Boolean {
-        if (!isSynced(event)) return false
+        val family = Memory.getLeaderObject() is Family
+        if (family) {
+            if (!isGeniTree() || event.tag !in FAMILY_LOCATIONS) return false
+        } else if (!isSynced(event)) return false
         val occupation = event.tag == OCCUPATION
         fun s(id: Int) = activity.getString(id)
         activity.place(s(AppR.string.value), "Value", occupation, 0)
-        activity.place(s(AppR.string.type), "Type", false, 0)
+        activity.place(s(AppR.string.type), "Type", event.tag == "MARR", 0)
         activity.place(s(AppR.string.date), "Date", !occupation, 0)
-        activity.place(s(AppR.string.place), "Place", !occupation, 0)
-        if (event.address != null) activity.place(s(AppR.string.address), event.address)
+        if (!placeLocation(activity, event)) activity.place(s(AppR.string.place), "Place", !occupation, 0)
+        if (family) activity.place(s(AppR.string.address), event.address)
+        else if (event.address != null) activity.place(s(AppR.string.address), event.address)
         activity.place(s(AppR.string.cause), "Cause", event.tag == DEATH, 0)
-        activity.place(s(AppR.string.age), "Age", false, 0)
+        if (family) {
+            activity.place(s(AppR.string.husband_age), event.husband, true)
+            activity.place(s(AppR.string.wife_age), event.wife, false)
+        } else activity.place(s(AppR.string.age), "Age", false, 0)
         activity.place(s(AppR.string.www), "Www", false, InputType.TYPE_CLASS_TEXT)
         activity.place(s(AppR.string.email), "Email", false, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS)
         activity.place(s(AppR.string.telephone), "Phone", false, InputType.TYPE_CLASS_PHONE)
         activity.place(s(AppR.string.fax), "Fax", false, InputType.TYPE_CLASS_PHONE)
         activity.place(s(AppR.string.rin), "Rin", false, 0)
         activity.place(s(AppR.string.user_id), "Uid", false, 0)
-        activity.placeExtensions(event)
+        // The structured location is the rows above, not a raw extension
+        for (extension in app.familygem.U.findExtensions(event)) {
+            if (extension.gedcomTag.tag != GeniMapper.LOCATION_TAG) activity.placePiece(extension.name, extension.text, extension.gedcomTag, 0)
+        }
         val box = activity.findViewById<LinearLayout>(AppR.id.detail_box)
         MediaUtil.placeMedia(box, event)
         NoteUtil.placeNotes(box, event)

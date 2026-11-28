@@ -31,7 +31,7 @@ class FieldsTest {
         for ((id, json) in profiles) {
             val person = Person()
             GeniMapper.applyProfile(Gedcom(), person, Gson().fromJson(json, GeniProfile::class.java))
-            assertEquals(id, ProfileFields.ofSnapshot(json), ProfileFields.of(person))
+            assertEquals(id, ProfileFields.ofSnapshot(json)!!.withPlacesResolved(), ProfileFields.of(person).withPlacesResolved())
         }
     }
 
@@ -43,7 +43,7 @@ class FieldsTest {
         assertEquals("Smirnova", maria.maiden)
         assertEquals("Masha", maria.nicknames)
         assertEquals("F", maria.sex)
-        assertEquals(EventFields("30 AUG 1962", "Kazan, Russia"), maria.birth)
+        assertEquals(EventFields("30 AUG 1962", "Kazan, Russia", LocationParts.of(mapOf("city" to "Kazan", "country" to "Russia"))), maria.birth)
         assertFalse(maria.dead)
     }
 
@@ -57,7 +57,7 @@ class FieldsTest {
         val snapshot = """{"id":"profile-1","first_name":"Ivan","last_name":"P","gender":"male","nicknames":["A","B"],
             "birth":{"date":{"day":5,"month":7,"year":1991}}}"""
         val geni = ProfileFields.ofSnapshot(snapshot)!!
-        assertEquals(geni, ProfileFields.of(person).resolvedAgainst(geni)) // The record stores no name parts nor display name
+        assertEquals(geni.withPlacesResolved(), ProfileFields.of(person).resolvedAgainst(geni)) // The record stores no name parts nor display name
     }
 
     @Test

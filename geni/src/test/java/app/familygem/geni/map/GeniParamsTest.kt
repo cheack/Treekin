@@ -38,8 +38,6 @@ class GeniParamsTest {
     }
 
     private val ivan = ProfileFields.EMPTY.copy(given = "Ivan", surname = "User", sex = "M", birth = EventFields("12 MAR 1960", "Moscow, Russia"))
-    private val location = listOf("city", "county", "state", "country").map { "birth[location][$it]" to "" }
-
     @Test
     fun sendsOnlyChangedGroups() =
         assertEquals(listOf("occupation" to "Driver"), GeniParams.profile(ivan, ivan.copy(occupation = "Driver")))
@@ -60,22 +58,22 @@ class GeniParamsTest {
     )
 
     @Test
-    fun placeClearsStructuredParts() = assertEquals(
-        listOf("birth[location][place_name]" to "Kazan") + location,
+    fun placeEditSendsOnlyThePlaceName() = assertEquals(
+        listOf("birth[location][place_name]" to "Kazan"),
         GeniParams.profile(ivan, ivan.copy(birth = EventFields("12 MAR 1960", "Kazan")))
     )
 
     @Test
     fun removedEventClearsDateAndPlace() = assertEquals(
         listOf("birth[date][day]" to "", "birth[date][month]" to "", "birth[date][year]" to "", "birth[date][circa]" to "false",
-            "birth[location][place_name]" to "") + location,
+            "birth[location][place_name]" to ""),
         GeniParams.profile(ivan, ivan.copy(birth = null))
     )
 
     @Test
     fun unparseableDateKeepsGeniDate() {
         assertEquals(emptyList<Pair<String, String>>(), GeniParams.profile(ivan, ivan.copy(birth = EventFields("FROM 1900", "Moscow, Russia"))))
-        assertEquals(listOf("birth[location][place_name]" to "Kazan") + location,
+        assertEquals(listOf("birth[location][place_name]" to "Kazan"),
             GeniParams.profile(ivan, ivan.copy(birth = EventFields("FROM 1900", "Kazan"))))
     }
 
@@ -222,8 +220,7 @@ class GeniParamsTest {
         val params = GeniParams.profile(old, old.copy(occupation = null, causeOfDeath = null, about = null, burial = null))
         assertEquals(listOf("cause_of_death" to "",
             "burial[date][day]" to "", "burial[date][month]" to "", "burial[date][year]" to "", "burial[date][circa]" to "false",
-            "burial[location][place_name]" to "") + listOf("city", "county", "state", "country").map { "burial[location][$it]" to "" } +
-            listOf("occupation" to "", "about_me" to ""), params.filter { it.first != "is_alive" })
+            "burial[location][place_name]" to "", "occupation" to "", "about_me" to ""), params.filter { it.first != "is_alive" })
         assertTrue(params.none { it.first.startsWith("birth") || it.first.startsWith("death") || it.first.endsWith("_name") || it.first == "gender" })
     }
 

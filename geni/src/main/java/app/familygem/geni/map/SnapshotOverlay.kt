@@ -12,6 +12,7 @@ import com.google.gson.JsonPrimitive
 object SnapshotOverlay {
 
     private val NUMBERS = setOf("day", "month", "year", "end_day", "end_month", "end_year")
+    private val COORDINATES = setOf("latitude", "longitude")
     private val BOOLEANS = setOf("is_alive", "circa", "end_circa")
 
     /** [base] (raw Geni JSON, or nothing for a new record) with [params] written over it, as Geni stores them. */
@@ -23,6 +24,7 @@ object SnapshotOverlay {
             var parent = root
             for (name in path.dropLast(1)) parent = parent.getAsJsonObject(name) ?: JsonObject().also { parent.add(name, it) }
             val leaf = path.last()
+            if (leaf in LocationParts.KEYS && path.getOrNull(path.size - 2) == "location") LOCATION_DISPLAY.forEach { parent.remove(it) }
             if (value.isEmpty()) parent.remove(leaf) else parent.add(leaf, element(leaf, value))
         }
         // Geni ignores death for a living profile, and no death parameters are sent with is_alive=true
@@ -36,10 +38,14 @@ object SnapshotOverlay {
 
     private fun element(name: String, value: String) = when (name) {
         in NUMBERS -> value.toIntOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(value)
+        in COORDINATES -> value.toBigDecimalOrNull()?.let { JsonPrimitive(it) } ?: JsonPrimitive(value)
         in BOOLEANS -> JsonPrimitive(value.toBoolean())
         "nicknames" -> JsonArray().apply { value.split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { add(it) } }
         else -> JsonPrimitive(value)
     }
+
+    /** Geni's own display fields of a location: they follow its parts, so they go when the parts change. */
+    private val LOCATION_DISPLAY = setOf("country_code", "formatted_location")
 
     /** Drops objects left empty (an event whose date and place were both cleared). */
     private fun prune(obj: JsonObject) {
@@ -47,6 +53,8 @@ object SnapshotOverlay {
             val child = obj.get(name)
             if (child is JsonObject) {
                 prune(child)
+                // A location without parts keeps no display fields
+                if (name == "location" && child.keySet().all { it in LOCATION_DISPLAY }) child.keySet().toList().forEach { child.remove(it) }
                 if (child.size() == 0) obj.remove(name)
             }
         }

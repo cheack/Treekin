@@ -913,7 +913,7 @@ public abstract class DetailActivity extends BaseActivity {
             ((Name)object).setValue(value.trim());
         } else if (pieceObject instanceof Spouse) {
             ((Spouse)pieceObject).setAge(text);
-        } else try { // All other normal methods
+        } else if (app.familygem.geni.GeniFacts.INSTANCE.isLocationPiece(pieceObject)) { if (!app.familygem.geni.GeniFacts.INSTANCE.saveLocation(this, (EventFact)object, (String)pieceObject, text)) return; } else try { // All other normal methods GENI-HOOK: one part of the structured Geni location; a refused text keeps the editor open
             object.getClass().getMethod("set" + pieceObject, String.class).invoke(object, text); // TODO: reflection
         } catch (Exception e) {
             Toast.makeText(box.getContext(), e.getLocalizedMessage(), Toast.LENGTH_LONG).show();
@@ -1220,7 +1220,7 @@ public abstract class DetailActivity extends BaseActivity {
             case 2: // Delete editable piece
                 Util.INSTANCE.confirmDelete(this, () -> {
                     try {
-                        object.getClass().getMethod("set" + pieceObject, String.class).invoke(object, (Object)null);
+                        if (app.familygem.geni.GeniFacts.INSTANCE.isLocationPiece(pieceObject)) app.familygem.geni.GeniFacts.INSTANCE.saveLocation(this, (EventFact)object, (String)pieceObject, ""); else object.getClass().getMethod("set" + pieceObject, String.class).invoke(object, (Object)null); // GENI-HOOK: clears one part of the structured Geni location
                         TreeUtil.INSTANCE.save(true, Memory.getLeaderObject());
                         refresh();
                     } catch (Exception exception) {

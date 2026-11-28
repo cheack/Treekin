@@ -152,10 +152,19 @@ class ConflictResolver(
         return link to (raw ?: error("Geni did not return $geniId"))
     }
 
+    /** Date, place text and the structured parts the place text does not hold (street lines, coordinates). */
+    private fun showEvent(event: EventFields): String {
+        val location = event.locationParts
+        val street = listOfNotNull(location["street_address1"], location["street_address2"], location["street_address3"]).joinToString(", ")
+        val coordinates = listOfNotNull(location["latitude"]?.let { "lat $it" }, location["longitude"]?.let { "lon $it" }).joinToString(", ")
+        return listOfNotNull(event.date, event.place, street.takeIf { it.isNotEmpty() }, coordinates.takeIf { it.isNotEmpty() }?.let { "($it)" })
+            .joinToString(", ").ifEmpty { "—" }
+    }
+
     /** A group value as text: parts joined (name parts by spaces), an empty value as a dash. */
     private fun show(value: Any?, name: Boolean = false, split: Boolean = false): String = when (value) {
         null -> "—"
-        is EventFields -> listOfNotNull(value.date, value.place).joinToString(", ").ifEmpty { "—" }
+        is EventFields -> showEvent(value)
         is Boolean -> if (value) "deceased" else ""
         is app.familygem.geni.map.GivenNameParts -> if (split) "(${value.first ?: "—"} / ${value.middle ?: "—"})" else "" // Else the given name shows them
         "" -> "—"

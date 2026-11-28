@@ -1,0 +1,19 @@
+{
+  "id": "profile-36543",
+  "first_name": "Mary Ann",
+  "last_name": "P",
+  "is_alive": true,
+  "birth": {
+    "name": "Birth of Mary Ann Offline P",
+    "date": {
+      "year": 1960,
+      "formatted_date": "1960"
+    },
+    "location": {
+      "city": "Kazan",
+      "country": "Russia",
+      "country_code": "RU",
+      "formatted_location": "Kazan, Russia (Russian Federation)"
+    }
+  }
+}

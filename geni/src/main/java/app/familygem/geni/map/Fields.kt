@@ -14,16 +14,37 @@ import org.folg.gedcom.model.Person
  * so a value that round-trips through Geni compares equal and makes no upload.
  */
 
-/** Date and place of an event; the date is canonical when Geni can store it, else the trimmed text. */
-data class EventFields(val date: String?, val place: String?) {
+/**
+ * Date and place of an event; the date is canonical when Geni can store it, else the trimmed text.
+ * @param place The joined place text (GEDCOM `PLAC`).
+ * @param location The structured parts. Null for a legacy record that does not store them: [resolvedAgainst] fills them in.
+ *  An empty location is an explicit clear of every part.
+ */
+data class EventFields(val date: String?, val place: String?, val location: LocationParts? = null) {
     /**
-     * This event with the date a legacy record lacks taken from [baseline] (the last Geni version): a date that is only the
-     * start of the baseline's range ("1840" for "BET 1840 AND 1845", as the app stored ranges before it synced them)
-     * is the baseline's date, not a change.
+     * This event with what a legacy record lacks taken from [baseline] (the last Geni version):
+     * - A date that is only the start of the baseline's range ("1840" for "BET 1840 AND 1845", as the app stored ranges
+     *   before it synced them) is the baseline's date, not a change.
+     * - A legacy place text equal to the baseline's joined text is the baseline's structured location, not a change.
+     *   A text that was edited is the new `place_name` over the baseline's other parts.
+     * The place text of the result is the joined text of the location.
      */
     fun resolvedAgainst(baseline: EventFields?): EventFields {
         val baseDate = baseline?.date
-        return if (date != null && baseDate != null && date != baseDate && date == GeniMapper.startOfRange(baseDate)) copy(date = baseDate) else this
+        val resolvedDate = if (date != null && baseDate != null && date != baseDate && date == GeniMapper.startOfRange(baseDate)) baseDate else date
+        val resolvedLocation = location ?: run {
+            val base = baseline?.location ?: LocationParts.ofPlace(baseline?.place)
+            if (place == baseline?.place) base else base.with(LocationParts.PLACE_NAME, place)
+        }
+        return EventFields(resolvedDate, resolvedLocation.joined, resolvedLocation)
+    }
+
+    /** The structured location, taken from the place text for a record that has none. */
+    val locationParts: LocationParts get() = location ?: LocationParts.ofPlace(place)
+
+    companion object {
+        /** Projection of a fact; null if it has neither date nor place nor any structured part. */
+        fun of(fact: EventFact?): EventFields? = event(fact)
     }
 }
 
@@ -78,6 +99,21 @@ data class ProfileFields(
         burial = burial.resolvedAgainst(baseline.burial)
     )
 
+    /** Every event with its structured location (empty if Geni has none): the form snapshots and records are compared in. */
+    fun withPlacesResolved() = copy(
+        birth = birth.resolvedAgainst(birth), baptism = baptism.resolvedAgainst(baptism),
+        death = death.resolvedAgainst(death), burial = burial.resolvedAgainst(burial)
+    )
+
+    /** The event with this GEDCOM tag (BIRT, BAPM, DEAT or BURI). */
+    fun event(tag: String): EventFields? = when (tag) {
+        "BIRT" -> birth
+        "BAPM" -> baptism
+        "DEAT" -> death
+        "BURI" -> burial
+        else -> null
+    }
+
     companion object {
         val EMPTY = ProfileFields(null, null, null, null, null, null, null, null, null, null, false, null, null, null)
 
@@ -127,6 +163,15 @@ data class UnionFields(val marriage: EventFields?, val divorce: EventFields?, va
     /** The fields with legacy dates resolved against [baseline] (see [EventFields.resolvedAgainst]). */
     fun resolvedAgainst(baseline: UnionFields) = copy(marriage = marriage.resolvedAgainst(baseline.marriage), divorce = divorce.resolvedAgainst(baseline.divorce))
 
+    fun withPlacesResolved() = resolvedAgainst(this)
+
+    /** The event with this GEDCOM tag (MARR or DIV). */
+    fun event(tag: String): EventFields? = when (tag) {
+        "MARR" -> marriage
+        "DIV" -> divorce
+        else -> null
+    }
+
     companion object {
         val EMPTY = UnionFields(null, null)
 
@@ -164,8 +209,11 @@ private fun splitName(value: String?): Pair<String?, String?> {
 
 private fun event(fact: EventFact?): EventFields? {
     fact ?: return null
-    val text = clean(fact.date)
-    val date = GeniParams.parseDate(text)?.let { GeniMapper.gedcomDate(it) } ?: text
-    val place = clean(fact.place)
-    return if (date == null && place == null) null else EventFields(date, place)
+    val text = clean(fact.place)
+    val date = clean(fact.date)?.let { raw -> GeniParams.parseDate(raw)?.let { GeniMapper.gedcomDate(it) } ?: raw }
+    // Parts stored apart; a place text changed elsewhere since (a form of the upstream app) is the new place name
+    val stored = GeniMapper.getLocation(fact)
+    val location = stored?.let { if (it.joined == text) it else it.with(LocationParts.PLACE_NAME, text) }
+    if (date == null && text == null && location?.isEmpty != false) return null
+    return EventFields(date, if (location != null) location.joined else text, location)
 }

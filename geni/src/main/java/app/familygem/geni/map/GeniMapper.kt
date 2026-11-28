@@ -36,6 +36,16 @@ object GeniMapper {
     /** Geni's name title, like the display name; the GEDCOM title fact (TITL) stays local. */
     const val NAME_TITLE_TAG = "_GENI_NAME_TITLE"
 
+    /**
+     * The structured location of an event fact, as a JSON object of the Geni location keys ("city", "country", ...).
+     * Missing: a legacy fact, whose place text is all there is. An empty object ("{}"): every part cleared on purpose.
+     * `PLAC` keeps the joined text for cards and GEDCOM consumers.
+     */
+    const val LOCATION_TAG = "_GENI_LOCATION"
+
+    private val locationGson = com.google.gson.GsonBuilder().disableHtmlEscaping().create()
+    private val locationType = object : com.google.gson.reflect.TypeToken<Map<String, String?>>() {}.type
+
     /** Tags kept for the sync and edited in the person editor, not as facts. */
     val INTERNAL_TAGS = setOf(FIRST_NAME_TAG, MIDDLE_NAME_TAG, DISPLAY_NAME_TAG, NAME_TITLE_TAG)
 
@@ -71,11 +81,25 @@ object GeniMapper {
     }
 
     /** Place text from the non-blank location parts, from the most specific. */
-    fun place(location: GeniLocation?): String? {
-        location ?: return null
-        return listOf(location.placeName, location.city, location.county, location.state, location.country)
-            .mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
-            .joinToString(", ").takeIf { it.isNotEmpty() }
+    fun place(location: GeniLocation?): String? = LocationParts.of(location).joined
+
+    /** The structured location stored on a fact; null for a fact without it (or with an unreadable one). */
+    fun getLocation(fact: EventFact): LocationParts? {
+        val json = getTag(fact, LOCATION_TAG) ?: return null
+        return try {
+            locationGson.fromJson<Map<String, String?>>(json, locationType)?.let { LocationParts.of(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Stores [location] on the fact: the parts in the extension, their joined text as `PLAC`. Only this extension is touched:
+     * notes, sources, media and other extensions stay. Pass null to drop the extension (the fact is then a legacy one).
+     */
+    fun setLocation(fact: EventFact, location: LocationParts?) {
+        setTag(fact, LOCATION_TAG, location?.let { locationGson.toJson(it.values) })
+        if (location != null) fact.place = location.joined
     }
 
     /**
@@ -108,9 +132,9 @@ object GeniMapper {
         if (changed(ProfileGroup.DEATH) { listOf(it.death, it.isAlive, it.causeOfDeath) }) {
             val dead = profile.isAlive == false || !profile.causeOfDeath.isNullOrBlank()
             val date = gedcomDate(profile.death?.date)
-            val place = place(profile.death?.location)
-            if (date == null && place == null && !dead) removeFacts(person, "DEAT")
-            else setFact(person, "DEAT", value = if (date == null && place == null) "Y" else null, date = date, place = place,
+            val location = LocationParts.of(profile.death?.location)
+            if (date == null && location.isEmpty && !dead) removeFacts(person, "DEAT")
+            else setFact(person, "DEAT", value = if (date == null && location.isEmpty) "Y" else null, date = date, location = location,
                 cause = profile.causeOfDeath?.takeIf { it.isNotBlank() })
         }
         if (changed(ProfileGroup.BURIAL) { it.burial }) setEvent(person, "BURI", profile.burial)
@@ -137,12 +161,14 @@ object GeniMapper {
     /** Sets the date and place of the first fact with this tag, or removes the facts when Geni has neither. */
     private fun setEvent(container: Any, tag: String, event: GeniEvent?) {
         val date = gedcomDate(event?.date)
-        val place = place(event?.location)
-        if (date == null && place == null) removeFacts(container, tag)
-        else setFact(container, tag, date = date, place = place)
+        val location = LocationParts.of(event?.location)
+        if (date == null && location.isEmpty) removeFacts(container, tag)
+        else setFact(container, tag, date = date, location = location)
     }
 
-    private fun setFact(container: Any, tag: String, value: String? = null, date: String? = null, place: String? = null, cause: String? = null) {
+    /** [location], if given, replaces the structured location of the fact and gives its place text; else [place] is the place text. */
+    private fun setFact(container: Any, tag: String, value: String? = null, date: String? = null, place: String? = null, cause: String? = null,
+        location: LocationParts? = null) {
         val facts = facts(container)
         val fact = facts.firstOrNull { it.tag == tag } ?: EventFact().also {
             it.tag = tag
@@ -150,7 +176,9 @@ object GeniMapper {
         }
         fact.value = value
         fact.date = date
-        fact.place = place
+        fact.place = location?.joined ?: place
+        // A location Geni does not have is a fact without the extension (what a legacy record looks like); other extensions stay
+        if (location != null) setLocation(fact, location.takeIf { !it.isEmpty })
         if (tag == "DEAT") fact.cause = cause
     }
 
@@ -164,7 +192,8 @@ object GeniMapper {
             // Geni has only the occupation's text: a local date or place is local data too, and stays
             "OCCU" -> facts(container).filter { it.tag == tag && (hasLocalData(it) || it.date != null || it.place != null) }
                 .onEach { it.value = null }
-            in EMPTIABLE -> facts(container).filter { it.tag == tag && hasLocalData(it) }.onEach { it.value = null; it.date = null; it.place = null }
+            in EMPTIABLE -> facts(container).filter { it.tag == tag && hasLocalData(it) }
+                .onEach { it.value = null; it.date = null; it.place = null; setTag(it, LOCATION_TAG, null) }
             else -> emptyList()
         }
         setFacts(container, facts(container).filter { it.tag != tag || it in kept })
@@ -180,7 +209,12 @@ object GeniMapper {
     fun hasLocalData(fact: EventFact) = fact.notes.orEmpty().isNotEmpty() || fact.noteRefs.orEmpty().isNotEmpty() ||
             fact.sourceCitations.orEmpty().isNotEmpty() || fact.media.orEmpty().isNotEmpty() || fact.mediaRefs.orEmpty().isNotEmpty() ||
             listOf(fact.type, fact.cause, fact.age, fact.phone, fact.fax, fact.email, fact.www, fact.rin, fact.uid).any { !it.isNullOrBlank() } ||
-            fact.address != null || fact.extensions.orEmpty().isNotEmpty()
+            fact.address != null || hasOtherExtensions(fact)
+
+    /** True for an extension other than the structured location, which is Geni data, not local data. */
+    private fun hasOtherExtensions(fact: EventFact): Boolean = fact.extensions.orEmpty().any { (key, value) ->
+        key != ModelParser.MORE_TAGS_EXTENSION_KEY || (value as? List<*>)?.any { it !is GedcomTag || it.tag != LOCATION_TAG } != false
+    }
 
     private fun facts(container: Any): List<EventFact> = when (container) {
         is Person -> container.eventsFacts.orEmpty()
@@ -235,9 +269,9 @@ object GeniMapper {
         if (UnionGroup.MARRIAGE !in keep && (previous == null || previous.marriage != union.marriage)) setEvent(family, "MARR", union.marriage)
         if (UnionGroup.DIVORCE !in keep && (previous == null || previous.divorce != union.divorce || previous.status != union.status)) {
             val date = gedcomDate(union.divorce?.date)
-            val place = place(union.divorce?.location)
-            if (date != null || place != null) setFact(family, "DIV", date = date, place = place)
-            else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y")
+            val location = LocationParts.of(union.divorce?.location)
+            if (date != null || !location.isEmpty) setFact(family, "DIV", date = date, location = location)
+            else if (union.status == "ex_spouse") setFact(family, "DIV", value = "Y", location = location)
             else removeFacts(family, "DIV")
         }
     }
