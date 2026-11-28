@@ -162,7 +162,9 @@ object LocaleNames {
     /** True for a name with notes, sources or media of its own: records Geni does not have. */
     fun hasLocalData(name: Name) = name.notes.orEmpty().isNotEmpty() || name.noteRefs.orEmpty().isNotEmpty() ||
             name.sourceCitations.orEmpty().isNotEmpty() || name.media.orEmpty().isNotEmpty() || name.mediaRefs.orEmpty().isNotEmpty() ||
-            hasOtherExtensions(name)
+            hasOtherExtensions(name) ||
+            // Name pieces this class does not write (romanization, phonetic form, other GEDCOM name parts)
+            listOf(name.romn, name.fone, name.aka, name.marriedName, name.prefix, name.given, name.surname, name.surnamePrefix).any { !it.isNullOrBlank() }
 
     /** True for an extension of the name that is not one of the tags this class writes. */
     private fun hasOtherExtensions(name: Name): Boolean = name.extensions.orEmpty().any { (key, value) ->

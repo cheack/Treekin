@@ -254,13 +254,19 @@ class GeniProfileEditor(private val activity: PersonEditorActivity) {
     }
 
     /**
-     * Writes the language list: a language the user changed is set, one that is gone or has no field left is removed
+     * Writes the language list: the fields of a language the user changed are set over the person's name, one that is gone or has no field left is removed
      * (Geni drops a language when all its fields are emptied), and an untouched one is not written, so saving again changes nothing.
      */
     private fun saveLocales(person: Person) {
         val initial = initialLocales ?: return
         val current = localeRows.mapValues { it.value.value() }.filterValues { !it.isEmpty }
-        for ((code, parts) in current) if (parts != initial[code]) LocaleNames.set(person, code, parts)
+        val now = LocaleNames.read(person)
+        for ((code, parts) in current) {
+            // Only the fields the user changed go over the person's name of that language, which Geni's sync may have changed meanwhile
+            val base = initial[code]
+            val merged = LocaleName.KEYS.fold(now[code] ?: LocaleName.EMPTY) { acc, key -> if (parts[key] != base?.get(key)) acc.with(key, parts[key]) else acc }
+            if (merged != now[code]) LocaleNames.set(person, code, merged)
+        }
         for (code in initial.keys - current.keys) LocaleNames.remove(person, code)
     }
 
