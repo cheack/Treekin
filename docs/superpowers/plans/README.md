@@ -290,13 +290,14 @@ Roadmap: [2026-11-26-geni-full-editing-roadmap.md](2026-11-26-geni-full-editing-
 
 - [x] Exact dates and places: date ranges (before, after, between), structured locations (PRs #35, #36); event descriptions are not synced, Geni drops them
 - [x] Privacy and unknown sex (`public`, `gender`; PR #37). Curator flags (`locked`, `merge_note`) stay hidden and read-only until a curator account can be checked on the sandbox
-- [ ] Names in other languages (`names` per locale)
-- [ ] Read-only Geni data on the card (email, phones, current residence, custom events, managers)
-- [ ] Adopted and foster children (`relationship_modifier`, `adopted_children`, `foster_children`)
-- [ ] Photo details, tags and main photo (`photo/update`, `tag`, `untag`, `add-mugshot` with `photo_id`, albums)
+- [x] Names in other languages (`names` per locale; [#38](https://github.com/cheack/Treekin/pull/38)); languages of a person not saved yet are sent with the next save
+- [x] Read-only Geni data on the card, email of a new relative ([#39](https://github.com/cheack/Treekin/pull/39))
+- [x] Adopted and foster children ([#41](https://github.com/cheack/Treekin/pull/41)); an existing child cannot be converted (no API call)
+- [x] Photo details, tags and main photo ([#42](https://github.com/cheack/Treekin/pull/42), [#43](https://github.com/cheack/Treekin/pull/43)); albums have no API route
 - [x] Documents ([#44](https://github.com/cheack/Treekin/pull/44), [plan](2026-11-28-geni-documents.md))
-- [x] Videos ([plan](2026-11-28-geni-videos.md))
-- [ ] Merge duplicates on Geni, follow, projects
+- [x] Videos ([#45](https://github.com/cheack/Treekin/pull/45), [plan](2026-11-28-geni-videos.md))
+- [x] Merge duplicates on Geni ([#46](https://github.com/cheack/Treekin/pull/46), [plan](2026-11-28-geni-merge.md))
+- [ ] Follow / unfollow and projects (only if wanted)
 
 ## 12. Modern UI (own screens, one at a time)
 

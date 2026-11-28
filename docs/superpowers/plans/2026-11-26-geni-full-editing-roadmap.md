@@ -6,7 +6,7 @@
 
 **Rule for every stage:** check the write and the read-back on the sandbox first. Record the response shape in the stage's plan. Only then build the UI. A field the docs list but the sandbox doesn't round-trip stays read-only.
 
-## Where we are (after PR #43)
+## Where we are (after PR #46)
 
 | Area | Synced both ways | Gap |
 |---|---|---|
@@ -16,10 +16,10 @@
 | Other profile fields | is_alive, cause of death, occupation, about me, `public` (PR #37) | `locked` and `merge_note` (read-only, never returned for a basic account), curator controls |
 | Contact data | `email` of a new relative, sent with the add (PR #39) | `email` of an existing profile, `phone_numbers` and `current_residence` stay site-only (shown read-only in "On Geni" when Geni returns them) |
 | Unions | marriage, divorce incl. date ranges and structured location (same rules as profile events) | — (lineage of each child is read from `adopted_children` / `foster_children`; PR #41) |
-| Relatives | add parent/partner/child/sibling; `relationship_modifier` (adopt / foster) when adding a child or sibling (PR #41) | change the lineage of an existing child (no API call); merge duplicates |
+| Relatives | merge a duplicate profile on Geni, or file a request (PR #46); add parent/partner/child/sibling; `relationship_modifier` (adopt / foster) when adding a child or sibling (PR #41) | change the lineage of an existing child (no API call) |
 | Photos | add, delete, read main and album; title, description and single date (PR #42); tag, untag, set an existing photo as main (PR #43) | date ranges (Geni does not store them on photos), albums (no API route), the editor is offered for every photo and a refusal by Geni shows in the backlog |
-| Documents, videos | — | everything (add, update, tag, untag, delete) |
-| Projects, follow | — | add profiles to a project, follow / unfollow |
+| Documents, videos | list, download, open or play, upload, details, tag, untag, delete (PRs #44, #45) | text of a text document (not returned), `labels` and `source_url`; video upload above 2.5 MB (Geni cut it off) |
+| Projects, follow | — | add profiles to a project, follow / unfollow (not started, only if wanted) |
 
 ## Stages
 
