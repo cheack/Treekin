@@ -106,7 +106,9 @@ class GeniLoader(
      */
     private suspend fun gone(treeId: Int, profile: GeniProfile): LoadResult {
         val link = store.link(treeId, profile.id) ?: return LoadResult.Gone(removed = false)
-        val survivor = profile.mergedInto?.let { geniId(it) }?.takeIf { store.link(treeId, it) == null }
+        val mergedInto = profile.mergedInto?.let { geniId(it) }
+        val cachedSurvivor = mergedInto?.let { store.link(treeId, it) }
+        val survivor = mergedInto?.takeIf { cachedSurvivor == null }
         var emptied = emptyList<String>()
         var name: String? = null
         val action = host.edit(treeId) { gedcom ->
@@ -129,6 +131,11 @@ class GeniLoader(
             return load(treeId, survivor)
         }
         emptied.forEach { family -> store.linkByGedcomId(treeId, family)?.let { store.deleteLink(treeId, it.geniId) } }
+        // Merged into a profile already cached: that record stays, and the tree's root moves to it if the absorbed one was the root
+        if (action == GoneAction.REMOVED && cachedSurvivor != null) {
+            store.updateRoot(treeId, profile.id, cachedSurvivor.geniId)
+            if (host.rootOf(treeId) == link.gedcomId) host.setRoot(treeId, cachedSurvivor.gedcomId)
+        }
         if (action == GoneAction.REMOVED) FeedRecords.removed(store, treeId, FeedRecordKind.GONE_ON_GENI, profile.id, name, now())
         host.refreshScreens()
         return LoadResult.Gone(removed = true)

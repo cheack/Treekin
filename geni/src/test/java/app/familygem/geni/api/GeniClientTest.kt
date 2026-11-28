@@ -355,6 +355,32 @@ class GeniClientTest {
     }
 
     @Test
+    fun mergeProfilesChecksTheAccountThenPostsOnceWithTheSameBearer() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(profileJson))
+        server.enqueue(ok(Fixtures.read("profile-merge-response.json")))
+        client().mergeProfiles("profile-36582", "profile-36583", "profile-1")
+        assertEquals("/api/profile", server.takeRequest().url.encodedPath)
+        val post = server.takeRequest()
+        assertEquals("POST", post.method)
+        assertEquals("/api/profile-36582/merge/profile-36583", post.url.encodedPath)
+        assertEquals("Bearer abc", post.headers["Authorization"])
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun mergeProfilesUnderAnotherAccountOrUnconfirmedOrNotProfilesSendsNoPost() = runTest {
+        tokens.save(AuthResult.Success("abc", 10_000L))
+        server.enqueue(ok(profileJson))
+        assertTrue(runCatching { client().mergeProfiles("profile-7", "profile-8", "profile-2") }.exceptionOrNull() is GeniAccountMismatchException)
+        assertEquals(1, server.requestCount)
+        assertTrue(runCatching { client().mergeProfiles("profile-7", "profile-8", null) }.exceptionOrNull() is GeniNotConfirmedException)
+        assertTrue(runCatching { client().mergeProfiles("profile-7", "union-8", "profile-1") }.exceptionOrNull() is IllegalArgumentException)
+        assertTrue(runCatching { client().mergeProfiles("profile-7", "profile-7", "profile-1") }.exceptionOrNull() is IllegalArgumentException)
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
     fun updatePhotoPostsTheGivenFieldsAndParsesThePhoto() = runTest {
         tokens.save(AuthResult.Success("abc", 10_000L))
         server.enqueue(ok(Fixtures.read("photo-details-single.json")))

@@ -436,6 +436,10 @@ object GeniGlue {
             GeniVideos.show(activity, treeId, geniId, person.id) { (activity as? app.familygem.profile.ProfileActivity)?.refresh() }
             true
         }
+        menu.add(R.string.geni_merge).setOnMenuItemClickListener {
+            GeniMerge.show(activity, treeId, geniId, person) { (activity as? app.familygem.profile.ProfileActivity)?.refresh() }
+            true
+        }
         menu.add(R.string.geni_keep_offline).setOnMenuItemClickListener {
             val depths = arrayOf("1", "2", "3", "4", "5")
             AlertDialog.Builder(activity)

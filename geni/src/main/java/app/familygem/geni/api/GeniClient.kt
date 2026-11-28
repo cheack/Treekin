@@ -57,6 +57,8 @@ const val PROFILE_FIELDS = "id,guid,first_name,middle_name,last_name,maiden_name
 /** IDs per batch request. */
 private const val BATCH_SIZE = 50
 
+private val PROFILE_ID = Regex("profile-\\d+")
+
 class GeniClient(
     private val baseUrl: HttpUrl,
     private val tokens: TokenStore,
@@ -323,6 +325,21 @@ class GeniClient(
         if (profileOf(session).id != confirmedBy) throw GeniAccountMismatchException()
         val form = FormBody.Builder().build()
         return execute(Request.Builder().url(apiUrl("$profileId/delete")).post(form), session = session)
+    }
+
+    /**
+     * Merges [absorbedId] into [survivorId] on Geni (`profile-A/merge/profile-B`), only under the account that confirmed it
+     * ([confirmedBy], a profile ID; null for none). Geni merges at once when the account may edit both profiles, else it may
+     * file a request: the answer alone does not say which, so the caller reads both profiles back. Pinned to one login like
+     * [deleteProfile]: another login in between sends nothing.
+     */
+    suspend fun mergeProfiles(survivorId: String, absorbedId: String, confirmedBy: String?): String {
+        require(PROFILE_ID.matches(survivorId) && PROFILE_ID.matches(absorbedId) && survivorId != absorbedId) { "not two profiles" }
+        if (confirmedBy == null) throw GeniNotConfirmedException()
+        val session = session()
+        if (profileOf(session).id != confirmedBy) throw GeniAccountMismatchException()
+        val form = FormBody.Builder().build()
+        return execute(Request.Builder().url(apiUrl("$survivorId/merge/$absorbedId")).post(form), session = session)
     }
 
     /** Raw JSON response of a GET request to an API path relative to the base, like "profile-1/immediate-family". */
