@@ -174,7 +174,7 @@ class ProfileMergerTest {
             tokens.save(AuthResult.Success("other", Long.MAX_VALUE)) // After the 429 answer, before the replay
             call.await()
         }
-        assertTrue(result != MergeResult.AccountChanged)
+        assertEquals(MergeResult.Merged, result)
         assertEquals(1, posts.size)
     }
 
